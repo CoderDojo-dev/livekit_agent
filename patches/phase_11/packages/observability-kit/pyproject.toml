@@ -1,0 +1,17 @@
+[project]
+name = "observability-kit"
+version = "0.1.0"
+description = "Shared OpenTelemetry tracer/meter setup + metric naming conventions (Blueprint section 16)."
+requires-python = ">=3.12"
+# OTel libs are optional at runtime: telemetry no-ops cleanly if they are absent or no endpoint is set.
+dependencies = [
+  "opentelemetry-sdk>=1.27",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.27",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

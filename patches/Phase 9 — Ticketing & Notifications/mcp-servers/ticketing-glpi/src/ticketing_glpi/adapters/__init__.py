@@ -1,0 +1,1 @@
+"""Ticketing adapters (mock GLPI now; real GLPI REST client later)."""

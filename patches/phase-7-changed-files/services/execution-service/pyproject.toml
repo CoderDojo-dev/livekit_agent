@@ -1,0 +1,19 @@
+[project]
+name = "execution-service"
+version = "0.1.0"
+description = "Idempotent dispatch of authorized sensitive actions to legacy adapters (CDC 4.7)."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.34.0",
+  "pydantic==2.10.4",
+  "domain-core",
+  "audit-trail",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

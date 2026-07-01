@@ -1,0 +1,1 @@
+"""Thin @function_tool facades — zero business logic; call domain services via clients."""

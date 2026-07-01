@@ -1,0 +1,1 @@
+"""OIDC integration + RBAC (conseiller/superviseur/administrateur) (Phase 11)."""

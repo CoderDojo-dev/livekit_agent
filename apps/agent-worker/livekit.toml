@@ -1,0 +1,4 @@
+# LiveKit worker config. Connection details are env-driven (Twelve-Factor); never hardcoded.
+# A transport switch (self-hosted <-> Cloud fallback) is a config change, not a code change.
+[project]
+name = "telecom-agent-worker"

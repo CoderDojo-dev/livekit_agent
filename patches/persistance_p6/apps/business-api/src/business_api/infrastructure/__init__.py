@@ -1,0 +1,1 @@
+"""Infrastructure: persistence, auth (OIDC/RBAC), eventing, jobs."""

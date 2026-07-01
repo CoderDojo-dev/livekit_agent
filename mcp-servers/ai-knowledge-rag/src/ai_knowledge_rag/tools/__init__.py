@@ -1,0 +1,1 @@
+"""MCP tools for the knowledge server (one file per tool)."""

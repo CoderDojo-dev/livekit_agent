@@ -1,0 +1,22 @@
+# OTel telemetry stack (Plane A, self-hosted). Run alongside the main compose:
+#   docker compose -f docker-compose.yml -f deploy/otel/docker-compose.yml up -d otel-collector prometheus
+# Then set OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 for the worker + services.
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    container_name: telecom-otel-collector
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus scrape endpoint
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: telecom-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"

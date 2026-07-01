@@ -1,0 +1,1 @@
+"""Worker bootstrap: env/config load, room/job entrypoint registration."""

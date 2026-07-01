@@ -1,0 +1,1 @@
+"""Session metrics hooks (TTFA/TTFT capture) + OTel span enrichment."""
