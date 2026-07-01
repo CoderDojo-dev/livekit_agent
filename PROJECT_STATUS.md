@@ -69,5 +69,7 @@ To operate the Agent Worker and successfully test live routing, your `.env` targ
 
 ## 5. Source Control
 - **Remote Repository:** [https://github.com/chouaib-saad/livekit_agent](https://github.com/chouaib-saad/livekit_agent)
-- **Primary Branch:** `main`
+- **Branches:**
+  - `main`: Core production-ready code.
+  - `version_2.0`: Latest feature updates, security hygiene patches, and infrastructure optimizations (pushed July 1, 2026).
 - **Initial Sync Date:** July 1, 2026
