@@ -64,3 +64,10 @@ To operate the Agent Worker and successfully test live routing, your `.env` targ
 
 ### D. External IT/Telecom Platforms
 - Target Endpoints and credentials aligning to your GLPI instances for testing the MCP integrations.
+
+---
+
+## 5. Source Control
+- **Remote Repository:** [https://github.com/chouaib-saad/livekit_agent](https://github.com/chouaib-saad/livekit_agent)
+- **Primary Branch:** `main`
+- **Initial Sync Date:** July 1, 2026
