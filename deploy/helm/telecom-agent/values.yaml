@@ -1,0 +1,33 @@
+# One entry per deployable; the template renders a Deployment + Service for each.
+image:
+  registry: registry.local
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+env:
+  CONNECTOR_MODE: mock
+  # DATABASE_URL / INTERNAL_API_KEY / provider keys come from the 'telecom-secrets' Secret (see secrets/)
+
+services:
+  - name: context-service
+    port: 8101
+  - name: decision-service
+    port: 8103
+  - name: policy-service
+    port: 8104
+  - name: execution-service
+    port: 8105
+  - name: notification-service
+    port: 8106
+  - name: knowledge-service
+    port: 8102
+  - name: token-service
+    port: 8107
+    public: true
+  - name: business-api
+    port: 8108
+    public: true
+
+worker:
+  name: agent-worker
+  replicas: 2

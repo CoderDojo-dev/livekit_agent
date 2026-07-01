@@ -284,16 +284,16 @@ class GlpiClient:
         """POST /apirest.php/initSession with App-Token + Authorization."""
     
     def create(self, customer_id, subject, description) -> Ticket:
-        """POST /apirest.php/Ticket with input data."""
+        """POST /apirest/Ticket with input data."""
     
     def get(self, ticket_id) -> Ticket | None:
-        """GET /apirest.php/Ticket/{id}."""
+        """GET /apirest/Ticket/{id}."""
     
     def resolve(self, ticket_id, resolution) -> Ticket | None:
-        """PUT /apirest.php/Ticket/{id} with solution."""
+        """PUT /apirest/Ticket/{id} with solution."""
     
     def list_for(self, customer_id) -> list[Ticket]:
-        """GET /apirest.php/Ticket?criteria[0][field]=..."""
+        """GET /apirest/Ticket?criteria[0][field]=..."""
 ```
 
 **Add environment variables** to the ticketing-glpi server:
@@ -1697,5 +1697,3 @@ Or remove the test entirely if it's no longer relevant.
 28. Fix typo in patches directory
 
 ---
-
-*End of Backend Engineer Report*
