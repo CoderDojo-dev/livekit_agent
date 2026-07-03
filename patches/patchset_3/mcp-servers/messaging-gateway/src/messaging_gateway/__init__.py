@@ -1,1 +1,0 @@
-"""Messaging-gateway MCP server (report #2)."""

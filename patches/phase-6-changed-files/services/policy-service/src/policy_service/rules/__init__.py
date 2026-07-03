@@ -1,1 +1,0 @@
-"""Deterministic rules: Specification objects combined by the engine (Chain of Responsibility)."""

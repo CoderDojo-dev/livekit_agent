@@ -5,13 +5,18 @@ through request_clarification so the section 10.1 "two failed clarifications" tr
 """
 from __future__ import annotations
 
+import logging
+
 from config.language_presets import GREETINGS
-from agents.base_agent import BaseTelecomAgent
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
 from tools.escalation_tools import escalate_to_manager
 from tools.routing_tools import route_to_billing, route_to_technical
+
+from agents.base_agent import BaseTelecomAgent
+
+logger = logging.getLogger(__name__)
 
 _INSTRUCTIONS = (
     "You are the first point of contact on a telecom operator's customer-support line. "
@@ -46,6 +51,7 @@ class TriageAgent(BaseTelecomAgent):
 
     async def on_enter(self) -> None:
         """Collect recording consent (once), then greet — personalized when the caller is known."""
+        logger.info("triage agent entered language=%s", self._language)
         user_data = self.session.userdata
         if user_data.recording_consent is None:
             granted = await ConsentTask(chat_ctx=self.chat_ctx)
@@ -60,4 +66,5 @@ class TriageAgent(BaseTelecomAgent):
             )
         else:
             instructions = GREETINGS.get(self._language, GREETINGS["fr"])
+        logger.info("triage greeting requested")
         self.session.generate_reply(instructions=instructions)

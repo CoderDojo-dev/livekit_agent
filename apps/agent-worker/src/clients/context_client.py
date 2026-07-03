@@ -9,11 +9,10 @@ import logging
 from functools import lru_cache
 
 import httpx
-
-from service_auth import internal_headers
-
 from config import get_settings
 from session.customer_context import CustomerContext
+
+from service_auth import internal_headers
 
 logger = logging.getLogger(__name__)
 

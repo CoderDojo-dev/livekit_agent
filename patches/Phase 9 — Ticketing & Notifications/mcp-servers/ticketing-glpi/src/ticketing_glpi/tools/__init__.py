@@ -1,1 +1,0 @@
-"""MCP tools for GLPI ticketing (one file groups the lifecycle)."""

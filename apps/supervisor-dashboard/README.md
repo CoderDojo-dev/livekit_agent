@@ -17,3 +17,8 @@ npm run dev              # http://localhost:5174
 ```
 `VITE_API_ROLE` is sent as the `X-Role` header on every request (OIDC replaces this at integration).
 Build/type-check: `npm run build` (runs `tsc` then `vite build`) or `npm run typecheck`.
+
+If Vite/Rollup reports a missing `@rollup/rollup-linux-x64-gnu` package, the dependencies were installed for a different OS. From the repository root, run:
+```bash
+bash scripts/fix_frontend_deps.sh
+```

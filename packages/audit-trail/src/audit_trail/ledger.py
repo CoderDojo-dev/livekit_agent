@@ -11,7 +11,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ class AuditEntry:
 def compute_entry_hash(previous_hash: str, payload: dict, timestamp: str) -> str:
     """sha256(previous_hash | canonical(payload) | timestamp). Canonical = sorted, compact JSON."""
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-    digest_input = f"{previous_hash}|{canonical}|{timestamp}".encode("utf-8")
+    digest_input = f"{previous_hash}|{canonical}|{timestamp}".encode()
     return hashlib.sha256(digest_input).hexdigest()
 
 
@@ -46,7 +46,7 @@ def build_entry(
     entry_id: str, session_id: str, event_type: str, payload: dict, previous_hash: str
 ) -> AuditEntry:
     """Build a chained entry linking to ``previous_hash``."""
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     entry_hash = compute_entry_hash(previous_hash, payload, timestamp)
     return AuditEntry(entry_id, session_id, event_type, payload, previous_hash, timestamp, entry_hash)
 
@@ -103,7 +103,7 @@ class PgAuditLedger:
             select(AuditLedgerEntry).order_by(AuditLedgerEntry.seq.desc()).limit(1)
         )
         previous_hash = last.entry_hash if last else GENESIS_HASH
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
         entry_hash = compute_entry_hash(previous_hash, payload, created_at.isoformat())
         row = AuditLedgerEntry(
             session_id=session_id,

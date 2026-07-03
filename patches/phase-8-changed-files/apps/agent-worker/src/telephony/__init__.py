@@ -1,1 +1,0 @@
-"""Telephony helpers (SIP transfer). Voice-only dev path does not require a SIP trunk."""

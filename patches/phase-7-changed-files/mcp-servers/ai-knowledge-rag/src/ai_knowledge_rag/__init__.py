@@ -1,1 +1,0 @@
-"""ai-knowledge-rag MCP server package."""

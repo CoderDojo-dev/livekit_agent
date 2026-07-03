@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import logging
 
-from livekit.agents import Agent
-
 from conversation.writer import sentiment_label
+from livekit.agents import Agent
 from sentiment.sentiment_scorer import get_sentiment_scorer
 
 logger = logging.getLogger(__name__)
@@ -46,9 +45,10 @@ class BaseTelecomAgent(Agent):
 
         transcript = _extract_text(new_message).strip()
         if transcript:
+            logger.info("caller_transcript=%s", transcript)
             try:
                 get_sentiment_scorer().score(transcript, user_data)
-            except Exception as exc:  # noqa: BLE001 - sentiment must never break the call
+            except Exception as exc:
                 logger.debug("sentiment scoring skipped: %s", exc)
 
             writer = getattr(user_data, "conversation_writer", None)
@@ -64,5 +64,5 @@ class BaseTelecomAgent(Agent):
             try:
                 turn_ctx.add_message(role="system", content=_DEESCALATION_NOTE)
                 logger.info("frustration high -> injected proactive de-escalation note")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.debug("frustration injection skipped: %s", exc)

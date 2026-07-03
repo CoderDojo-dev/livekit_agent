@@ -23,7 +23,7 @@ class CustomerContext:
     account_age_days: int = 0
 
     @classmethod
-    def from_snapshot(cls, data: dict) -> "CustomerContext":
+    def from_snapshot(cls, data: dict) -> CustomerContext:
         """Build from a context-service snapshot dict (ignores enrichment-only fields)."""
         return cls(
             customer_id=data["customer_id"],

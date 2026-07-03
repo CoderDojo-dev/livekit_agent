@@ -7,9 +7,15 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from livekit.agents import mcp
-
+import mcp.client.streamable_http as streamable_http
 from config import get_settings
+
+if not hasattr(streamable_http, "streamable_http_client") and hasattr(
+    streamable_http, "streamablehttp_client"
+):
+    streamable_http.streamable_http_client = streamable_http.streamablehttp_client
+
+from livekit.agents import mcp
 
 _DEFAULT_TOOLS = ("create_ticket", "get_ticket_status", "resolve_ticket", "lookup_tickets")
 

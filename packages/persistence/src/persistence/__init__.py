@@ -2,4 +2,4 @@
 from persistence.base import Base
 from persistence.engine import get_engine, get_session, get_sessionmaker, session_scope
 
-__all__ = ["Base", "get_engine", "get_sessionmaker", "get_session", "session_scope"]
+__all__ = ["Base", "get_engine", "get_session", "get_sessionmaker", "session_scope"]

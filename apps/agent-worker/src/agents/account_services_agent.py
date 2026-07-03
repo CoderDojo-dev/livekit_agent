@@ -6,9 +6,10 @@ guarded action path.
 """
 from __future__ import annotations
 
-from agents.base_agent import BaseTelecomAgent
 from tools.account_tools import change_plan, get_plan_details, toggle_roaming, top_up
 from tools.escalation_tools import escalate_to_manager
+
+from agents.base_agent import BaseTelecomAgent
 
 
 class AccountServicesAgent(BaseTelecomAgent):

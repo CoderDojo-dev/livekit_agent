@@ -74,7 +74,7 @@ def get_cache() -> Cache:
 
         _cache = RedisCache(redis.from_url(url))
         logger.info("redis cache enabled")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("redis unavailable (%s); caching disabled", exc)
         _cache = NullCache()
     return _cache

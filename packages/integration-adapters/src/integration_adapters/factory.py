@@ -11,7 +11,6 @@ from domain_core.ports.crm import CrmPort
 from domain_core.ports.nms import NmsPort
 from domain_core.ports.payment import PaymentPort
 from domain_core.ports.ticketing import TicketingPort
-
 from integration_adapters.billing_adapter import LiveBillingAdapter, MockBillingAdapter
 from integration_adapters.config import adapter_url, is_live
 from integration_adapters.crm_adapter import LiveCrmAdapter, MockCrmAdapter

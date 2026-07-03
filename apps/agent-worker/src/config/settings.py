@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     livekit_url: str = Field("ws://localhost:7880", alias="LIVEKIT_URL")
     livekit_api_key: str = Field("devkey", alias="LIVEKIT_API_KEY")
     livekit_api_secret: str = Field("devsecret_change_me", alias="LIVEKIT_API_SECRET")
+    livekit_agent_name: str = Field("telecom-agent", alias="LIVEKIT_AGENT_NAME")
 
     # --- Language scope / spike session language ---
     supported_languages: str = Field("fr,ar,en", alias="SUPPORTED_LANGUAGES")

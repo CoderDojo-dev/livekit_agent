@@ -8,10 +8,10 @@ outside apps/agent-worker/src/providers/.
 """
 from __future__ import annotations
 
-from livekit.agents import AgentSession
-
 from config.language_presets import LANGUAGE_PRESETS
 from config.settings import Settings
+from livekit.agents import AgentSession
+
 from providers.llm import build_llm
 from providers.stt import build_stt
 from providers.tts import build_tts

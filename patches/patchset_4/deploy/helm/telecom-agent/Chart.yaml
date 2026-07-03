@@ -1,6 +1,0 @@
-apiVersion: v2
-name: telecom-agent
-description: Self-hosted telecom AI voice-agent platform (report #20)
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

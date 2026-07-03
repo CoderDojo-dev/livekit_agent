@@ -4,10 +4,9 @@ Each returns (NextAgent, transition_line), preserving the one persistent AgentSe
 """
 from __future__ import annotations
 
-from livekit.agents import RunContext, function_tool
-
 from agents.billing_agent import BillingAgent
 from agents.technical_agent import TechnicalAgent
+from livekit.agents import RunContext, function_tool
 
 
 @function_tool()

@@ -42,8 +42,9 @@ def dispatch(action_type: str, payload: dict, *, customer_id: str | None = None,
 def _dispatch_live(action_type: str, payload: dict, customer_id: str | None, idempotency_key: str | None) -> str:
     import asyncio
 
-    from domain_core.value_objects import IdempotencyKey, Money
     from integration_adapters import get_balance_adapter, get_billing_adapter
+
+    from domain_core.value_objects import IdempotencyKey, Money
 
     key = IdempotencyKey(idempotency_key or uuid.uuid4().hex)
     amount = Money(Decimal(str(payload.get("amount") or 0)))
@@ -55,7 +56,7 @@ def _dispatch_live(action_type: str, payload: dict, customer_id: str | None, ide
             return f"DEF-{key.value[:10].upper()}"
         if action_type == "TOP_UP":
             return asyncio.run(get_balance_adapter().top_up(customer_id or "", amount, key))
-    except Exception as exc:  # noqa: BLE001 - surface as a synthesized ref; the ledger still records the attempt
+    except Exception as exc:
         logger.error("live dispatch failed for %s: %s", action_type, exc)
         raise
     logger.info("no live adapter for %s yet; returning synthesized reference", action_type)

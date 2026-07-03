@@ -71,3 +71,16 @@ body {
 .btn--end { background: linear-gradient(180deg, #ff5d5d, var(--red)); }
 
 .hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
+
+.events {
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  list-style-position: inside;
+  text-align: left;
+}

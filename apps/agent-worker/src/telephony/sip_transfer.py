@@ -8,10 +8,10 @@ that ends the current session, so it runs only in the telephony path and is guar
 from __future__ import annotations
 
 import logging
-
-from livekit.agents import RunContext, function_tool, get_job_context
+from contextlib import suppress
 
 from clients.routing_client import get_routing_client
+from livekit.agents import RunContext, function_tool, get_job_context
 from tasks.callback_schedule_task import CallbackScheduleTask
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,8 @@ async def transfer_to_human(context: RunContext) -> dict:
     user_data = context.session.userdata
     skill_tag = getattr(user_data, "current_persona_skill_tag", "general")
 
-    try:
+    with suppress(Exception):
         context.disallow_interruptions()  # safe once we commit to transferring [VERIFY]
-    except Exception:  # noqa: BLE001 - optional API; ignore if unavailable in this build
-        pass
     await context.session.say("Let me connect you with a human advisor. Please hold.")
 
     destination = await get_routing_client().resolve_available_advisor(skill_tag)
@@ -50,6 +48,6 @@ async def transfer_to_human(context: RunContext) -> dict:
             )
         )
         return {"outcome": "transferred", "destination": destination.sip_uri}
-    except Exception as exc:  # noqa: BLE001 - no trunk / not telephony -> callback fallback
+    except Exception as exc:
         logger.warning("SIP transfer unavailable (%s); offering a callback", exc)
         return await _offer_callback(context)

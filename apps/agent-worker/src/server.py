@@ -5,21 +5,22 @@ the worker. Conversation writes run off the voice path via ConversationWriter.
 from __future__ import annotations
 
 import logging
-
-from dotenv import load_dotenv
-from livekit import agents
-from livekit.agents import AgentServer, JobContext
+import inspect
 
 from agents.triage_agent import TriageAgent
 from clients.context_client import get_context_client
 from config import get_settings
 from conversation.writer import ConversationWriter
+from dotenv import load_dotenv
+from livekit import agents
+from livekit.agents import AgentServer, JobContext
 from observability.log_masking import install_pii_masking
 from observability.metrics_hook import attach_metrics
-from observability_kit import configure_tracer
 from providers.noise_cancellation import build_noise_cancellation
 from providers.session_factory import build_agent_session
 from session import SessionUserData
+
+from observability_kit import configure_tracer
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +28,23 @@ install_pii_masking()
 logger = logging.getLogger("agent-worker")
 
 settings = get_settings()
-server = AgentServer()
+
+
+def _build_agent_server() -> AgentServer:
+    """Create the AgentServer, naming it when the installed LiveKit SDK supports that option."""
+    agent_name = settings.livekit_agent_name.strip()
+    if agent_name:
+        try:
+            if "agent_name" in inspect.signature(AgentServer).parameters:
+                logger.info("registering LiveKit worker agent_name=%s", agent_name)
+                return AgentServer(agent_name=agent_name)
+        except (TypeError, ValueError):
+            pass
+        logger.warning("LiveKit AgentServer has no agent_name constructor option; using auto-dispatch mode")
+    return AgentServer()
+
+
+server = _build_agent_server()
 
 
 async def _prefetch_user_data(language: str) -> SessionUserData:
@@ -65,7 +82,8 @@ async def entrypoint(ctx: JobContext) -> None:
     """Assemble and start a Triage voice session for the configured language."""
     configure_tracer("agent-worker")
     language = settings.session_language
-    logger.info("starting Triage session language=%s", language)
+    room_name = getattr(ctx.room, "name", None)
+    logger.info("agent job received room=%s language=%s", room_name, language)
 
     session = build_agent_session(settings, language)
     user_data = await _prefetch_user_data(language)
@@ -98,9 +116,10 @@ async def entrypoint(ctx: JobContext) -> None:
                     audio_input=room_io.AudioInputOptions(noise_cancellation=nc),
                 ),
             )
-        except Exception as exc:  # noqa: BLE001 - isolate a fast-moving room-options API
+        except Exception as exc:
             logger.warning("noise-cancellation room options unavailable (%s); plain start", exc)
             await session.start(agent=TriageAgent(language=language), room=ctx.room)
+    logger.info("Triage session started room=%s", room_name)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ def main() -> int:
     try:
         from audit_trail import PgAuditLedger
         from persistence.engine import session_scope
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"persistence not available ({exc}); skipping")
         return 0
     with session_scope() as session:

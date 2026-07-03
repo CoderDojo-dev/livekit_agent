@@ -1,24 +1,30 @@
-# Secrets management (report #23)
+# Secrets Management
 
-`.env` is for local dev only (git-ignored). Nothing secret is baked into an image or committed.
+## Development
+Copy `.env.example` to `.env` and fill in values for local development:
 
-## Staging / prod
-- **Kubernetes**: create the `telecom-secrets` Secret the Helm chart references:
-  ```bash
-  kubectl create secret generic telecom-secrets \
-    --from-literal=DATABASE_URL=postgresql+psycopg://... \
-    --from-literal=INTERNAL_API_KEY=... \
-    --from-literal=LIVEKIT_API_SECRET=... \
-    --from-literal=DEEPGRAM_API_KEY=... --from-literal=ELEVEN_API_KEY=... \
-    --from-literal=OPENAI_API_KEY=... --from-literal=GOOGLE_API_KEY=... \
-    --from-literal=GLPI_APP_TOKEN=... --from-literal=GLPI_USER_TOKEN=... \
-    --from-literal=TWILIO_AUTH_TOKEN=...
-  ```
-  For GitOps, encrypt with **SOPS** (age/KMS) or use the **External Secrets Operator** backed by Vault.
-- **Docker Compose**: use `docker secret` (swarm) or an `env_file:` that is provisioned out-of-band and
-  never committed. `infra/docker-compose/docker-compose.yml` already reads `${...}` for every credential.
+```bash
+cp deploy/secrets/.env.example deploy/secrets/.env
+```
 
-## Rotation
-Rotate `INTERNAL_API_KEY` and all provider keys on a schedule; the services read them from the
-environment at boot, so rotation is a rolling restart. Never log secret values (the PII masker + the
-audit ledger both avoid persisting them).
+Docker Compose reads the `.env` file automatically.
+
+## Staging / Production
+
+### Option A: Docker Secrets (Swarm)
+Define secrets in `docker-compose.yml` under the `secrets:` top-level key and reference
+them in each service. Never embed secrets in environment variables directly.
+
+### Option B: Kubernetes Secrets
+The Helm chart (`infra/helm/telecom-platform/templates/secrets.yaml`) creates a
+`telecom-platform-secrets` Secret from Helm values. In production, use SealedSecrets
+or External Secrets Operator with Vault/AWS Secrets Manager.
+
+### Option C: HashiCorp Vault
+Services authenticate via their Kubernetes service account and fetch secrets from
+Vault at startup. The agent-worker and services use the Vault agent sidecar.
+
+## Key rotation
+- Rotate `INTERNAL_API_KEY` quarterly
+- Rotate database passwords on each staging/prod deploy
+- LiveKit API key/secret: rotate monthly

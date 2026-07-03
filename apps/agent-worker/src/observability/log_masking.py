@@ -21,7 +21,7 @@ class PiiMaskingFilter(logging.Filter):
         try:
             record.msg = self._masker.mask(record.getMessage())
             record.args = ()
-        except Exception:  # noqa: BLE001 - logging must never raise
+        except Exception:
             pass
         return True
 

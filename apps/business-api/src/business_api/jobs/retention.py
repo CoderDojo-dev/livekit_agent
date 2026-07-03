@@ -6,14 +6,15 @@ purge itself is part of the tamper-evident record. Supports dry_run for safe ins
 """
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+from object_storage import get_store
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
-from object_storage import get_store
 from persistence.models.conversation import CallSession, Turn
 
 _PURGED = "[purged]"
@@ -31,7 +32,7 @@ class RetentionReport:
 
 def cutoff_date(retention_days: int, now: datetime | None = None) -> datetime:
     """The boundary before which data is purged/anonymized."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     return now - timedelta(days=retention_days)
 
 
@@ -57,10 +58,8 @@ def run_retention(session: Session, retention_days: int = 90, dry_run: bool = Tr
                     CallSession.id.in_(old_ids), CallSession.audio_record_url.is_not(None)
                 )
             ):
-                try:
+                with suppress(Exception):
                     store.delete(url)
-                except Exception:  # noqa: BLE001 - best-effort blob purge; pointer is cleared regardless
-                    pass
         session.execute(update(CallSession).where(CallSession.id.in_(old_ids)).values(audio_record_url=None))
         PgAuditLedger(session).append(
             None, "data_retention",

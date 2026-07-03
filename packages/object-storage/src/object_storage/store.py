@@ -78,7 +78,7 @@ def get_store() -> ObjectStore:
             client.make_bucket(bucket)
         _store = MinioStore(client, bucket, endpoint, secure)
         logger.info("minio object storage enabled (bucket=%s)", bucket)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("minio unavailable (%s); recording storage disabled", exc)
         _store = NullStore()
     return _store

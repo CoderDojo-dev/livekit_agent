@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import os
-
 import re
 from dataclasses import dataclass
 
@@ -100,6 +99,6 @@ def get_retriever():
 
             collection = os.getenv("QDRANT_COLLECTION", "telecom_knowledge")
             return QdrantRetriever(QdrantClient(url=url), collection, _openai_embedder())
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("qdrant unavailable (%s); falling back to lexical retriever", exc)
     return LexicalRetriever()

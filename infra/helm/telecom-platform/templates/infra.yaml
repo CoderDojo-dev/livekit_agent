@@ -1,0 +1,137 @@
+{{- $infra := list
+  (dict "name" "livekit-server" "image" (printf "%s:%s" .Values.livekit.image.repository .Values.livekit.image.tag) "port" 7880 "args" "--dev --bind 0.0.0.0" )
+  (dict "name" "redis" "image" (printf "%s:%s" .Values.redis.image.repository .Values.redis.image.tag) "port" 6379)
+  (dict "name" "qdrant" "image" (printf "%s:%s" .Values.qdrant.image.repository .Values.qdrant.image.tag) "port" 6333)
+  (dict "name" "minio" "image" (printf "%s:%s" .Values.minio.image.repository .Values.minio.image.tag) "port" .Values.minio.port "args" "server /data --console-address \":9001\"" "env" (dict "MINIO_ROOT_USER" "minioadmin" "MINIO_ROOT_PASSWORD" "minioadmin"))
+-}}
+{{- range $svc := $infra }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" $ | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $svc.name }}
+    spec:
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ $svc.image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port }}
+              protocol: TCP
+          {{- with $svc.args }}
+          args: {{ . | quote }}
+          {{- end }}
+          {{- with $svc.env }}
+          env:
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- end }}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ $svc.name }}
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+      protocol: TCP
+{{- end }}
+
+---
+# Postgres (with persistent volume)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.postgres.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.global.postgres.user }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.global.postgres.password }}
+            - name: POSTGRES_DB
+              value: {{ .Values.global.postgres.database }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: telecom-platform
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.postgres.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: {{ .Values.postgres.port }}
+      targetPort: {{ .Values.postgres.port }}
+      protocol: TCP

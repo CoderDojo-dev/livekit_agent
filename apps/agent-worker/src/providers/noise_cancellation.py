@@ -19,6 +19,6 @@ def build_noise_cancellation(enabled: bool):
         from livekit.plugins import noise_cancellation
 
         return noise_cancellation.BVC()
-    except Exception as exc:  # noqa: BLE001 - optional dependency / Cloud feature
+    except Exception as exc:
         logger.warning("noise cancellation requested but unavailable: %s", exc)
         return None

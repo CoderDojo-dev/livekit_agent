@@ -9,7 +9,7 @@ undo the action ledger or the audit chain. Defensive: missing data logs and skip
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -86,7 +86,7 @@ def _payment(session: Session, req, ledger_row) -> None:
         gateway_reference=ledger_row.adapter_reference,
         idempotency_key=req.idempotency_key,
         status="succeeded",
-        paid_at=datetime.now(timezone.utc),
+        paid_at=datetime.now(UTC),
     ))
 
 
@@ -141,7 +141,7 @@ def _sim_case(session: Session, req, ledger_row) -> None:
 
 
 def _provisioning(session: Session, req, ledger_row) -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     sid = to_uuid(req.subscription_id)
     session.add(ProvisioningRequest(
@@ -152,7 +152,7 @@ def _provisioning(session: Session, req, ledger_row) -> None:
         idempotency_key=req.idempotency_key,
         policy_verdict_id=to_uuid(req.policy_verdict_id),
         parameters=req.payload,
-        completed_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(UTC),
     ))
     if req.action_type == "CHANGE_PLAN" and sid is not None:
         session.add(PlanChangeHistory(

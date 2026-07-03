@@ -49,7 +49,7 @@ class Customer(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     region: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'active'"), index=True)
 
-    subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="customer")
+    subscriptions: Mapped[list[Subscription]] = relationship(back_populates="customer")
 
 
 class Subscription(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
@@ -70,7 +70,7 @@ class Subscription(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     roaming_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     activation_date: Mapped[datetime.date | None] = mapped_column(Date)
 
-    customer: Mapped["Customer"] = relationship(back_populates="subscriptions")
+    customer: Mapped[Customer] = relationship(back_populates="subscriptions")
 
 
 class ConsentRecord(UUIDPrimaryKey, Base):

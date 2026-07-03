@@ -1,0 +1,125 @@
+# App-tier services (diagnostic #8). Use WITH the infra compose:
+#   docker compose -f infra/docker-compose/docker-compose.yml -f infra/docker-compose/docker-compose.apps.yml up -d --build
+# Build context is the repo root (two levels up from this file).
+services:
+  context-service:
+    build:
+      context: ../..
+      dockerfile: services/context-service/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8101:8101"]
+    restart: unless-stopped
+  knowledge-service:
+    build:
+      context: ../..
+      dockerfile: services/knowledge-service/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8102:8102"]
+    restart: unless-stopped
+  decision-service:
+    build:
+      context: ../..
+      dockerfile: services/decision-service/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8103:8103"]
+    restart: unless-stopped
+  policy-service:
+    build:
+      context: ../..
+      dockerfile: services/policy-service/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8104:8104"]
+    restart: unless-stopped
+  execution-service:
+    build:
+      context: ../..
+      dockerfile: services/execution-service/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8105:8105"]
+    restart: unless-stopped
+  notification-service:
+    build:
+      context: ../..
+      dockerfile: services/notification-service/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8106:8106"]
+    restart: unless-stopped
+  token-service:
+    build:
+      context: ../..
+      dockerfile: apps/token-service/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+      LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-telecom-agent}"
+    depends_on: [postgres]
+    ports: ["8107:8107"]
+    restart: unless-stopped
+  business-api:
+    build:
+      context: ../..
+      dockerfile: apps/business-api/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8108:8108"]
+    restart: unless-stopped
+  ai-knowledge-rag:
+    build:
+      context: ../..
+      dockerfile: mcp-servers/ai-knowledge-rag/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8201:8201"]
+    restart: unless-stopped
+  ticketing-glpi:
+    build:
+      context: ../..
+      dockerfile: mcp-servers/ticketing-glpi/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8202:8202"]
+    restart: unless-stopped
+  messaging-gateway:
+    build:
+      context: ../..
+      dockerfile: mcp-servers/messaging-gateway/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on: [postgres]
+    ports: ["8203:8203"]
+    restart: unless-stopped
+  agent-worker:
+    build:
+      context: ../..
+      dockerfile: apps/agent-worker/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+      LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-telecom-agent}"
+    depends_on: [postgres, context-service, decision-service, policy-service, execution-service]
+    restart: unless-stopped

@@ -3,7 +3,6 @@
 Kept thin on purpose: the notification-service owns channel selection, localization and the durable
 log; this MCP just exposes an agent-callable surface for ad-hoc outbound messages.
 """
-from __future__ import annotations
 
 import os
 

@@ -38,8 +38,8 @@ def test_chain_is_linear_with_one_root() -> None:
 def test_all_models_register_on_metadata() -> None:
     from sqlalchemy.orm import configure_mappers
 
-    from persistence.base import Base
     import persistence.models  # noqa: F401
+    from persistence.base import Base
 
     configure_mappers()
     schemas = {name.split(".")[0] for name in Base.metadata.tables}

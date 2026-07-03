@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from domain_core.ports.payment import PaymentPort
 from domain_core.value_objects import IdempotencyKey, Money
-
 from integration_adapters._http import post_json
 
 

@@ -4,10 +4,9 @@ changing the tools. Tickets become Postgres/GLPI-backed in the persistence phase
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 
 import httpx
-
-from dataclasses import dataclass
 
 
 @dataclass
@@ -63,7 +62,7 @@ class LiveGlpiClient:
         self._app = app_token
         self._user = user_token
 
-    def _headers(self, client: "httpx.Client") -> dict:
+    def _headers(self, client: httpx.Client) -> dict:
         r = client.get("/initSession", headers={
             "App-Token": self._app, "Authorization": f"user_token {self._user}",
         })

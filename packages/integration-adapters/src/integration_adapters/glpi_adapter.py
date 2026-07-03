@@ -6,7 +6,6 @@ import uuid
 
 from domain_core.entities import Ticket
 from domain_core.ports.ticketing import TicketingPort
-
 from integration_adapters._http import get_json, post_json
 
 
@@ -31,7 +30,7 @@ class LiveGlpiAdapter(TicketingPort):
     async def get_ticket_status(self, ticket_id: str) -> Ticket | None:
         try:
             data = await get_json(self._base, f"/tickets/{ticket_id}")
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
         return Ticket(ticket_id=ticket_id, glpi_id=data.get("glpi_id"),
                       subject=data.get("subject", ""), status=data.get("status", "new"),

@@ -6,7 +6,6 @@ from typing import Any
 
 from domain_core.ports.billing import BillingPort
 from domain_core.value_objects import IdempotencyKey, Money
-
 from integration_adapters._http import get_json, post_json
 
 

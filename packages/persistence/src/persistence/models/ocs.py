@@ -7,11 +7,10 @@ from __future__ import annotations
 
 import datetime
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
-from typing import TYPE_CHECKING
-
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
@@ -43,8 +42,8 @@ class BalanceAccount(UUIDPrimaryKey, Base):
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    subscription: Mapped["Subscription"] = relationship("Subscription")
-    customer: Mapped["Customer"] = relationship("Customer")
+    subscription: Mapped[Subscription] = relationship("Subscription")
+    customer: Mapped[Customer] = relationship("Customer")
 
 
 class Recharge(UUIDPrimaryKey, Base):

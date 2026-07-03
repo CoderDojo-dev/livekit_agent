@@ -4,14 +4,19 @@ version = "0.1.0"
 description = "Mandatory, audited verdict checkpoint (CDC 4.6). Verdicts persisted to Postgres."
 requires-python = ">=3.12"
 dependencies = [
+  "sqlalchemy>=2.0,<2.1",
   "service-auth",
   "fastapi==0.115.6",
   "uvicorn[standard]==0.34.0",
   "pydantic==2.10.4",
+  "pydantic-settings==2.7.1",
   "domain-core",
   "audit-trail",
   "persistence",
 ]
+
+[project.scripts]
+policy-service = "policy_service.main:run"
 
 [build-system]
 requires = ["setuptools>=68"]

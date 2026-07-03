@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pii_shield import PiiMasker
 
@@ -51,7 +51,7 @@ class ConversationWriter:
                 if item is None:
                     break
                 await asyncio.to_thread(self._write, item)
-            except Exception as exc:  # noqa: BLE001 - persistence must never break a call
+            except Exception as exc:
                 logger.warning("conversation write dropped (%s): %s", (item or {}).get("kind"), exc)
             finally:
                 self._queue.task_done()
@@ -108,7 +108,7 @@ class ConversationWriter:
         from persistence.util import to_uuid
 
         self._session_db_id = str(uuid.uuid4())
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = datetime.now(UTC)
         self._enqueue("session_start", {
             "id": uuid.UUID(self._session_db_id),
             "customer_id": to_uuid(customer_id),
@@ -171,7 +171,7 @@ class ConversationWriter:
             "session_id": uuid.UUID(self._session_db_id),
             "customer_id": to_uuid(customer_id),
             "subscription_id": to_uuid(subscription_id),
-            "scheduled_time": scheduled_time or (datetime.now(timezone.utc) + timedelta(hours=24)),
+            "scheduled_time": scheduled_time or (datetime.now(UTC) + timedelta(hours=24)),
             "priority_level": priority,
         })
 
@@ -193,7 +193,7 @@ class ConversationWriter:
         """Close the call record (end time, duration, disposition, peak frustration)."""
         if self._session_db_id is None:
             return
-        end = datetime.now(timezone.utc)
+        end = datetime.now(UTC)
         duration = int((end - (self._start_time or end)).total_seconds())
         self._queue.put_nowait({
             "kind": "session_finish",
@@ -214,5 +214,5 @@ class ConversationWriter:
         if self._task is not None:
             try:
                 await asyncio.wait_for(self._task, timeout=10)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 self._task.cancel()

@@ -5,14 +5,12 @@ runs them in a threadpool (DB calls never block the event loop).
 """
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi import Depends
-from service_auth import require_internal_key
-from sqlalchemy.orm import Session
-
 import os
+from typing import Annotated
 
 from cache import get_cache
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy.orm import Session
 
 from context_service.repositories import CrmRepository
 from context_service.schemas import (
@@ -24,9 +22,11 @@ from context_service.schemas import (
     VerifyIdentityResponse,
 )
 from persistence import get_session
+from service_auth import require_internal_key
 
 app = FastAPI(title="context-service", dependencies=[Depends(require_internal_key)])
 _cache = get_cache()
+DbSession = Annotated[Session, Depends(get_session)]
 
 
 @app.get("/health")
@@ -36,7 +36,7 @@ async def health() -> dict:
 
 
 @app.get("/internal/context/resolve", response_model=ResolveIdentityResponse)
-def resolve_identity(msisdn: str, session: Session = Depends(get_session)) -> ResolveIdentityResponse:
+def resolve_identity(msisdn: str, session: DbSession) -> ResolveIdentityResponse:
     """Resolve a caller MSISDN to canonical UUIDs (spec section 16.2) — the only place this happens."""
     cache_key = f"ctx:resolve:{msisdn}"
     cached = _cache.get(cache_key)
@@ -56,7 +56,7 @@ def resolve_identity(msisdn: str, session: Session = Depends(get_session)) -> Re
 
 
 @app.get("/context/{msisdn}", response_model=Customer360)
-def get_context(msisdn: str, session: Session = Depends(get_session)) -> Customer360:
+def get_context(msisdn: str, session: DbSession) -> Customer360:
     """Return the Customer-360 snapshot for a caller MSISDN (404 if unknown)."""
     snapshot = CrmRepository(session).build_customer360(msisdn)
     if snapshot is None:
@@ -66,22 +66,29 @@ def get_context(msisdn: str, session: Session = Depends(get_session)) -> Custome
 
 @app.post("/verify-identity", response_model=VerifyIdentityResponse)
 def verify_identity(
-    req: VerifyIdentityRequest, session: Session = Depends(get_session)
+    req: VerifyIdentityRequest, session: DbSession
 ) -> VerifyIdentityResponse:
     """Check a step-up identity answer server-side; the secret never leaves this service."""
     return VerifyIdentityResponse(verified=CrmRepository(session).verify_identity(req.customer_id, req.answer))
 
 
 @app.get("/billing/{customer_id}/invoices", response_model=InvoiceListResponse)
-def get_invoices(customer_id: str, session: Session = Depends(get_session)) -> InvoiceListResponse:
+def get_invoices(customer_id: str, session: DbSession) -> InvoiceListResponse:
     """Return the customer's invoices (read-only consultation, CDC section 5.1)."""
     return InvoiceListResponse(invoices=CrmRepository(session).get_invoices(customer_id))
 
 
 @app.get("/balance/{customer_id}", response_model=Balance)
-def get_balance(customer_id: str, session: Session = Depends(get_session)) -> Balance:
+def get_balance(customer_id: str, session: DbSession) -> Balance:
     """Return the customer's prepaid balance (404 if none on file)."""
     balance = CrmRepository(session).get_balance(customer_id)
     if balance is None:
         raise HTTPException(status_code=404, detail="no balance on file")
     return balance
+
+
+def run() -> None:
+    """Console-script entrypoint: `context-service` (see [project.scripts]). Serves on :8101."""
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8101)

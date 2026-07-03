@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -49,7 +49,7 @@ def mirror_create(glpi_ticket_id: str, customer_id: str | None, subject: str | N
                 status="open",
                 priority=priority,
             ))
-    except Exception as exc:  # noqa: BLE001 - mirror must never break ticket creation
+    except Exception as exc:
         logger.warning("ticket mirror create failed (%s): %s", glpi_ticket_id, exc)
 
 
@@ -65,8 +65,8 @@ def mirror_resolve(glpi_ticket_id: str) -> None:
             row = session.scalar(select(Ticket).where(Ticket.glpi_ticket_id == glpi_ticket_id))
             if row is not None:
                 row.status = "resolved"
-                row.last_synced_at = datetime.now(timezone.utc)
-    except Exception as exc:  # noqa: BLE001
+                row.last_synced_at = datetime.now(UTC)
+    except Exception as exc:
         logger.warning("ticket mirror resolve failed (%s): %s", glpi_ticket_id, exc)
 
 
@@ -83,7 +83,7 @@ def read_status(glpi_ticket_id: str) -> dict | None:
             if row is None:
                 return None
             return {"ticket_id": row.glpi_ticket_id, "status": row.status, "subject": row.subject}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("ticket mirror read failed (%s): %s", glpi_ticket_id, exc)
         return None
 
@@ -103,6 +103,6 @@ def read_for_customer(customer_id: str) -> list[dict] | None:
         with session_scope() as session:
             rows = session.scalars(select(Ticket).where(Ticket.customer_id == cid))
             return [{"ticket_id": r.glpi_ticket_id, "status": r.status, "subject": r.subject} for r in rows]
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("ticket mirror list failed (%s): %s", customer_id, exc)
         return None

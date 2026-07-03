@@ -3,7 +3,6 @@
 Proxies to the knowledge-service /search. Returns passages each carrying a 'source' so the
 agent can cite it.
 """
-from __future__ import annotations
 
 import os
 

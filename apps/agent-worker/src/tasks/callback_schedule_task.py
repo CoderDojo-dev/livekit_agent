@@ -5,9 +5,8 @@ exit criterion "callback with written confirmation" is fully closed.
 """
 from __future__ import annotations
 
-from livekit.agents import AgentTask, function_tool
-
 from clients.notification_client import get_notification_client
+from livekit.agents import AgentTask, function_tool
 
 
 class CallbackScheduleTask(AgentTask[bool]):

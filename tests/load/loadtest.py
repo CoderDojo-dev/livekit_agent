@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import statistics
 import time
+from contextlib import suppress
 
 import httpx
 
@@ -25,10 +26,8 @@ async def _worker(client: httpx.AsyncClient, url: str, queue: asyncio.Queue, lat
         except asyncio.QueueEmpty:
             return
         start = time.perf_counter()
-        try:
+        with suppress(httpx.HTTPError):
             await client.get(url)
-        except httpx.HTTPError:
-            pass
         latencies.append((time.perf_counter() - start) * 1000.0)
         queue.task_done()
 

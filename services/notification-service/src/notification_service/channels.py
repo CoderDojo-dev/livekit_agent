@@ -112,7 +112,7 @@ def _live_channel(name: str) -> NotificationChannel | None:
             return TwilioChannel("whatsapp", os.getenv("TWILIO_WHATSAPP_FROM", ""))
         if name == "email" and os.getenv("SMTP_HOST"):
             return SmtpEmailChannel()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("live channel %s unavailable (%s); using mock", name, exc)
     return None
 

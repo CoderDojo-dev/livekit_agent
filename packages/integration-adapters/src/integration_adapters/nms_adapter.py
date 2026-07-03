@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import Any
 
 from domain_core.ports.nms import NmsPort
-
 from integration_adapters._http import get_json
 
 

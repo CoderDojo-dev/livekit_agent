@@ -5,4 +5,4 @@ returns a `NullStore` whose `put` returns None and whose `delete` is a no-op.
 """
 from object_storage.store import MinioStore, NullStore, ObjectStore, get_store
 
-__all__ = ["ObjectStore", "NullStore", "MinioStore", "get_store"]
+__all__ = ["MinioStore", "NullStore", "ObjectStore", "get_store"]

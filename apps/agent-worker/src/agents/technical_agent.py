@@ -5,15 +5,15 @@ issue (the caller then gets a written confirmation) and resolve it if solved dur
 """
 from __future__ import annotations
 
-from livekit.agents import Agent, RunContext, function_tool
-from agents.base_agent import BaseTelecomAgent
-
+from livekit.agents import RunContext, function_tool
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from mcp_clients.ticketing_toolset import build_ticketing_toolset
 from tools import outcomes
 from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
+
+from agents.base_agent import BaseTelecomAgent
 
 
 @function_tool()

@@ -6,10 +6,8 @@ caller is given the confirmation reference. Deferral runs the same façade.
 """
 from __future__ import annotations
 
-from livekit.agents import Agent, RunContext, function_tool
-from agents.base_agent import BaseTelecomAgent
-
 from clients.context_client import get_context_client
+from livekit.agents import RunContext, function_tool
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from tasks.payment_confirm_task import PaymentConfirmTask
 from tools import outcomes
@@ -17,6 +15,8 @@ from tools.billing_tools import get_balance_summary, get_invoice_summary
 from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
+
+from agents.base_agent import BaseTelecomAgent
 
 
 @function_tool()

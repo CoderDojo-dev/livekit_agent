@@ -1,0 +1,74 @@
+{{- $global := .Values.global -}}
+{{- $services := list
+  (dict "name" "context-service"    "port" 8101 "replicas" .Values.contextService.replicaCount    "image" .Values.contextService.image.repository    "probePath" "/health")
+  (dict "name" "knowledge-service"  "port" 8102 "replicas" .Values.knowledgeService.replicaCount  "image" .Values.knowledgeService.image.repository  "probePath" "/health")
+  (dict "name" "decision-service"   "port" 8103 "replicas" .Values.decisionService.replicaCount   "image" .Values.decisionService.image.repository   "probePath" "/health")
+  (dict "name" "policy-service"     "port" 8104 "replicas" .Values.policyService.replicaCount     "image" .Values.policyService.image.repository     "probePath" "/health")
+  (dict "name" "execution-service"  "port" 8105 "replicas" .Values.executionService.replicaCount  "image" .Values.executionService.image.repository  "probePath" "/health")
+  (dict "name" "notification-service" "port" 8106 "replicas" .Values.notificationService.replicaCount "image" .Values.notificationService.image.repository "probePath" "/health")
+  (dict "name" "token-service"      "port" 8107 "replicas" .Values.tokenService.replicaCount      "image" .Values.tokenService.image.repository      "probePath" "/health")
+  (dict "name" "business-api"       "port" 8108 "replicas" .Values.businessApi.replicaCount       "image" .Values.businessApi.image.repository       "probePath" "/health")
+-}}
+{{- range $svc := $services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $svc.name }}
+    spec:
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ $global.imageRegistry }}/{{ $svc.image }}:{{ $global.imageTag }}
+          imagePullPolicy: {{ $global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port }}
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: telecom-platform-secrets
+          readinessProbe:
+            httpGet:
+              path: {{ $svc.probePath }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: {{ $svc.probePath }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ $svc.name }}
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+      protocol: TCP
+{{- end }}

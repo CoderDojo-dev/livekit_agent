@@ -5,10 +5,9 @@ import logging
 from functools import lru_cache
 
 import httpx
+from config import get_settings
 
 from service_auth import internal_headers
-
-from config import get_settings
 
 logger = logging.getLogger(__name__)
 

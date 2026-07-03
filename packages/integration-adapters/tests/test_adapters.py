@@ -4,9 +4,9 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 
-from domain_core.value_objects import IdempotencyKey, Money
-
 from integration_adapters import get_billing_adapter, get_nms_adapter, get_ticketing_adapter
+
+from domain_core.value_objects import IdempotencyKey, Money
 
 
 def test_factory_defaults_to_mock(monkeypatch) -> None:

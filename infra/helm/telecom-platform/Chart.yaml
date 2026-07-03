@@ -1,0 +1,6 @@
+apiVersion: v2
+name: telecom-platform
+description: Telecom AI Voice Agent Platform — Helm chart for K8s deployment
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

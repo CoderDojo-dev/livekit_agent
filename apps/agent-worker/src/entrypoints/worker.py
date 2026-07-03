@@ -4,7 +4,6 @@ both `python -m server console` and `python -m entrypoints.worker console` run t
 from __future__ import annotations
 
 from livekit import agents
-
 from server import server
 
 

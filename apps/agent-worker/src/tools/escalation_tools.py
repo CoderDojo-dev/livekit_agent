@@ -1,9 +1,8 @@
 """Escalation hand-off (Blueprint section 7). Reused by every persona; records the case (P3)."""
 from __future__ import annotations
 
-from livekit.agents import RunContext, function_tool
-
 from agents.manager_agent import ManagerAgent
+from livekit.agents import RunContext, function_tool
 
 
 def _trigger_for(user_data) -> str:

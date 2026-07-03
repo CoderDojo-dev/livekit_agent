@@ -42,7 +42,7 @@ def attach_metrics(session):
                 ttfa = time.time() - eou.timestamp  # EOUMetrics.timestamp is confirmed
                 logger.info("time_to_first_audio_seconds=%.3f", ttfa)
                 record_ttfa(ttfa)  # export time-to-first-audio
-            except Exception as exc:  # noqa: BLE001 - never let metrics break the call
+            except Exception as exc:
                 logger.debug("ttfa computation skipped: %s", exc)
 
     async def log_usage() -> None:

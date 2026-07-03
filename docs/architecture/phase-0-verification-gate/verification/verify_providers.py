@@ -63,7 +63,7 @@ async def _round_trip(language: str) -> bool:
     Returns True if both the decided primary providers respond for ``language``.
     Imports plugins lazily so the dry-run path needs no SDK installed.
     """
-    from livekit.plugins import deepgram, elevenlabs  # noqa: WPS433  (lazy, spike-only)
+    from livekit.plugins import deepgram, elevenlabs
 
     text = _SAMPLE_TEXT[language]
     tts_choice = pm.TTS_ROUTING[language].primary

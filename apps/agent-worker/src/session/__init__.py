@@ -2,4 +2,4 @@
 from session.customer_context import CustomerContext
 from session.session_state import SessionUserData
 
-__all__ = ["SessionUserData", "CustomerContext"]
+__all__ = ["CustomerContext", "SessionUserData"]

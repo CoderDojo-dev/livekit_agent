@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import logging
 
-from audit_trail import PgAuditLedger
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from audit_trail import PgAuditLedger
 from execution_service.executor import dispatch, target_domain
 from execution_service.projections import project_domain_effect
 from execution_service.schemas import ExecuteRequest, ExecuteResponse
@@ -71,7 +71,7 @@ class ExecutionService:
         try:
             with self._session.begin_nested():
                 project_domain_effect(self._session, req, row)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("domain projection failed (%s): %s", req.action_type, exc)
 
         self._session.commit()

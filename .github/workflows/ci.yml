@@ -5,9 +5,28 @@ on:
     branches: [ main ]
   pull_request:
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_TAG: ${{ github.sha }}
+
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tooling
+        run: pip install ruff mypy
+      - name: Lint (ruff)
+        run: ruff check . || true
+      - name: Type check (mypy)
+        run: mypy packages/ services/ apps/ || true
+
   test:
     runs-on: ubuntu-latest
+    needs: [lint]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,13 +34,11 @@ jobs:
           python-version: "3.12"
       - name: Install shared packages + tooling
         run: |
-          python -m pip install --upgrade pip ruff
+          pip install --upgrade pip
           pip install ./packages/domain-core ./packages/persistence ./packages/audit-trail \
                       ./packages/pii-shield ./packages/observability-kit ./packages/service-auth \
                       ./packages/cache ./packages/object-storage ./packages/notification-client \
                       ./packages/integration-adapters
-      - name: Lint (ruff)
-        run: ruff check . || true   # advisory until the tree is fully clean
       - name: Offline test suite
         run: |
           set -e
@@ -32,8 +49,6 @@ jobs:
                      apps/business-api ; do
             echo "== $pkg ==" ; ( cd "$pkg" && pip install -q . && python -m pytest -q ) || exit 1
           done
-      - name: Audit-chain verify (self-check)
-        run: python deploy/backup/verify_audit_chain.py || true   # requires DATABASE_URL in staging
 
   db-migrations:
     runs-on: ubuntu-latest
@@ -62,3 +77,89 @@ jobs:
           alembic upgrade head
           python -m seed.seed_pilot
           python -m seed.seed_reference
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [test, db-migrations]
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service:
+          - context-service
+          - decision-service
+          - policy-service
+          - execution-service
+          - knowledge-service
+          - notification-service
+          - token-service
+          - business-api
+          - agent-worker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ env.IMAGE_TAG }},${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:latest
+
+  docker-build-apps:
+    runs-on: ubuntu-latest
+    needs: [test, db-migrations]
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service:
+          - token-service
+          - business-api
+          - agent-worker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ env.IMAGE_TAG }},${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:latest
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: [docker-build, docker-build-apps]
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service:
+          - context-service
+          - decision-service
+          - policy-service
+          - execution-service
+          - knowledge-service
+          - notification-service
+          - token-service
+          - business-api
+          - agent-worker
+    steps:
+      - name: Run Trivy scanner
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ env.IMAGE_TAG }}
+          format: sarif
+          output: trivy-results.sarif
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif

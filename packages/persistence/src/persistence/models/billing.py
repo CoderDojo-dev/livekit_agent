@@ -6,11 +6,10 @@ from __future__ import annotations
 
 import datetime
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, text
 from sqlalchemy.dialects.postgresql import UUID
-from typing import TYPE_CHECKING
-
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
@@ -38,8 +37,8 @@ class Account(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     currency_code: Mapped[str] = mapped_column(String(3), nullable=False, server_default=text("'TND'"))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'active'"))
 
-    customer: Mapped["Customer"] = relationship("Customer")
-    invoices: Mapped[list["Invoice"]] = relationship(back_populates="account")
+    customer: Mapped[Customer] = relationship("Customer")
+    invoices: Mapped[list[Invoice]] = relationship(back_populates="account")
 
 
 class Invoice(UUIDPrimaryKey, Timestamps, Base):
@@ -69,9 +68,9 @@ class Invoice(UUIDPrimaryKey, Timestamps, Base):
     currency_code: Mapped[str] = mapped_column(String(3), nullable=False, server_default=text("'TND'"))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'issued'"), index=True)
 
-    account: Mapped["Account"] = relationship(back_populates="invoices")
-    customer: Mapped["Customer"] = relationship("Customer")
-    items: Mapped[list["InvoiceItem"]] = relationship(back_populates="invoice", cascade="all, delete-orphan")
+    account: Mapped[Account] = relationship(back_populates="invoices")
+    customer: Mapped[Customer] = relationship("Customer")
+    items: Mapped[list[InvoiceItem]] = relationship(back_populates="invoice", cascade="all, delete-orphan")
 
 
 class InvoiceItem(UUIDPrimaryKey, Base):
@@ -90,7 +89,7 @@ class InvoiceItem(UUIDPrimaryKey, Base):
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    invoice: Mapped["Invoice"] = relationship(back_populates="items")
+    invoice: Mapped[Invoice] = relationship(back_populates="items")
 
 
 class Payment(UUIDPrimaryKey, Timestamps, Base):

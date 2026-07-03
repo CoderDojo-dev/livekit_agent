@@ -1,5 +1,5 @@
 """Importing this package registers every table on Base.metadata (used by Alembic)."""
-from persistence.models import (  # noqa: F401
+from persistence.models import (
     audit,
     billing,
     conversation,
@@ -15,6 +15,16 @@ from persistence.models import (  # noqa: F401
 )
 
 __all__ = [
-    "crm", "billing", "ocs", "policy", "execution", "audit",
-    "conversation", "sim", "ticketing", "reference", "oss", "provisioning",
+    "audit",
+    "billing",
+    "conversation",
+    "crm",
+    "execution",
+    "ocs",
+    "oss",
+    "policy",
+    "provisioning",
+    "reference",
+    "sim",
+    "ticketing",
 ]

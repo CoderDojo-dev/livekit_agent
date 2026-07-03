@@ -34,7 +34,7 @@ class NotificationService:
         if os.getenv("DATABASE_URL"):
             try:
                 await asyncio.to_thread(self._persist, req)
-            except Exception as exc:  # noqa: BLE001 - logging must never break a send
+            except Exception as exc:
                 logger.warning("notification log write skipped: %s", exc)
 
         return NotifyResponse(sent=True, reference=reference, channel=req.channel)

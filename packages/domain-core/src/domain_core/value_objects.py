@@ -4,10 +4,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 
-class Language(str, Enum):
+class Language(StrEnum):
     """Supported conversation languages (Blueprint ADR section 5.7)."""
 
     FR = "fr"
@@ -15,7 +15,7 @@ class Language(str, Enum):
     EN = "en"
 
 
-class Channel(str, Enum):
+class Channel(StrEnum):
     """Client communication channels (CDC section 2.3)."""
 
     VOICE = "voice"
@@ -25,7 +25,7 @@ class Channel(str, Enum):
     EMAIL = "email"
 
 
-class Verdict(str, Enum):
+class Verdict(StrEnum):
     """The deterministic Policy engine's three-way verdict (CDC section 4.6)."""
 
     AUTHORIZED = "authorized"
@@ -33,7 +33,7 @@ class Verdict(str, Enum):
     ESCALATE = "escalate"
 
 
-class Sentiment(str, Enum):
+class Sentiment(StrEnum):
     """Per-turn emotional state (CDC section 4.2)."""
 
     SATISFIED = "satisfied"
@@ -42,7 +42,7 @@ class Sentiment(str, Enum):
     ANGRY = "angry"
 
 
-class EscalationReason(str, Enum):
+class EscalationReason(StrEnum):
     """Why a conversation is handed to a human (CDC sections 5.12 / 6.4)."""
 
     CUSTOMER_REQUEST = "customer_request"

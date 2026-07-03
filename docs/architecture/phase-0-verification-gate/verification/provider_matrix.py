@@ -40,7 +40,7 @@ class Chain:
         return (self.primary, *self.fallbacks)
 
 
-# --- Verified language support (each entry is doc-sourced; see DR-0 §1–§2) ---------------
+# --- Verified language support (each entry is doc-sourced; see DR-0 sections 1-2) --------
 # provider -> component -> frozenset of language codes verified as supported.
 
 VERIFIED_SUPPORT: dict[str, dict[str, frozenset[str]]] = {

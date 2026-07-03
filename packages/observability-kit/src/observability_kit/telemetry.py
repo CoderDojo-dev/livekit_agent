@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import suppress
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ try:  # OTel SDK is optional
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
     _OTEL_AVAILABLE = True
-except Exception:  # noqa: BLE001 - any import problem -> no-op telemetry
+except Exception:
     _OTEL_AVAILABLE = False
 
 _METRIC_PREFIX = "telecom.agent"
@@ -76,37 +77,29 @@ def record_ttfa(seconds: float, language: str | None = None) -> None:
     """Record a time-to-first-audio observation (no-op until configured)."""
     histogram = _instruments.get("ttfa")
     if histogram is not None:
-        try:
+        with suppress(Exception):
             histogram.record(seconds, {"language": language or "unknown"})
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def record_ttft(seconds: float, language: str | None = None) -> None:
     """Record a time-to-first-token observation (no-op until configured)."""
     histogram = _instruments.get("ttft")
     if histogram is not None:
-        try:
+        with suppress(Exception):
             histogram.record(seconds, {"language": language or "unknown"})
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def incr_fallback(component: str) -> None:
     """Count a provider fallback activation for ``component`` (stt/llm/tts)."""
     counter = _instruments.get("fallback")
     if counter is not None:
-        try:
+        with suppress(Exception):
             counter.add(1, {"component": component})
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def incr_escalation(trigger: str) -> None:
     """Count an escalation, labelled by trigger."""
     counter = _instruments.get("escalation")
     if counter is not None:
-        try:
+        with suppress(Exception):
             counter.add(1, {"trigger": trigger})
-        except Exception:  # noqa: BLE001
-            pass

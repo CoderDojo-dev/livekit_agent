@@ -6,7 +6,6 @@ English with a note that 'the others should be similar'.
 from __future__ import annotations
 
 import pytest
-
 from sentiment.sentiment_scorer import LexicalSentimentScorer
 from session.session_state import SessionUserData
 

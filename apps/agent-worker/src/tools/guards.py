@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import logging
 
-from livekit.agents import RunContext
-
 from clients.context_client import get_context_client
+from livekit.agents import RunContext
 from tasks.identity_verification_task import IdentityVerificationTask
 
 logger = logging.getLogger(__name__)

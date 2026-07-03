@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.otelCollector.replicaCount }}
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: {{ .Values.otelCollector.image.repository }}:{{ .Values.otelCollector.image.tag }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.otelCollector.port }}
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: telecom-platform
+  labels: {{ include "telecom.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: otel-collector
+  ports:
+    - port: {{ .Values.otelCollector.port }}
+      targetPort: {{ .Values.otelCollector.port }}
+      protocol: TCP

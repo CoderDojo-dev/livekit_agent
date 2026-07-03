@@ -5,11 +5,10 @@ escalated issue is tracked and the caller gets a written confirmation.
 """
 from __future__ import annotations
 
-from livekit.agents import Agent
-from agents.base_agent import BaseTelecomAgent
-
 from mcp_clients.ticketing_toolset import build_ticketing_toolset
 from telephony.sip_transfer import transfer_to_human
+
+from agents.base_agent import BaseTelecomAgent
 
 
 class ManagerAgent(BaseTelecomAgent):

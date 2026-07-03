@@ -4,8 +4,6 @@ GLPI (mock) remains the source of truth; a durable Postgres mirror (spec section
 on create/resolve and read on status/lookup, falling back to the in-memory mock when no database
 is configured. create_ticket also asks the notification-service to text a written confirmation.
 """
-from __future__ import annotations
-
 import asyncio
 import os
 

@@ -24,7 +24,7 @@ def _service() -> _EngineShim:
 
 
 def _ctx(**over) -> PolicyContext:
-    base = dict(action_type="PAYMENT_DEFERRAL", identity_verified=True, account_age_days=400)
+    base = {"action_type": "PAYMENT_DEFERRAL", "identity_verified": True, "account_age_days": 400}
     base.update(over)
     return PolicyContext(**base)
 

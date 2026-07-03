@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from contextlib import suppress
 
 import httpx
 
@@ -20,7 +21,7 @@ try:
 
     import psutil
     _proc = psutil.Process(os.getpid())
-except Exception:  # noqa: BLE001
+except Exception:
     _proc = None
 
 
@@ -32,10 +33,8 @@ async def run(url: str, iterations: int) -> None:
     start_rss = _rss_mb()
     async with httpx.AsyncClient(timeout=10.0) as client:
         for i in range(iterations):
-            try:
+            with suppress(httpx.HTTPError):
                 await client.get(url)
-            except httpx.HTTPError:
-                pass
             if i and i % 1000 == 0:
                 print(f"iter={i} rss={_rss_mb()}MB")
     end_rss = _rss_mb()

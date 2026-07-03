@@ -1,1 +1,0 @@
-"""ticketing-glpi MCP server package."""

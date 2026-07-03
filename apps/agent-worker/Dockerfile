@@ -9,4 +9,4 @@ RUN pip install ./packages/domain-core ./packages/persistence ./packages/audit-t
 COPY apps/agent-worker/ ./apps/agent-worker/
 RUN pip install ./apps/agent-worker
 USER app
-CMD ["python", "src/server.py", "start"]
+CMD ["python", "apps/agent-worker/src/server.py", "start"]

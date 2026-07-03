@@ -13,10 +13,10 @@ from integration_adapters.factory import (
 )
 
 __all__ = [
-    "get_billing_adapter",
     "get_balance_adapter",
-    "get_payment_adapter",
+    "get_billing_adapter",
     "get_crm_adapter",
     "get_nms_adapter",
+    "get_payment_adapter",
     "get_ticketing_adapter",
 ]

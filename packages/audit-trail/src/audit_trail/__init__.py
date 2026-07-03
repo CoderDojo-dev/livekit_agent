@@ -10,10 +10,10 @@ from audit_trail.ledger import (
 )
 
 __all__ = [
+    "GENESIS_HASH",
     "AuditEntry",
     "AuditLedger",
     "PgAuditLedger",
-    "GENESIS_HASH",
     "build_entry",
     "compute_entry_hash",
     "verify_chain",

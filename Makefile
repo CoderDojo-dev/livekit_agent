@@ -1,18 +1,62 @@
-COMPOSE = docker compose -f infra/docker-compose/docker-compose.yml
+# Telecom AI Voice Agent — one place to install, run, verify (diagnostic #1, #7, #9).
+SHELL := /bin/bash
+PACKAGES := domain-core persistence audit-trail pii-shield observability-kit service-auth cache object-storage notification-client integration-adapters
+SERVICES := services/context-service services/knowledge-service services/decision-service services/policy-service services/execution-service services/notification-service apps/token-service apps/business-api
+MCP := mcp-servers/ai-knowledge-rag mcp-servers/ticketing-glpi mcp-servers/messaging-gateway
+INFRA := infra/docker-compose/docker-compose.yml
+APPS := infra/docker-compose/docker-compose.apps.yml
+export DATABASE_URL ?= postgresql+psycopg://telecom:telecom@localhost:15432/telecom
+PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; elif [ -x .venv/Scripts/python.exe ]; then echo .venv/Scripts/python.exe; elif command -v python3 >/dev/null 2>&1; then echo python3; else echo python; fi)
+PIP := $(PYTHON) -m pip
+UVICORN := $(PYTHON) -m uvicorn
 
-.PHONY: up down logs ps fmt
+.DEFAULT_GOAL := help
+.PHONY: help install infra infra-livekit migrate seed dev up down health live-logs test frontends frontends-clean
 
-up:
-	$(COMPOSE) up -d
+help:  ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
 
-down:
-	$(COMPOSE) down
+install:  ## Install packages (correct order) + services + MCP + honcho (editable)
+	$(PIP) install honcho
+	$(PIP) install $(addprefix -e ./packages/,$(PACKAGES))
+	$(PIP) install $(addprefix -e ./,$(SERVICES)) $(addprefix -e ./,$(MCP)) -e ./apps/agent-worker
+	@echo "→ frontends: run 'make frontends'"
 
-logs:
-	$(COMPOSE) logs -f
+frontends:  ## npm install both web apps
+	cd apps/supervisor-dashboard && npm install
+	cd apps/client-widget && npm install
 
-ps:
-	$(COMPOSE) ps
+frontends-clean:  ## Reinstall frontend deps for the current OS (fixes Rollup optional deps)
+	cd apps/supervisor-dashboard && rm -rf node_modules && npm install
+	cd apps/client-widget && rm -rf node_modules && npm install
 
-fmt:
-	ruff check --fix . || true
+infra:  ## Start infrastructure containers (postgres/redis/qdrant/minio/otel)
+	docker compose -f $(INFRA) up -d
+
+infra-livekit:  ## Also start the self-hosted LiveKit server (SKIP if using LiveKit Cloud)
+	docker compose -f $(INFRA) --profile self-hosted-livekit up -d
+
+migrate:  ## Apply DB migrations (alembic upgrade head)
+	cd packages/persistence && $(PYTHON) -m alembic upgrade head
+
+seed:  ## Seed pilot callers + reference catalogs
+	cd packages/persistence && $(PYTHON) -m seed.seed_pilot && $(PYTHON) -m seed.seed_reference
+
+dev: install infra migrate seed  ## ONE COMMAND: install + infra + migrate + seed, then run everything (honcho)
+	@echo "Starting all app processes via honcho (Ctrl-C to stop all)…"
+	honcho start
+
+up:  ## Full container path: infra + every app service via compose (builds images)
+	docker compose -f $(INFRA) -f $(APPS) up -d --build
+
+down:  ## Stop everything (infra + apps + optional livekit)
+	docker compose -f $(INFRA) -f $(APPS) --profile self-hosted-livekit down
+
+health:  ## Probe every service /health
+	$(PYTHON) scripts/health_check.py
+
+live-logs:  ## Follow token-service + agent-worker logs during a browser call
+	docker compose -f $(INFRA) -f $(APPS) logs -f --tail=120 token-service agent-worker
+
+test:  ## Run the offline test suite across packages/services
+	$(PYTHON) scripts/run_tests.py

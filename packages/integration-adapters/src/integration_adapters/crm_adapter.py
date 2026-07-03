@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from domain_core.entities import Client
 from domain_core.ports.crm import CrmPort
-
 from integration_adapters._http import get_json
 
 
@@ -30,11 +29,11 @@ class LiveCrmAdapter(CrmPort):
     async def get_client_by_msisdn(self, msisdn: str) -> Client | None:
         try:
             return _to_client(await get_json(self._base, "/clients", {"msisdn": msisdn}))
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
 
     async def get_client_by_id(self, customer_id: str) -> Client | None:
         try:
             return _to_client(await get_json(self._base, f"/clients/{customer_id}"))
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None

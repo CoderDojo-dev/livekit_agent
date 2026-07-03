@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import logging
 
-from livekit.agents import RunContext
-
 from clients.decision_client import get_decision_client
 from clients.execution_client import get_execution_client
 from clients.policy_client import get_policy_client
 from config import get_settings
+from livekit.agents import RunContext
+
 from tools import outcomes
 
 logger = logging.getLogger(__name__)

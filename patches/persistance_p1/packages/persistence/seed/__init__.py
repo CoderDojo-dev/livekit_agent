@@ -1,1 +1,0 @@
-"""Pilot seed (FK-safe, UUID-resolved at load time per spec section 20)."""

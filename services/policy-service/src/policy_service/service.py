@@ -6,9 +6,9 @@ is threaded to the execution-service so no action exists without a verdict (spec
 """
 from __future__ import annotations
 
-from audit_trail import PgAuditLedger
 from sqlalchemy.orm import Session
 
+from audit_trail import PgAuditLedger
 from persistence.models.policy import PolicyVerdict
 from persistence.util import require_uuid, to_uuid
 from policy_service.config import PolicyThresholds

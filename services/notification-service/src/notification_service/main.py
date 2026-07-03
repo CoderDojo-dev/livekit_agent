@@ -1,12 +1,11 @@
 """notification-service entrypoint (CDC section 4.10): outbound written confirmations."""
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi import Depends
-from service_auth import require_internal_key
+from fastapi import Depends, FastAPI
 
 from notification_service.schemas import NotifyRequest, NotifyResponse
 from notification_service.service import NotificationService
+from service_auth import require_internal_key
 
 app = FastAPI(title="notification-service", dependencies=[Depends(require_internal_key)])
 _service = NotificationService()
@@ -28,3 +27,10 @@ async def notify(req: NotifyRequest) -> NotifyResponse:
 async def sent() -> dict:
     """List confirmations sent so far (demo/inspection)."""
     return {"sent": _service.sent}
+
+
+def run() -> None:
+    """Console-script entrypoint: `notification-service` (see [project.scripts]). Serves on :8106."""
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8106)

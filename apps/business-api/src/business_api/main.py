@@ -6,6 +6,7 @@ the audit ledger; the integrity job only verifies it.
 from __future__ import annotations
 
 import os
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,11 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-Role"],
 )
 
+DbSession = Annotated[Session, Depends(get_session)]
+ConseillerRole = Annotated[str, Depends(require_role("conseiller"))]
+SuperviseurRole = Annotated[str, Depends(require_role("superviseur"))]
+AdministrateurRole = Annotated[str, Depends(require_role("administrateur"))]
+
 
 @app.get("/health")
 async def health() -> dict:
@@ -34,8 +40,7 @@ async def health() -> dict:
 
 
 @app.get("/api/v1/customers/{customer_id}/360")
-def customer_360(customer_id: str, session: Session = Depends(get_session),
-                 role: str = Depends(require_role("conseiller"))) -> dict:
+def customer_360(customer_id: str, session: DbSession, role: ConseillerRole) -> dict:
     """Full Customer-360 (profile + subscriptions + open invoices + tickets)."""
     data = SupervisionRepository(session).customer_360(customer_id)
     if data is None:
@@ -44,8 +49,7 @@ def customer_360(customer_id: str, session: Session = Depends(get_session),
 
 
 @app.get("/api/v1/sessions/{session_id}")
-def session_detail(session_id: str, session: Session = Depends(get_session),
-                   role: str = Depends(require_role("conseiller"))) -> dict:
+def session_detail(session_id: str, session: DbSession, role: ConseillerRole) -> dict:
     """Masked transcript + sentiment timeline + disposition for a call session."""
     data = SupervisionRepository(session).session_detail(session_id)
     if data is None:
@@ -54,52 +58,49 @@ def session_detail(session_id: str, session: Session = Depends(get_session),
 
 
 @app.get("/api/v1/escalations")
-def escalations(status: str = "open", session: Session = Depends(get_session),
-                role: str = Depends(require_role("superviseur"))) -> dict:
+def escalations(session: DbSession, role: SuperviseurRole, status: str = "open") -> dict:
     """Escalation queue with dossiers."""
     return {"escalations": SupervisionRepository(session).escalations(status)}
 
 
 @app.get("/api/v1/policy/verdicts")
-def verdicts(session_id: str, session: Session = Depends(get_session),
-             role: str = Depends(require_role("superviseur"))) -> dict:
+def verdicts(session_id: str, session: DbSession, role: SuperviseurRole) -> dict:
     """All policy verdicts for a session (audit review)."""
     return {"verdicts": SupervisionRepository(session).verdicts(session_id)}
 
 
 @app.get("/api/v1/actions")
-def actions(status: str = "failed", session: Session = Depends(get_session),
-            role: str = Depends(require_role("superviseur"))) -> dict:
+def actions(session: DbSession, role: SuperviseurRole, status: str = "failed") -> dict:
     """Failed / retrying actions from the action ledger."""
     return {"actions": SupervisionRepository(session).actions(status)}
 
 
 @app.get("/api/v1/kpis")
-def kpis(session: Session = Depends(get_session),
-         role: str = Depends(require_role("superviseur"))) -> dict:
+def kpis(session: DbSession, role: SuperviseurRole) -> dict:
     """Containment / escalation KPIs over the persisted conversation record."""
     return SupervisionRepository(session).kpis().__dict__
 
 
 @app.get("/api/v1/audit/verify")
-def audit_verify(from_seq: int | None = None, to_seq: int | None = None,
-                 session: Session = Depends(get_session),
-                 role: str = Depends(require_role("administrateur"))) -> dict:
+def audit_verify(
+    session: DbSession,
+    role: AdministrateurRole,
+    from_seq: int | None = None,
+    to_seq: int | None = None,
+) -> dict:
     """Run the hash-chain integrity check (whole chain; range is a later refinement)."""
     ledger = PgAuditLedger(session)
     return {"intact": ledger.verify(), "entries": ledger.count()}
 
 
 @app.get("/api/v1/reference/business-rules")
-def business_rules(session: Session = Depends(get_session),
-                   role: str = Depends(require_role("administrateur"))) -> dict:
+def business_rules(session: DbSession, role: AdministrateurRole) -> dict:
     """List the versioned Policy rule registry."""
     return {"rules": SupervisionRepository(session).business_rules()}
 
 
 @app.get("/api/v1/jobs/integrity")
-def integrity(session: Session = Depends(get_session),
-              role: str = Depends(require_role("administrateur"))) -> dict:
+def integrity(session: DbSession, role: AdministrateurRole) -> dict:
     """Cross-domain referential integrity + audit-chain verification (spec section 20.4)."""
     report = run_integrity(session)
     return {
@@ -109,8 +110,18 @@ def integrity(session: Session = Depends(get_session),
 
 
 @app.post("/api/v1/jobs/retention")
-def retention(retention_days: int = 90, dry_run: bool = True,
-              session: Session = Depends(get_session),
-              role: str = Depends(require_role("administrateur"))) -> dict:
+def retention(
+    session: DbSession,
+    role: AdministrateurRole,
+    retention_days: int = 90,
+    dry_run: bool = True,
+) -> dict:
     """Run the audited retention/purge job (dry_run=True by default) - spec section 8.3."""
     return run_retention(session, retention_days=retention_days, dry_run=dry_run).__dict__
+
+
+def run() -> None:
+    """Console-script entrypoint: `business-api` (see [project.scripts]). Serves on :8108."""
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8108)

@@ -5,9 +5,8 @@ the Decision -> Policy -> Execution façade. These tools only read, via the cont
 """
 from __future__ import annotations
 
-from livekit.agents import RunContext, function_tool
-
 from clients.context_client import get_context_client
+from livekit.agents import RunContext, function_tool
 
 
 @function_tool()
