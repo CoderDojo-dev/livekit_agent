@@ -9,7 +9,7 @@ dependencies = [
   "audit-trail",
   "persistence",
   "livekit-agents[deepgram,elevenlabs,azure,openai,google,silero,turn-detector,gladia,cartesia]==1.6.3",
-  "mcp>=1.12,<2",
+  "mcp>=1.0.0,<1.12",
   "pydantic==2.10.4",
   "pydantic-settings==2.7.1",
   "httpx==0.28.1",

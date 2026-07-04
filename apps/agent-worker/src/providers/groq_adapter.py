@@ -41,7 +41,7 @@ class GroqLLM(lk_openai.LLM):
         self,
         *,
         api_key: str,
-        model: str = "llama3-8b-8192",
+        model: str = "llama-3.1-8b-instant",
         timeout: float = 30.0,
     ) -> None:
         if not api_key:

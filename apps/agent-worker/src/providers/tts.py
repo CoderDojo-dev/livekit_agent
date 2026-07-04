@@ -39,14 +39,17 @@ def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: 
         voice_id:      ElevenLabs voice ID (env: ELEVEN_VOICE_ID).
         break_primary: Chaos toggle — forces primary failure for resilience tests.
     """
-    # --- Primary: ElevenLabs ---
-    primary = elevenlabs.TTS(
-        model=chaos_model(model, break_primary),
-        voice_id=voice_id,
-        language=preset["tts_iso"],
-    )
-
-    providers: list = [primary]
+    # --- Primary: ElevenLabs (skipped if no key) ---
+    eleven_key = os.getenv("ELEVEN_API_KEY", "")
+    providers: list = []
+    if eleven_key:
+        providers.append(
+            elevenlabs.TTS(
+                model=chaos_model(model, break_primary),
+                voice_id=voice_id,
+                language=preset["tts_iso"],
+            )
+        )
 
     # --- Optional fallback: Cartesia (skipped if no key) ---
     cartesia_key = os.getenv("CARTESIA_API_KEY", "")

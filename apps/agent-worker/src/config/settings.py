@@ -39,9 +39,10 @@ class Settings(BaseSettings):
     deepgram_tts_model: str = Field("aura-asteria-en", alias="DEEPGRAM_TTS_MODEL")
     deepgram_tts_voice: str = Field("aura-asteria-en", alias="DEEPGRAM_TTS_VOICE")
 
-    # --- LLM chain: Gemini 2.5 Flash primary, OpenAI GPT-4o-mini fallback ---
-    llm_primary_model: str = Field("gemini-2.5-flash-latest", alias="LLM_PRIMARY_MODEL")
+    # --- LLM chain: Gemini 3.5 Flash primary, OpenAI GPT-4o-mini fallback ---
+    llm_primary_model: str = Field("gemini-2.5-flash", alias="LLM_PRIMARY_MODEL")
     llm_fallback_model: str = Field("gpt-4o-mini", alias="LLM_FALLBACK_MODEL")
+    openai_enabled: bool = Field(True, alias="OPENAI_ENABLED")
 
     # --- Optional NVIDIA NIM fallback LLM (single key, no pool) ---
     nvidia_api_key: str = Field("", alias="NVIDIA_API_KEY")
@@ -50,7 +51,7 @@ class Settings(BaseSettings):
 
     # --- Optional Groq fallback LLM (single key, no pool) ---
     groq_api_key: str = Field("", alias="GROQ_API_KEY")
-    groq_model: str = Field("llama3-8b-8192", alias="GROQ_MODEL")
+    groq_model: str = Field("llama-3.1-8b-instant", alias="GROQ_MODEL")
     groq_timeout_s: float = Field(30.0, alias="GROQ_TIMEOUT_S")
 
     # --- Optional Gladia STT (additional fallback after Azure) ---
