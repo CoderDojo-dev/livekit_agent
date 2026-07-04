@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Internal MCP server: knowledge_search (RAG/FAQ). Read-only, low-risk, reusable."
 requires-python = ">=3.12"
 dependencies = [
-  "mcp>=1.12,<2",
+  "mcp>=1.0.0,<2",
   "httpx==0.28.1",
 ]
 

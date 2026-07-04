@@ -46,15 +46,16 @@ def build_llm(primary_model: str, fallback_model: str, break_primary: bool = Fal
         nvidia_timeout = float(os.getenv("NVIDIA_TIMEOUT_S", "45.0"))
         providers.append(NvidiaLLM(api_key=nvidia_key, model=nvidia_model, timeout=nvidia_timeout))
 
-    # --- Fallback 3: OpenAI GPT (optional) ---
+    # --- Fallback 3: OpenAI GPT (optional, skippable via OPENAI_ENABLED) ---
     openai_key = os.getenv("OPENAI_API_KEY", "")
-    if openai_key:
+    openai_enabled = os.getenv("OPENAI_ENABLED", "true").lower() in ("true", "1", "yes")
+    if openai_key and openai_enabled:
         providers.append(openai.LLM(model=fallback_model))
 
     # --- Fallback 4: Groq (optional) ---
     groq_key = os.getenv("GROQ_API_KEY", "")
     if groq_key:
-        groq_model = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+        groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
         groq_timeout = float(os.getenv("GROQ_TIMEOUT_S", "30.0"))
         providers.append(GroqLLM(api_key=groq_key, model=groq_model, timeout=groq_timeout))
 
