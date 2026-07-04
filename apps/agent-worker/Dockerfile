@@ -8,6 +8,10 @@ COPY packages/ ./packages/
 RUN pip install ./packages/domain-core ./packages/persistence ./packages/audit-trail ./packages/pii-shield ./packages/observability-kit ./packages/service-auth ./packages/cache ./packages/object-storage ./packages/notification-client ./packages/integration-adapters
 COPY apps/agent-worker/ ./apps/agent-worker/
 RUN pip install ./apps/agent-worker
-RUN python -m livekit.agents download-files
+
+# Switch to the 'app' user before downloading models so they are stored in
+# the app user's home directory (~/.cache) and are accessible at runtime.
 USER app
+RUN python -m livekit.agents download-files
+
 CMD ["python", "apps/agent-worker/src/server.py", "start"]

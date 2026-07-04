@@ -40,7 +40,7 @@ def build_stt(preset: dict[str, str], model: str = "nova-3", break_primary: bool
     if gladia_key:
         providers.append(
             gladia.STT(
-                language=preset["gladia_language"],
+                languages=[preset["gladia_language"]],
                 api_key=gladia_key,
             )
         )
