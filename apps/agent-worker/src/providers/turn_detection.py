@@ -10,4 +10,5 @@ from __future__ import annotations
 
 def build_turn_detector():
     """Return the audio-native turn detector (Phase 3)."""
-    raise NotImplementedError("wired in Phase 3; see VERIFY note above")
+    from livekit.plugins.turn_detector.multilingual import MultilingualModel
+    return MultilingualModel()

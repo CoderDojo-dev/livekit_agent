@@ -8,5 +8,6 @@ COPY packages/ ./packages/
 RUN pip install ./packages/domain-core ./packages/persistence ./packages/audit-trail ./packages/pii-shield ./packages/observability-kit ./packages/service-auth ./packages/cache ./packages/object-storage ./packages/notification-client ./packages/integration-adapters
 COPY apps/agent-worker/ ./apps/agent-worker/
 RUN pip install ./apps/agent-worker
+RUN python -m livekit.agents download-files
 USER app
 CMD ["python", "apps/agent-worker/src/server.py", "start"]
