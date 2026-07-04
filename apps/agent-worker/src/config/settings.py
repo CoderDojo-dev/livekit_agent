@@ -30,12 +30,35 @@ class Settings(BaseSettings):
 
     # --- STT primary (Deepgram) ---
     stt_model: str = Field("nova-3", alias="STT_MODEL")
+
     # --- TTS primary (ElevenLabs Flash v2.5) ---
     tts_model: str = Field("eleven_flash_v2_5", alias="TTS_MODEL")
     eleven_voice_id: str = Field("EXAVITQu4vr4xnSDxMaL", alias="ELEVEN_VOICE_ID")
-    # --- LLM chain (OpenAI primary, Gemini fallback) [verify model ids] ---
-    llm_primary_model: str = Field("gpt-4.1-mini", alias="LLM_PRIMARY_MODEL")
-    llm_fallback_model: str = Field("gemini-2.0-flash", alias="LLM_FALLBACK_MODEL")
+
+    # --- Deepgram TTS (optional — if livekit-plugins-deepgram adds TTS support) ---
+    deepgram_tts_model: str = Field("aura-asteria-en", alias="DEEPGRAM_TTS_MODEL")
+    deepgram_tts_voice: str = Field("aura-asteria-en", alias="DEEPGRAM_TTS_VOICE")
+
+    # --- LLM chain: Gemini 2.5 Flash primary, OpenAI GPT-4o-mini fallback ---
+    llm_primary_model: str = Field("gemini-2.5-flash-latest", alias="LLM_PRIMARY_MODEL")
+    llm_fallback_model: str = Field("gpt-4o-mini", alias="LLM_FALLBACK_MODEL")
+
+    # --- Optional NVIDIA NIM fallback LLM (single key, no pool) ---
+    nvidia_api_key: str = Field("", alias="NVIDIA_API_KEY")
+    nvidia_model: str = Field("meta/llama-3.1-8b-instruct", alias="NVIDIA_MODEL")
+    nvidia_timeout_s: float = Field(45.0, alias="NVIDIA_TIMEOUT_S")
+
+    # --- Optional Groq fallback LLM (single key, no pool) ---
+    groq_api_key: str = Field("", alias="GROQ_API_KEY")
+    groq_model: str = Field("llama3-8b-8192", alias="GROQ_MODEL")
+    groq_timeout_s: float = Field(30.0, alias="GROQ_TIMEOUT_S")
+
+    # --- Optional Gladia STT (additional fallback after Azure) ---
+    gladia_api_key: str = Field("", alias="GLADIA_API_KEY")
+
+    # --- Optional Cartesia TTS (additional TTS option behind ElevenLabs) ---
+    cartesia_api_key: str = Field("", alias="CARTESIA_API_KEY")
+    cartesia_tts_model: str = Field("sonic-2", alias="CARTESIA_TTS_MODEL")
 
     # --- VAD / turn detection / latency ---
     vad_min_silence: float = Field(0.25, alias="VAD_MIN_SILENCE")
