@@ -12,7 +12,7 @@ UVICORN := $(PYTHON) -m uvicorn
 HONCHO := $(shell if [ -x .venv/bin/honcho ]; then echo $(CURDIR)/.venv/bin/honcho; elif [ -x .venv/Scripts/honcho.exe ]; then echo $(CURDIR)/.venv/Scripts/honcho.exe; else echo honcho; fi)
 
 .DEFAULT_GOAL := help
-.PHONY: help install infra infra-livekit create-db migrate seed dev up down health live-logs test frontends frontends-clean
+.PHONY: help install infra infra-livekit create-db migrate seed dev up down rebuild health live-logs test frontends frontends-clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
@@ -55,6 +55,10 @@ up:  ## Full container path: infra + every app service via compose (builds image
 
 down:  ## Stop everything (infra + apps + optional livekit)
 	docker compose -f $(INFRA) -f $(APPS) --profile self-hosted-livekit down
+
+rebuild: down  ## Stop + rebuild + redeploy all containers (use after code changes)
+	docker compose -f $(INFRA) -f $(APPS) up -d --build
+	@echo "→ All images rebuilt & containers running. Run 'make health' to verify."
 
 health:  ## Probe every service /health
 	$(PYTHON) scripts/health_check.py
