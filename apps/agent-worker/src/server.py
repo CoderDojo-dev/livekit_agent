@@ -18,6 +18,7 @@ from observability.log_masking import install_pii_masking
 from observability.metrics_hook import attach_metrics
 from providers.noise_cancellation import build_noise_cancellation
 from providers.session_factory import build_agent_session
+from providers.turn_detection import register_inference_runners
 from session import SessionUserData
 
 from observability_kit import configure_tracer
@@ -28,6 +29,10 @@ install_pii_masking()
 logger = logging.getLogger("agent-worker")
 
 settings = get_settings()
+
+# --- Process-wide initialisation (once, never per-job) ---
+configure_tracer("agent-worker")
+register_inference_runners()
 
 
 def _build_agent_server() -> AgentServer:
@@ -77,10 +82,9 @@ def _open_conversation(ctx: JobContext, user_data: SessionUserData) -> Conversat
     return writer
 
 
-@server.rtc_session()
+@server.rtc_session(agent_name=settings.livekit_agent_name)
 async def entrypoint(ctx: JobContext) -> None:
     """Assemble and start a Triage voice session for the configured language."""
-    configure_tracer("agent-worker")
     language = settings.session_language
     room_name = getattr(ctx.room, "name", None)
     logger.info("agent job received room=%s language=%s", room_name, language)
@@ -102,29 +106,24 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.add_shutdown_callback(_finish_conversation)
     ctx.add_shutdown_callback(attach_metrics(session))
 
-    @session.on("user_speech_committed")
-    def _on_user_speech(msg):
+    @session.on("user_input_transcribed")
+    def _on_user_transcribed(msg):
         text = getattr(msg, "text_content", "") or getattr(msg, "content", "")
         if text:
             logger.info("🎤 Caller: %s", text)
 
-    @session.on("agent_speech_committed")
-    def _on_agent_speech(msg):
-        text = getattr(msg, "text_content", "") or getattr(msg, "content", "")
-        if text:
+    @session.on("conversation_item_added")
+    def _on_conversation_item(item):
+        role = getattr(item, "role", "")
+        text = getattr(item, "text", "") or getattr(item, "content", "")
+        if role == "assistant" and text:
             logger.info("🤖 Agent: %s", text)
 
-    @session.on("function_calls_collected")
+    @session.on("function_tools_executed")
     def _on_tools(fcs):
         names = [f.function_name for f in fcs] if fcs else []
         if names:
-            logger.info("🛠️ Agent calling tools: %s", ", ".join(names))
-
-    @session.on("function_calls_finished")
-    def _on_tools_done(fcs):
-        names = [f.function_name for f in fcs] if fcs else []
-        if names:
-            logger.info("✅ Tools completed: %s", ", ".join(names))
+            logger.info("🛠️ Agent tools executed: %s", ", ".join(names))
 
     nc = build_noise_cancellation(settings.noise_cancellation)
     if nc is None:

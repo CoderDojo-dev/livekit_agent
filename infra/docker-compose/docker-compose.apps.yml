@@ -121,5 +121,12 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
       LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-telecom-agent}"
+      CONTEXT_SERVICE_URL: http://context-service:8101
+      DECISION_SERVICE_URL: http://decision-service:8103
+      POLICY_SERVICE_URL: http://policy-service:8104
+      EXECUTION_SERVICE_URL: http://execution-service:8105
+      NOTIFICATION_SERVICE_URL: http://notification-service:8106
+      KNOWLEDGE_MCP_URL: http://ai-knowledge-rag:8201/mcp
+      TICKETING_MCP_URL: http://ticketing-glpi:8202/mcp
     depends_on: [postgres, context-service, decision-service, policy-service, execution-service]
     restart: unless-stopped

@@ -1,6 +1,6 @@
 [project]
 name = "agent-worker"
-version = "0.1.0"
+version = "0.1.1"
 description = "LiveKit Agents real-time orchestrator. Thin tools; zero business logic."
 requires-python = ">=3.12"
 dependencies = [
@@ -8,9 +8,18 @@ dependencies = [
   "service-auth",
   "audit-trail",
   "persistence",
-  "livekit-agents[deepgram,elevenlabs,azure,openai,google,silero,turn-detector,gladia,cartesia]==1.6.3",
-  "mcp>=1.9,<1.10",
-  "pydantic==2.10.4",
+  "livekit-agents==1.6.3",
+  "livekit-plugins-azure>=1.6.3",
+  "livekit-plugins-cartesia>=1.6.3",
+  "livekit-plugins-deepgram>=1.6.3",
+  "livekit-plugins-elevenlabs>=1.6.3",
+  "livekit-plugins-gladia>=1.6.3",
+  "livekit-plugins-google>=1.6.3",
+  "livekit-plugins-openai>=1.6.3",
+  "livekit-plugins-silero>=1.6.3",
+  "livekit-plugins-turn-detector>=1.6.3",
+  "mcp>=1.24,<2",
+  "pydantic>=2.11.0,<3",
   "pydantic-settings==2.7.1",
   "httpx==0.28.1",
   "structlog==24.4.0",

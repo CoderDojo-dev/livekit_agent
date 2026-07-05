@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 from livekit.plugins import openai as lk_openai
 
 logger = logging.getLogger(__name__)
@@ -47,11 +48,7 @@ class NvidiaLLM(lk_openai.LLM):
     ) -> None:
         if not api_key:
             raise ValueError("NvidiaLLM requires a non-empty api_key (NVIDIA_API_KEY)")
-        logger.info("NvidiaLLM: initialising with model=%s endpoint=%s", model, NVIDIA_BASE_URL)
-        super().__init__(
-            model=model,
-            api_key=api_key,
-            base_url=NVIDIA_BASE_URL,
-            # httpx_client_options accepted by openai.LLM to set per-request timeout
-            # (the timeout kwarg may not be in older plugin versions — safe to omit)
-        )
+        logger.info("NvidiaLLM: init model=%s endpoint=%s timeout=%.0fs",
+                    model, NVIDIA_BASE_URL, timeout)
+        super().__init__(model=model, api_key=api_key, base_url=NVIDIA_BASE_URL,
+                         timeout=httpx.Timeout(timeout, connect=10.0))

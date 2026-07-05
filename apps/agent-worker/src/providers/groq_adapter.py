@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 from livekit.plugins import openai as lk_openai
 
 logger = logging.getLogger(__name__)
@@ -46,9 +47,7 @@ class GroqLLM(lk_openai.LLM):
     ) -> None:
         if not api_key:
             raise ValueError("GroqLLM requires a non-empty api_key (GROQ_API_KEY)")
-        logger.info("GroqLLM: initialising with model=%s endpoint=%s", model, GROQ_BASE_URL)
-        super().__init__(
-            model=model,
-            api_key=api_key,
-            base_url=GROQ_BASE_URL,
-        )
+        logger.info("GroqLLM: init model=%s endpoint=%s timeout=%.0fs",
+                    model, GROQ_BASE_URL, timeout)
+        super().__init__(model=model, api_key=api_key, base_url=GROQ_BASE_URL,
+                         timeout=httpx.Timeout(timeout, connect=10.0))

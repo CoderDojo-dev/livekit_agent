@@ -1,65 +1,61 @@
-"""TTS builder: ElevenLabs primary + Cartesia optional fallback + Azure final fallback.
+"""4-layer TTS chain: Cartesia sonic-3 primary + ElevenLabs + Azure + GeminiTTS.
 
-Provider chain:
-  1. elevenlabs.TTS — primary (ELEVEN_API_KEY required)
-  2. cartesia.TTS   — optional fallback (skipped when CARTESIA_API_KEY absent)
-  3. azure.TTS      — final fallback (skipped when AZURE_SPEECH_KEY absent)
+Provider chain (highest-priority first):
+  1. cartesia.TTS  — Sonic 3           [primary, CARTESIA_API_KEY required]
+  2. elevenlabs.TTS — ElevenLabs        [fallback, skipped if ELEVEN_API_KEY absent]
+  3. azure.TTS      — Azure Cognitive   [fallback, skipped if AZURE_SPEECH_KEY absent]
+  4. google.beta.GeminiTTS — GeminiTTS  [fallback, skipped if GOOGLE_API_KEY absent]
 
-NOTE on Deepgram TTS:
-  The installed LiveKit plugin bundle (livekit-agents[deepgram,...]==1.6.3) includes
-  livekit-plugins-deepgram which currently exposes only STT functionality (deepgram.STT).
-  Deepgram's Aura TTS product is available via their REST API but is NOT yet surfaced as
-  a tts.TTS-compatible object in this version of the plugin. Therefore:
-    - Deepgram is used as STT primary (see stt.py).
-    - ElevenLabs remains TTS primary (uses ELEVEN_API_KEY).
-    - Cartesia is wired as the first TTS fallback if CARTESIA_API_KEY is set.
-    - Azure is the final TTS fallback if AZURE_SPEECH_KEY is set.
-  When a future livekit-plugins-deepgram release adds deepgram.TTS, add it here as primary
-  and demote ElevenLabs to first fallback.
-
-ElevenLabs reads ELEVEN_API_KEY from the environment; language is ISO-639-1 (fr/ar/en).
+Design:
+  - cartesia.TTS receives language= so the model emits properly-accented phonemes.
+  - ElevenLabs must NOT receive language= (plugin 1.6.3 raises TypeError).
+  - GeminiTTS is the final layer — it is the cheapest and lasts the longest.
 """
 from __future__ import annotations
 
-import os
+import logging
 
 from livekit.agents import tts as tts_module
-from livekit.plugins import azure, cartesia, elevenlabs
+from livekit.plugins import azure, cartesia, elevenlabs, google
 
-from providers._resilience import chaos_model
+from config.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
-def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: bool = False):
-    """Return a TTS FallbackAdapter for the given language preset.
+def build_tts(settings: Settings) -> tts_module.TTSFallbackAdapter:
+    """Return a 4-layer TTS FallbackAdapter with Cartesia sonic-3 as primary.
 
-    Args:
-        preset:        Language preset dict from LANGUAGE_PRESETS (must contain
-                       tts_iso, azure_tts_voice, cartesia_voice_id).
-        model:         ElevenLabs model ID (env: TTS_MODEL).
-        voice_id:      ElevenLabs voice ID (env: ELEVEN_VOICE_ID).
-        break_primary: Chaos toggle — forces primary failure for resilience tests.
+    Every provider except Cartesia is key-gated — if its key is absent
+    the layer is silently skipped.
     """
-    # --- Primary: ElevenLabs (skipped if no key) ---
-    eleven_key = os.getenv("ELEVEN_API_KEY", "")
-    providers: list = []
+    cartesia_key = settings.cartesia_api_key
+    if not cartesia_key:
+        logger.warning("CARTESIA_API_KEY is empty — TTS chain has no primary!")
+
+    primary = cartesia.TTS(
+        model=settings.cartesia_tts_model,
+        api_key=cartesia_key,
+        language=settings.session_language,
+    )
+
+    providers: list = [primary]
+
+    eleven_key = settings.eleven_api_key
     if eleven_key:
+        providers.append(elevenlabs.TTS(api_key=eleven_key))
+
+    azure_key = settings.azure_speech_key
+    if azure_key:
+        providers.append(azure.TTS(speech_key=azure_key))
+
+    gemini_key = settings.google_api_key
+    if gemini_key:
         providers.append(
-            elevenlabs.TTS(
-                model=chaos_model(model, break_primary),
-                voice_id=voice_id,
-                language=preset["tts_iso"],
+            google.beta.GeminiTTS(
+                model=settings.gemini_tts_model,
+                voice=settings.gemini_tts_voice,
             )
         )
 
-    # --- Optional fallback: Cartesia (skipped if no key) ---
-    cartesia_key = os.getenv("CARTESIA_API_KEY", "")
-    if cartesia_key:
-        providers.append(
-            cartesia.TTS(
-                model=os.getenv("CARTESIA_TTS_MODEL", "sonic-2"),
-                voice=preset["cartesia_voice_id"],
-                api_key=cartesia_key,
-            )
-        )
-
-    return tts_module.FallbackAdapter(providers)
+    return tts_module.TTSFallbackAdapter(providers, attempt_timeout=12.0)
