@@ -62,9 +62,4 @@ def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: 
             )
         )
 
-    # --- Final fallback: Azure (skipped if no key) ---
-    azure_key = os.getenv("AZURE_SPEECH_KEY", "")
-    if azure_key:
-        providers.append(azure.TTS(voice=preset["azure_tts_voice"]))
-
     return tts_module.FallbackAdapter(providers)

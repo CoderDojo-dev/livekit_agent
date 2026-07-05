@@ -12,10 +12,12 @@ from livekit.agents import RunContext, function_tool
 @function_tool()
 async def route_to_billing(context: RunContext) -> tuple[BillingAgent, str]:
     """Hand off to the billing specialist for invoice, payment, or payment-deferral requests."""
+    context.session.interrupt()
     return BillingAgent(), "Let me connect you with our billing specialist."
 
 
 @function_tool()
 async def route_to_technical(context: RunContext) -> tuple[TechnicalAgent, str]:
     """Hand off to the technical specialist for SIM, network, or connectivity issues."""
+    context.session.interrupt()
     return TechnicalAgent(), "Let me connect you with our technical specialist."

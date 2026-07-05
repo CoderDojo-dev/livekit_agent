@@ -20,6 +20,7 @@ def _trigger_for(user_data) -> str:
 async def escalate_to_manager(context: RunContext) -> tuple[ManagerAgent, str]:
     """Hand off to a manager when the caller asks for a human, when the situation requires it,
     or when a persona cannot resolve the request. Records the escalation case (off the voice path)."""
+    context.session.interrupt()
     user_data = context.session.userdata
     writer = getattr(user_data, "conversation_writer", None)
     if writer is not None:

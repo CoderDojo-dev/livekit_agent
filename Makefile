@@ -55,13 +55,13 @@ dev: install infra migrate seed  ## ONE COMMAND: install + infra + migrate + see
 	$(HONCHO) start
 
 up:  ## Start all containers (infra + apps) — use 'rebuild' after code changes
-	$(DOCKER) compose -f $(INFRA) -f $(APPS) up -d
+	$(DOCKER) compose -f $(INFRA) -f $(APPS) up -d --remove-orphans
 
 down:  ## Stop everything (infra + apps + optional livekit)
-	$(DOCKER) compose -f $(INFRA) -f $(APPS) --profile self-hosted-livekit down
+	$(DOCKER) compose -f $(INFRA) -f $(APPS) --profile self-hosted-livekit down --remove-orphans
 
 rebuild: down  ## Stop + rebuild + redeploy all containers (use after code changes)
-	$(DOCKER) compose -f $(INFRA) -f $(APPS) up -d --build
+	$(DOCKER) compose -f $(INFRA) -f $(APPS) up -d --build --remove-orphans
 	@echo "→ All images rebuilt & containers running. Run 'make health' to verify."
 
 health:  ## Probe every service /health

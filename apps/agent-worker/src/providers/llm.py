@@ -59,4 +59,4 @@ def build_llm(primary_model: str, fallback_model: str, break_primary: bool = Fal
         groq_timeout = float(os.getenv("GROQ_TIMEOUT_S", "30.0"))
         providers.append(GroqLLM(api_key=groq_key, model=groq_model, timeout=groq_timeout))
 
-    return llm_module.FallbackAdapter(providers)
+    return llm_module.FallbackAdapter(providers, attempt_timeout=12.0)
