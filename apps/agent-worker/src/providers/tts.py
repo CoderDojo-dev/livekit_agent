@@ -56,8 +56,9 @@ def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: 
     if cartesia_key:
         providers.append(
             cartesia.TTS(
-                model=os.getenv("CARTESIA_TTS_MODEL", "sonic-2"),
+                model=os.getenv("CARTESIA_TTS_MODEL", "sonic-3"),
                 voice=preset["cartesia_voice_id"],
+                language=preset["tts_iso"],
                 api_key=cartesia_key,
             )
         )

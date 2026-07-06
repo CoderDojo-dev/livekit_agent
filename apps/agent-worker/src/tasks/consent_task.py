@@ -6,7 +6,11 @@ notification/compliance work; the decision itself is captured here from call sta
 """
 from __future__ import annotations
 
+import logging
+
 from livekit.agents import AgentTask, function_tool
+
+logger = logging.getLogger(__name__)
 
 
 class ConsentTask(AgentTask[bool]):
@@ -31,6 +35,7 @@ class ConsentTask(AgentTask[bool]):
     @function_tool()
     async def record_consent(self, granted: bool) -> None:
         """Record whether the caller granted consent to record the call (durable + audited)."""
+        logger.info("record_consent CALLED granted=%s", granted)
         user_data = self.session.userdata
         user_data.recording_consent = granted
         writer = getattr(user_data, "conversation_writer", None)

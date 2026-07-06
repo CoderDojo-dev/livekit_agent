@@ -26,7 +26,7 @@ LANGUAGE_PRESETS: dict[str, dict[str, str]] = {
         # TTS — Azure fallback (Neural voice name)
         "azure_tts_voice": "fr-FR-DeniseNeural",
         # TTS — Cartesia voice ID (UUID, fr-FR female voice)
-        "cartesia_voice_id": "a249eaff-1e96-4d2c-b23b-12efa4c2d4b1",
+        "cartesia_voice_id": "22f1a356-56c2-4428-bc91-2ab2e6d0c215",
     },
     "ar": {
         # STT — Deepgram primary (language="ar", single-language model — never "multi")
