@@ -108,11 +108,11 @@ async def entrypoint(ctx: JobContext) -> None:
         if text:
             logger.info("🎤 Caller: %s", text)
 
-    @session.on("agent_speech_committed")
-    def _on_agent_speech(msg):
-        text = getattr(msg, "text_content", "") or getattr(msg, "content", "")
-        if text:
-            logger.info("🤖 Agent: %s", text)
+    @session.on("conversation_item_added")
+    def _on_conversation_item(event):
+        item = event.item
+        if getattr(item, "role", None) == "assistant":
+            logger.info("🤖 Agent: %s", getattr(item, "text_content", None))
 
     @session.on("function_calls_collected")
     def _on_tools(fcs):
