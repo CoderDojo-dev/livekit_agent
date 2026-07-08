@@ -1,14 +1,16 @@
 """Account-services tools (CDC 5.6-5.8): plan details, plan change, recharge, roaming.
 
-Plan-details is a read from the pre-fetched context; the three state changes flow through the one
-guarded path (Decision -> Policy -> Execution), so they are verdict-checked, idempotent and audited
-like every other sensitive action. Returns are plain strings the persona can speak.
+Plan-details is a read from the pre-fetched context. The three state changes are identity-gated
+first, then flow through the one guarded path (Decision -> Policy -> Execution), so they are
+verdict-checked, idempotent and audited like every other sensitive action.
 """
 from __future__ import annotations
 
 from livekit.agents import RunContext, function_tool
 
+from tools import outcomes
 from tools.guarded_action import execute_guarded_action
+from tools.guards import ensure_identity_verified
 
 
 @function_tool()
@@ -22,17 +24,23 @@ async def get_plan_details(context: RunContext) -> str:
 
 @function_tool()
 async def change_plan(context: RunContext, new_plan_code: str) -> dict:
-    """Change the caller's plan to ``new_plan_code`` (sensitive: verdict-checked + audited)."""
+    """Change the caller's plan to ``new_plan_code``. Identity-gated + verdict-checked."""
+    if not await ensure_identity_verified(context):
+        return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
     return await execute_guarded_action(context, "CHANGE_PLAN", {"plan_code": new_plan_code})
 
 
 @function_tool()
 async def top_up(context: RunContext, amount: float) -> dict:
-    """Top up the caller's prepaid balance by ``amount`` TND (sensitive: verdict-checked + audited)."""
+    """Top up the caller's prepaid balance by ``amount`` TND. Identity-gated + verdict-checked."""
+    if not await ensure_identity_verified(context):
+        return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
     return await execute_guarded_action(context, "TOP_UP", {"amount": amount})
 
 
 @function_tool()
 async def toggle_roaming(context: RunContext, enable: bool) -> dict:
-    """Enable or disable roaming for the caller's line (sensitive: verdict-checked + audited)."""
+    """Enable or disable roaming for the caller's line. Identity-gated + verdict-checked."""
+    if not await ensure_identity_verified(context):
+        return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
     return await execute_guarded_action(context, "ACTIVATE_ROAMING", {"enable": enable})

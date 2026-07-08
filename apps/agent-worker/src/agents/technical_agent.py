@@ -13,6 +13,7 @@ from tools import outcomes
 from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
+from tools.technical_tools import check_network_status, diagnose_data_issue
 
 from agents.base_agent import BaseTelecomAgent
 
@@ -49,20 +50,24 @@ class TechnicalAgent(BaseTelecomAgent):
             instructions=(
                 "You handle technical issues: SIM problems, network and connectivity. "
                 "To unblock a SIM, use unblock_sim. To request a SIM replacement, use replace_sim. "
-                "For how-to/known-issue questions, call "
-                "knowledge_search with a concise ENGLISH query and answer in the caller's "
-                "language, citing the source. If an issue cannot be solved on the call, call "
-                "create_ticket (subject + short description + the caller's language) so the "
-                "caller gets a written confirmation; give them the ticket reference. If the "
-                "issue IS solved during the call, you may resolve_ticket. Keep replies short. "
+                "To diagnose a data/connectivity complaint, use diagnose_data_issue. "
+                "To check known incidents for an area, use check_network_status. "
+                "For how-to/known-issue questions, call knowledge_search with a concise "
+                "ENGLISH query and answer in the caller's language, citing the source. "
+                "If an issue cannot be solved on the call, call create_ticket "
+                "(subject + short description + the caller's language) so the caller gets "
+                "a written confirmation; give them the ticket reference. If the issue IS "
+                "solved during the call, you may resolve_ticket. Keep replies short. "
                 "NEVER claim an operation succeeded yourself - only the tool result decides. "
-                "If a result is 'refused' or 'failed', communicate its 'message' plainly; if "
-                "'escalate', call escalate_to_manager. Always reply in the caller's language."
+                "If a result is 'refused' or 'failed', communicate its 'message' plainly; "
+                "if 'escalate', call escalate_to_manager. Always reply in the caller's language."
             ),
             chat_ctx=chat_ctx,
             tools=[
                 unblock_sim,
                 replace_sim,
+                diagnose_data_issue,
+                check_network_status,
                 escalate_to_manager,
                 build_knowledge_toolset(),
                 build_ticketing_toolset(),
