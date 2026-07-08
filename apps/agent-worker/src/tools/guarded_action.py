@@ -37,7 +37,7 @@ def _build_context(run_context: RunContext, action_type: str, payload: dict) -> 
         "identity_verified": user_data.identity_verified,
         "clarification_attempts": user_data.clarification_attempts,
         "identity_attempts": user_data.identity_attempts,
-        "account_age_days": customer.account_age_days if customer else 0,
+        "account_age_days": getattr(customer, "account_age_days", 0) if customer else 0,
     }
     context.update(payload)
     return context
