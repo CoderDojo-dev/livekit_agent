@@ -9,6 +9,11 @@ import os
 import httpx
 
 NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://localhost:8106")
+_INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+
+
+def _internal_headers() -> dict:
+    return {"X-API-Key": _INTERNAL_API_KEY} if _INTERNAL_API_KEY else {}
 
 
 async def _send(channel: str, to: str, message: str) -> dict:
@@ -17,6 +22,7 @@ async def _send(channel: str, to: str, message: str) -> dict:
             f"{NOTIFICATION_SERVICE_URL}/notify",
             json={"customer_id": to, "to": to, "channel": channel, "template": "freeform",
                   "language": "fr", "params": {"body": message}},
+            headers=_internal_headers(),
         )
         ok = resp.status_code == 200 and resp.json().get("sent", False)
         return {"sent": bool(ok), "channel": channel}

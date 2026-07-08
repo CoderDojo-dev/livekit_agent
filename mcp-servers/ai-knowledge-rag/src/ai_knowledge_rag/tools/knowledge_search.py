@@ -10,6 +10,12 @@ import httpx
 
 KNOWLEDGE_SERVICE_URL = os.getenv("KNOWLEDGE_SERVICE_URL", "http://localhost:8102")
 
+_INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+
+
+def _internal_headers() -> dict:
+    return {"X-API-Key": _INTERNAL_API_KEY} if _INTERNAL_API_KEY else {}
+
 
 async def knowledge_search(query: str, top_k: int = 4) -> list[dict]:
     """Search the telecom knowledge base for offers, procedures and FAQs.
@@ -25,6 +31,7 @@ async def knowledge_search(query: str, top_k: int = 4) -> list[dict]:
         resp = await client.post(
             f"{KNOWLEDGE_SERVICE_URL}/search",
             json={"query": query, "top_k": top_k},
+            headers=_internal_headers(),
         )
         resp.raise_for_status()
         return resp.json().get("passages", [])

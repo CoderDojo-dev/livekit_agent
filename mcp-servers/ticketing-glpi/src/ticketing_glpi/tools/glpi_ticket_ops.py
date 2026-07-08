@@ -14,6 +14,11 @@ from ticketing_glpi.adapters.glpi_client import get_glpi_client
 
 _client = get_glpi_client()
 NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://localhost:8106")
+_INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+
+
+def _internal_headers() -> dict:
+    return {"X-API-Key": _INTERNAL_API_KEY} if _INTERNAL_API_KEY else {}
 
 
 async def create_ticket(customer_id: str, subject: str, description: str,
@@ -43,6 +48,7 @@ async def create_ticket(customer_id: str, subject: str, description: str,
                     "language": language,
                     "params": {"ticket_id": ticket.ticket_id},
                 },
+                headers=_internal_headers(),
             )
             confirmation_sent = resp.status_code == 200 and resp.json().get("sent", False)
     except httpx.HTTPError:
