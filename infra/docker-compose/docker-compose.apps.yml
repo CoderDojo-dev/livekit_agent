@@ -1,6 +1,10 @@
-# App-tier services (diagnostic #8). Use WITH the infra compose:
+# App-tier services. Use WITH the infra compose:
 #   docker compose -f infra/docker-compose/docker-compose.yml -f infra/docker-compose/docker-compose.apps.yml up -d --build
 # Build context is the repo root (two levels up from this file).
+#
+# NOTE: inter-service URLs are overridden here (not in .env) because .env is shared
+# with host-based dev (make dev / honcho), where localhost is correct. Under full-Docker
+# each service reaches the others by Compose service name. Same precedent as DATABASE_URL.
 services:
   context-service:
     build:
@@ -9,7 +13,10 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     ports: ["8101:8101"]
     restart: unless-stopped
   knowledge-service:
@@ -19,7 +26,10 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+      QDRANT_URL: "http://qdrant:6333"
+    depends_on:
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
     ports: ["8102:8102"]
     restart: unless-stopped
   decision-service:
@@ -29,7 +39,8 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+    depends_on:
+      postgres: { condition: service_healthy }
     ports: ["8103:8103"]
     restart: unless-stopped
   policy-service:
@@ -39,7 +50,8 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+    depends_on:
+      postgres: { condition: service_healthy }
     ports: ["8104:8104"]
     restart: unless-stopped
   execution-service:
@@ -49,7 +61,8 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+    depends_on:
+      postgres: { condition: service_healthy }
     ports: ["8105:8105"]
     restart: unless-stopped
   notification-service:
@@ -59,7 +72,8 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+    depends_on:
+      postgres: { condition: service_healthy }
     ports: ["8106:8106"]
     restart: unless-stopped
   token-service:
@@ -70,7 +84,8 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
       LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-telecom-agent}"
-    depends_on: [postgres]
+    depends_on:
+      postgres: { condition: service_healthy }
     ports: ["8107:8107"]
     restart: unless-stopped
   business-api:
@@ -80,7 +95,10 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+      MINIO_ENDPOINT: "minio:9000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
     ports: ["8108:8108"]
     restart: unless-stopped
   ai-knowledge-rag:
@@ -90,7 +108,10 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+      KNOWLEDGE_SERVICE_URL: "http://knowledge-service:8102"
+    depends_on:
+      postgres: { condition: service_healthy }
+      knowledge-service: { condition: service_started }
     ports: ["8201:8201"]
     restart: unless-stopped
   ticketing-glpi:
@@ -100,7 +121,10 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8106"
+    depends_on:
+      postgres: { condition: service_healthy }
+      notification-service: { condition: service_started }
     ports: ["8202:8202"]
     restart: unless-stopped
   messaging-gateway:
@@ -110,7 +134,10 @@ services:
     env_file: [../../.env]
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
-    depends_on: [postgres]
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8106"
+    depends_on:
+      postgres: { condition: service_healthy }
+      notification-service: { condition: service_started }
     ports: ["8203:8203"]
     restart: unless-stopped
   agent-worker:
@@ -121,5 +148,20 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
       LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-telecom-agent}"
-    depends_on: [postgres, context-service, decision-service, policy-service, execution-service]
+      CONTEXT_SERVICE_URL: "http://context-service:8101"
+      DECISION_SERVICE_URL: "http://decision-service:8103"
+      POLICY_SERVICE_URL: "http://policy-service:8104"
+      EXECUTION_SERVICE_URL: "http://execution-service:8105"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8106"
+      KNOWLEDGE_MCP_URL: "http://ai-knowledge-rag:8201/mcp"
+      TICKETING_MCP_URL: "http://ticketing-glpi:8202/mcp"
+    depends_on:
+      postgres: { condition: service_healthy }
+      context-service: { condition: service_started }
+      decision-service: { condition: service_started }
+      policy-service: { condition: service_started }
+      execution-service: { condition: service_started }
+      notification-service: { condition: service_started }
+      ai-knowledge-rag: { condition: service_started }
+      ticketing-glpi: { condition: service_started }
     restart: unless-stopped
