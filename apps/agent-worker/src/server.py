@@ -13,7 +13,13 @@ from config import get_settings
 from conversation.writer import ConversationWriter
 from dotenv import load_dotenv
 from livekit import agents
-from livekit.agents import AgentServer, JobContext
+from livekit.agents import (
+    AgentServer,
+    ConversationItemAddedEvent,
+    FunctionToolsExecutedEvent,
+    JobContext,
+)
+from livekit.agents.llm import ChatMessage
 from observability.log_masking import install_pii_masking
 from observability.metrics_hook import attach_metrics
 from providers.noise_cancellation import build_noise_cancellation
@@ -102,29 +108,24 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.add_shutdown_callback(_finish_conversation)
     ctx.add_shutdown_callback(attach_metrics(session))
 
-    @session.on("user_speech_committed")
-    def _on_user_speech(msg):
-        text = getattr(msg, "text_content", "") or getattr(msg, "content", "")
-        if text:
-            logger.info("🎤 Caller: %s", text)
-
     @session.on("conversation_item_added")
-    def _on_conversation_item(event):
+    def _on_conversation_item_added(event: ConversationItemAddedEvent):
         item = event.item
-        if getattr(item, "role", None) == "assistant":
-            logger.info("🤖 Agent: %s", getattr(item, "text_content", None))
+        if not isinstance(item, ChatMessage):
+            return
+        text = item.text_content
+        if not text:
+            return
+        if item.role == "user":
+            logger.info("🎤 Caller: %s", text)
+        elif item.role == "assistant":
+            logger.info("🤖 Agent: %s", text)
 
-    @session.on("function_calls_collected")
-    def _on_tools(fcs):
-        names = [f.function_name for f in fcs] if fcs else []
+    @session.on("function_tools_executed")
+    def _on_function_tools_executed(event: FunctionToolsExecutedEvent):
+        names = [fc.name for fc in event.function_calls] if event.function_calls else []
         if names:
-            logger.info("🛠️ Agent calling tools: %s", ", ".join(names))
-
-    @session.on("function_calls_finished")
-    def _on_tools_done(fcs):
-        names = [f.function_name for f in fcs] if fcs else []
-        if names:
-            logger.info("✅ Tools completed: %s", ", ".join(names))
+            logger.info("🛠️✅ Tools executed: %s", ", ".join(names))
 
     nc = build_noise_cancellation(settings.noise_cancellation)
     if nc is None:
