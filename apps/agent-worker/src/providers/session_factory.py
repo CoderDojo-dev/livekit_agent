@@ -30,7 +30,7 @@ def build_agent_session(settings: Settings, language: str) -> AgentSession:
         vad=build_vad(settings.vad_min_silence),
         turn_detection=build_turn_detector(),
         stt=build_stt(preset, settings.stt_model, settings.chaos_break_stt),
-        llm=build_llm(settings.llm_primary_model, settings.llm_fallback_model, settings.chaos_break_llm),
+        llm=build_llm(settings.llm_primary_model, settings.llm_fallback_model, settings.chaos_break_llm, settings.openai_enabled),
         tts=build_tts(preset, settings.tts_model, settings.eleven_voice_id, settings.chaos_break_tts),
         preemptive_generation=settings.preemptive_generation,
     )

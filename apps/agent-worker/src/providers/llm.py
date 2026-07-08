@@ -1,10 +1,15 @@
-"""LLM builder: Google Gemini 2.5 Flash primary + OpenAI GPT fallback + optional NVIDIA NIM + Groq.
+"""LLM builder: configurable provider chain with OpenAI/Gemini primary toggle.
 
-Provider chain (highest-priority first):
+When ``OPENAI_ENABLED=true`` the chain is:
+  1. openai.LLM  — GPT-4o-mini      [primary, requires OPENAI_API_KEY]
+  2. google.LLM  — Gemini 2.5 Flash  [first fallback, requires GOOGLE_API_KEY]
+  3. NvidiaLLM   — NVIDIA NIM        [fallback, skipped if NVIDIA_API_KEY absent]
+  4. GroqLLM     — Groq (llama)      [fallback, skipped if GROQ_API_KEY absent]
+
+When ``OPENAI_ENABLED=false`` OpenAI is skipped entirely:
   1. google.LLM  — Gemini 2.5 Flash  [primary, GOOGLE_API_KEY required]
-  2. NvidiaLLM   — NVIDIA NIM         [fallback, skipped if NVIDIA_API_KEY absent]
-  3. openai.LLM  — GPT-4o-mini        [fallback, skipped if OPENAI_API_KEY absent]
-  4. GroqLLM     — Groq (llama)       [fallback, skipped if GROQ_API_KEY absent]
+  2. NvidiaLLM   — NVIDIA NIM        [fallback, skipped if NVIDIA_API_KEY absent]
+  3. GroqLLM     — Groq (llama)      [fallback, skipped if GROQ_API_KEY absent]
 
 [verify] model id strings churn; they are env-driven and confirmed against
 docs.livekit.io/agents/models at build time.
@@ -21,38 +26,47 @@ from providers.groq_adapter import GroqLLM
 from providers.nvidia_adapter import NvidiaLLM
 
 
-def build_llm(primary_model: str, fallback_model: str, break_primary: bool = False):
-    """Return an LLM FallbackAdapter with Gemini 2.5 Flash as primary.
+def build_llm(primary_model: str, fallback_model: str, break_primary: bool = False,
+              openai_enabled: bool = False):
+    """Return an LLM FallbackAdapter with the configured provider chain.
 
     The chain is built dynamically based on which API keys are present.
     Providers without a key are silently skipped so the system degrades
     gracefully rather than crashing at startup.
+
+    When ``openai_enabled`` is True OpenAI becomes the primary provider and
+    Gemini is the first fallback. When False OpenAI is skipped entirely and
+    Gemini serves as primary.
 
     Args:
         primary_model:  Gemini model ID (env: LLM_PRIMARY_MODEL).
         fallback_model: OpenAI model ID  (env: LLM_FALLBACK_MODEL).
         break_primary:  Chaos toggle — substitutes the invalid model id so the
                         primary intentionally fails and the fallback takes over.
+        openai_enabled: When True, OpenAI is the primary and Gemini is the
+                        first fallback. When False, OpenAI is skipped.
     """
-    # --- Primary: Google Gemini 2.5 Flash ---
-    primary = google.LLM(model=chaos_model(primary_model, break_primary))
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    providers: list = []
 
-    providers: list = [primary]
+    if openai_enabled and openai_key:
+        # --- Primary: OpenAI GPT ---
+        providers.append(openai.LLM(model=chaos_model(fallback_model, break_primary)))
 
-    # --- Fallback 2: NVIDIA NIM (optional) ---
+        # --- First fallback: Google Gemini 2.5 Flash ---
+        providers.append(google.LLM(model=primary_model))
+    else:
+        # --- Primary: Google Gemini 2.5 Flash ---
+        providers.append(google.LLM(model=chaos_model(primary_model, break_primary)))
+
+    # --- Fallback: NVIDIA NIM (optional) ---
     nvidia_key = os.getenv("NVIDIA_API_KEY", "")
     if nvidia_key:
         nvidia_model = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
         nvidia_timeout = float(os.getenv("NVIDIA_TIMEOUT_S", "45.0"))
         providers.append(NvidiaLLM(api_key=nvidia_key, model=nvidia_model, timeout=nvidia_timeout))
 
-    # --- Fallback 3: OpenAI GPT (optional, skippable via OPENAI_ENABLED) ---
-    openai_key = os.getenv("OPENAI_API_KEY", "")
-    openai_enabled = os.getenv("OPENAI_ENABLED", "true").lower() in ("true", "1", "yes")
-    if openai_key and openai_enabled:
-        providers.append(openai.LLM(model=fallback_model))
-
-    # --- Fallback 4: Groq (optional) ---
+    # --- Fallback: Groq (optional) ---
     groq_key = os.getenv("GROQ_API_KEY", "")
     if groq_key:
         groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")

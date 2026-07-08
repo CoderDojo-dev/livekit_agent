@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     deepgram_tts_model: str = Field("aura-asteria-en", alias="DEEPGRAM_TTS_MODEL")
     deepgram_tts_voice: str = Field("aura-asteria-en", alias="DEEPGRAM_TTS_VOICE")
 
-    # --- LLM chain: Gemini 2.5 Flash primary, OpenAI GPT-4o-mini fallback ---
+    # --- LLM chain: OpenAI primary (when enabled) or Gemini primary ---
     llm_primary_model: str = Field("gemini-2.5-flash", alias="LLM_PRIMARY_MODEL")
     llm_fallback_model: str = Field("gpt-4o-mini", alias="LLM_FALLBACK_MODEL")
     openai_enabled: bool = Field(False, alias="OPENAI_ENABLED")
