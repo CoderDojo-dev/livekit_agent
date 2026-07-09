@@ -67,4 +67,4 @@ class TriageAgent(BaseTelecomAgent):
         else:
             instructions = GREETINGS.get(self._language, GREETINGS["fr"])
         logger.info("triage greeting requested")
-        self.session.generate_reply(instructions=instructions)
+        await self.session.generate_reply(instructions=instructions)

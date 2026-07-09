@@ -38,9 +38,6 @@ logging.basicConfig(level=logging.INFO)
 install_pii_masking()
 logger = logging.getLogger("agent-worker")
 
-tracemalloc.start(25)
-
-
 async def _mem_probe() -> None:
     """Log Python allocation growth and Native Process RSS every 30s."""
     mem_logger = logging.getLogger("memprobe")
@@ -123,6 +120,7 @@ async def entrypoint(ctx: JobContext) -> None:
     room_name = getattr(ctx.room, "name", None)
     logger.info("agent job received room=%s language=%s", room_name, language)
 
+    tracemalloc.start(10)
     mem_probe_task = asyncio.create_task(_mem_probe())
 
     async def _stop_mem_probe() -> None:

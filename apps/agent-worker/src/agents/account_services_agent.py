@@ -29,6 +29,6 @@ class AccountServicesAgent(BaseTelecomAgent):
 
     async def on_enter(self) -> None:
         """Greet briefly and invite the account-management request."""
-        self.session.generate_reply(
+        await self.session.generate_reply(
             instructions="Briefly tell the caller you can help with plans, recharges and roaming."
         )

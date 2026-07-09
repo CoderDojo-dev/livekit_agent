@@ -1,47 +1,33 @@
-"""TTS builder: ElevenLabs primary + Cartesia optional fallback + Azure final fallback.
+"""TTS builder: ElevenLabs primary + Cartesia fallback + Deepgram/Azure safety nets.
 
-Provider chain:
-  1. elevenlabs.TTS — primary (ELEVEN_API_KEY required)
-  2. cartesia.TTS   — optional fallback (skipped when CARTESIA_API_KEY absent)
-  3. azure.TTS      — final fallback (skipped when AZURE_SPEECH_KEY absent)
+Provider chain, skipping providers whose keys/classes are unavailable:
+  1. ElevenLabs TTS — primary when ELEVEN_API_KEY exists
+  2. Cartesia TTS   — fallback when CARTESIA_API_KEY exists
+  3. Deepgram Aura  — emergency safety net when DEEPGRAM_API_KEY and deepgram.TTS exist
+  4. Azure TTS      — final fallback when AZURE_SPEECH_KEY exists
 
-NOTE on Deepgram TTS:
-  The installed LiveKit plugin bundle (livekit-agents[deepgram,...]==1.6.3) includes
-  livekit-plugins-deepgram which currently exposes only STT functionality (deepgram.STT).
-  Deepgram's Aura TTS product is available via their REST API but is NOT yet surfaced as
-  a tts.TTS-compatible object in this version of the plugin. Therefore:
-    - Deepgram is used as STT primary (see stt.py).
-    - ElevenLabs remains TTS primary (uses ELEVEN_API_KEY).
-    - Cartesia is wired as the first TTS fallback if CARTESIA_API_KEY is set.
-    - Azure is the final TTS fallback if AZURE_SPEECH_KEY is set.
-  When a future livekit-plugins-deepgram release adds deepgram.TTS, add it here as primary
-  and demote ElevenLabs to first fallback.
-
-ElevenLabs reads ELEVEN_API_KEY from the environment; language is ISO-639-1 (fr/ar/en).
+Deepgram Aura voices are English-only in common configs. Not ideal for FR/AR,
+but rough audio is better than total silence when Cartesia stalls.
 """
 from __future__ import annotations
 
+import logging
 import os
 
 from livekit.agents import tts as tts_module
-from livekit.plugins import azure, cartesia, elevenlabs
+from livekit.plugins import azure, cartesia, deepgram, elevenlabs
 
 from providers._resilience import chaos_model
 
+logger = logging.getLogger(__name__)
+
 
 def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: bool = False):
-    """Return a TTS FallbackAdapter for the given language preset.
-
-    Args:
-        preset:        Language preset dict from LANGUAGE_PRESETS (must contain
-                       tts_iso, azure_tts_voice, cartesia_voice_id).
-        model:         ElevenLabs model ID (env: TTS_MODEL).
-        voice_id:      ElevenLabs voice ID (env: ELEVEN_VOICE_ID).
-        break_primary: Chaos toggle — forces primary failure for resilience tests.
-    """
-    # --- Primary: ElevenLabs (skipped if no key) ---
-    eleven_key = os.getenv("ELEVEN_API_KEY", "")
+    """Return a TTS FallbackAdapter for the given language preset."""
     providers: list = []
+
+    # --- Primary: ElevenLabs ---
+    eleven_key = os.getenv("ELEVEN_API_KEY", "")
     if eleven_key:
         providers.append(
             elevenlabs.TTS(
@@ -51,7 +37,7 @@ def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: 
             )
         )
 
-    # --- Optional fallback: Cartesia (skipped if no key) ---
+    # --- Fallback: Cartesia ---
     cartesia_key = os.getenv("CARTESIA_API_KEY", "")
     if cartesia_key:
         providers.append(
@@ -63,4 +49,37 @@ def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: 
             )
         )
 
+    # --- Emergency safety net: Deepgram Aura ---
+    deepgram_key = os.getenv("DEEPGRAM_API_KEY", "")
+    if deepgram_key and hasattr(deepgram, "TTS"):
+        try:
+            providers.append(
+                deepgram.TTS(
+                    model=os.getenv("DEEPGRAM_TTS_MODEL", "aura-asteria-en"),
+                    api_key=deepgram_key,
+                )
+            )
+        except TypeError:
+            # Some plugin versions read the key from env and do not accept api_key.
+            providers.append(
+                deepgram.TTS(model=os.getenv("DEEPGRAM_TTS_MODEL", "aura-asteria-en"))
+            )
+
+    # --- Final fallback: Azure ---
+    azure_key = os.getenv("AZURE_SPEECH_KEY", "")
+    if azure_key:
+        providers.append(
+            azure.TTS(
+                speech_key=azure_key,
+                speech_region=os.getenv("AZURE_SPEECH_REGION", "francecentral"),
+                voice=preset["azure_tts_voice"],
+            )
+        )
+
+    if not providers:
+        raise RuntimeError(
+            "No TTS provider configured: set ELEVEN_API_KEY, CARTESIA_API_KEY, DEEPGRAM_API_KEY or AZURE_SPEECH_KEY"
+        )
+
+    logger.info("tts providers configured: %s", [type(p).__name__ for p in providers])
     return tts_module.FallbackAdapter(providers)

@@ -30,7 +30,7 @@ class ManagerAgent(BaseTelecomAgent):
 
     async def on_enter(self) -> None:
         """Reassure the caller and move to connect a human."""
-        self.session.generate_reply(
+        await self.session.generate_reply(
             instructions=(
                 "Reassure the caller their issue is being escalated, confirm briefly what it is "
                 "about, and tell them you will connect them with a human advisor now, in their language."

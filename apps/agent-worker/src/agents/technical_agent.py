@@ -76,6 +76,6 @@ class TechnicalAgent(BaseTelecomAgent):
 
     async def on_enter(self) -> None:
         """Acknowledge the hand-off and invite the technical question."""
-        self.session.generate_reply(
+        await self.session.generate_reply(
             instructions="Briefly tell the caller you can help with their technical issue, in their language.",
         )
