@@ -4,8 +4,13 @@ the worker. Conversation writes run off the voice path via ConversationWriter.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import inspect
+import os
+import tracemalloc
+
+import psutil
 
 from agents.triage_agent import TriageAgent
 from clients.context_client import get_context_client
@@ -32,6 +37,33 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 install_pii_masking()
 logger = logging.getLogger("agent-worker")
+
+tracemalloc.start(25)
+
+
+async def _mem_probe() -> None:
+    """Log Python allocation growth and Native Process RSS every 30s."""
+    mem_logger = logging.getLogger("memprobe")
+    mem_logger.setLevel(logging.WARNING)
+    process = psutil.Process(os.getpid())
+    while True:
+        try:
+            await asyncio.sleep(30)
+            rss_mb = process.memory_info().rss / (1024 * 1024)
+            current, peak = tracemalloc.get_traced_memory()
+            top = tracemalloc.take_snapshot().statistics("lineno")[:5]
+            mem_logger.warning(
+                "SYSTEM_RSS_MB=%.1f | PYTHON_CUR_MB=%.1f | PYTHON_PEAK_MB=%.1f | TOP_ALLOCS=%s",
+                rss_mb,
+                current / 1e6,
+                peak / 1e6,
+                [f"{stat.traceback[0].filename.split('/')[-1]}:{stat.traceback[0].lineno}={stat.size // 1024}KB" for stat in top],
+            )
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            mem_logger.warning("memprobe failed: %s", exc)
+
 
 settings = get_settings()
 
@@ -90,6 +122,17 @@ async def entrypoint(ctx: JobContext) -> None:
     language = settings.session_language
     room_name = getattr(ctx.room, "name", None)
     logger.info("agent job received room=%s language=%s", room_name, language)
+
+    mem_probe_task = asyncio.create_task(_mem_probe())
+
+    async def _stop_mem_probe() -> None:
+        mem_probe_task.cancel()
+        try:
+            await mem_probe_task
+        except asyncio.CancelledError:
+            pass
+
+    ctx.add_shutdown_callback(_stop_mem_probe)
 
     session = build_agent_session(settings, language)
     user_data = await _prefetch_user_data(language)

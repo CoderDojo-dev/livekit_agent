@@ -14,7 +14,7 @@ dependencies = [
   "pydantic-settings==2.7.1",
   "httpx==0.28.1",
   "structlog==24.4.0",
-  "python-dotenv==1.0.1",
+  "psutil>=5.9",
   "domain-core",
   "observability-kit",
 ]
