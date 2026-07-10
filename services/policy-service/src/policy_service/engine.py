@@ -6,6 +6,8 @@ rules. Default is AUTHORIZED only if no rule objects.
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from policy_service.rules.base import AUTHORIZED, ESCALATE, VerdictResult
 from policy_service.rules.deferral import check_deferral
 from policy_service.rules.mandatory_escalation import check_mandatory
@@ -35,8 +37,28 @@ def evaluate_action(ctx, thresholds) -> VerdictResult:
     if mandatory is not None:
         return mandatory
 
-    if ctx.action_type in SENSITIVE_ACTIONS and not ctx.identity_verified:
-        return VerdictResult(ESCALATE, "IDENTITY_STEP_UP", "sensitive action requires verified identity")
+    if ctx.action_type in SENSITIVE_ACTIONS:
+        if not ctx.identity_verified:
+            return VerdictResult(
+                ESCALATE,
+                "IDENTITY_STEP_UP",
+                "sensitive action requires verified identity",
+            )
+        if not ctx.customer_id or ctx.verified_customer_id != ctx.customer_id:
+            return VerdictResult(
+                ESCALATE,
+                "IDENTITY_CUSTOMER_MISMATCH",
+                "verification is not bound to the action customer",
+            )
+        if (
+            ctx.identity_expires_at is None
+            or ctx.identity_expires_at <= datetime.now(UTC)
+        ):
+            return VerdictResult(
+                ESCALATE,
+                "IDENTITY_EXPIRED",
+                "identity verification is no longer fresh",
+            )
 
     for rule in _ACTION_RULES:
         result = rule(ctx, thresholds)

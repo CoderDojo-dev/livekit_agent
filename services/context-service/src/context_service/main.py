@@ -12,6 +12,7 @@ from cache import get_cache
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
+from context_service.auth_service import verify_cin_last4
 from context_service.repositories import CrmRepository
 from context_service.schemas import (
     Balance,
@@ -69,7 +70,13 @@ def verify_identity(
     req: VerifyIdentityRequest, session: DbSession
 ) -> VerifyIdentityResponse:
     """Check a step-up identity answer server-side; the secret never leaves this service."""
-    return VerifyIdentityResponse(verified=CrmRepository(session).verify_identity(req.customer_id, req.answer))
+    result = verify_cin_last4(
+  session,
+  customer_id=req.customer_id,
+  call_session_id=req.call_session_id,
+  answer=req.answer,
+ )
+ return VerifyIdentityResponse.model_validate(result)
 
 
 @app.get("/billing/{customer_id}/invoices", response_model=InvoiceListResponse)

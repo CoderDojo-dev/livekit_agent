@@ -1,6 +1,8 @@
 """Wire DTOs for the policy-service."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -15,6 +17,8 @@ class PolicyContext(BaseModel):
     fraud_suspected: bool = False
     frustration: bool = False
     identity_verified: bool = False
+    verified_customer_id: str | None = None
+    identity_expires_at: datetime | None = None
     clarification_attempts: int = 0
     identity_attempts: int = 0
     amount: float | None = None

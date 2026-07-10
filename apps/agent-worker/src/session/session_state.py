@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from datetime import datetime
 from dataclasses import dataclass, field
 
 from session.customer_context import CustomerContext
@@ -17,6 +18,12 @@ class SessionUserData:
     customer_context: CustomerContext | None = None
     identity_verified: bool = False
     identity_attempts: int = 0
+    verified_customer_id: str | None = None
+    verification_level: str | None = None
+    verified_at: datetime | None = None
+    expires_at: datetime | None = None
+    verification_method: str | None = None
+    verification_session_id: str | None = None
     recording_consent: bool | None = None
 
     # --- sentiment / escalation (Phase 8) ---

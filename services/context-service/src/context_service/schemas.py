@@ -33,16 +33,25 @@ class ResolveIdentityResponse(BaseModel):
 
 
 class VerifyIdentityRequest(BaseModel):
-    """Step-up identity check input (CDC section 6.5). The secret never leaves the service."""
+    """Customer-bound CIN verification request."""
 
     customer_id: str
+    call_session_id: str
     answer: str
 
-
 class VerifyIdentityResponse(BaseModel):
-    """Step-up identity check result."""
+    """Persisted verification result. No submitted credential is returned."""
 
     verified: bool
+    status: str
+    reason: str | None = None
+    verification_session_id: str | None = None
+    verified_customer_id: str | None = None
+    verification_level: str | None = None
+    verification_method: str | None = None
+    verified_at: str | None = None
+    expires_at: str | None = None
+    attempt_count: int = 0
 
 
 class Invoice(BaseModel):
