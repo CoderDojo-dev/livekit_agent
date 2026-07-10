@@ -1,5 +1,0 @@
-# Phase-0 verification spike dependencies (throwaway; not a production module).
-# Direct LiveKit provider plugins only — never LiveKit Inference.
-livekit-agents[deepgram,elevenlabs,azure,openai,google,silero,turn-detector]==1.6.3
-python-dotenv==1.0.1
-pytest==8.3.4
