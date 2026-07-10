@@ -13,6 +13,7 @@ from contextlib import suppress
 from clients.routing_client import get_routing_client
 from livekit.agents import RunContext, function_tool, get_job_context
 from tasks.callback_schedule_task import CallbackScheduleTask
+from tools.voice_flow import say_and_wait
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,11 @@ async def transfer_to_human(context: RunContext) -> dict:
 
     with suppress(Exception):
         context.disallow_interruptions()  # safe once we commit to transferring [VERIFY]
-    await context.session.say("Let me connect you with a human advisor. Please hold.")
+    await say_and_wait(
+        context.session,
+        "Je vous mets en relation avec un conseiller. Veuillez patienter.",
+        allow_interruptions=False,
+    )
 
     destination = await get_routing_client().resolve_available_advisor(skill_tag)
     if destination is None:
