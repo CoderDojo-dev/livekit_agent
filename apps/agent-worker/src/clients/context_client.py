@@ -35,18 +35,35 @@ class ContextClient:
             logger.warning("context prefetch failed for %s: %s", msisdn, exc)
             return None
 
-    async def verify_identity(self, customer_id: str, answer: str) -> bool:
-        """Return True iff the step-up answer matches; False on mismatch or service error."""
+    async def verify_identity(
+        self,
+        customer_id: str,
+        answer: str,
+        call_session_id: str,
+    ) -> dict:
+        """Run persisted, customer-bound CIN verification."""
         try:
             resp = await self._client.post(
                 "/verify-identity",
-                json={"customer_id": customer_id, "answer": answer},
+                json={
+                    "customer_id": customer_id,
+                    "call_session_id": call_session_id,
+                    "answer": answer,
+                },
             )
             resp.raise_for_status()
-            return bool(resp.json().get("verified"))
+            return resp.json()
         except httpx.HTTPError as exc:
-            logger.warning("identity verification call failed for %s: %s", customer_id, exc)
-            return False
+            logger.warning(
+                "identity verification call failed for %s: %s",
+                customer_id,
+                exc,
+            )
+            return {
+                "verified": False,
+                "status": "failed",
+                "reason": "context_service_unavailable",
+            }
 
     async def get_invoices(self, customer_id: str) -> list[dict]:
         """Return the caller's invoices (read-only, CDC section 5.1); [] on error."""

@@ -17,6 +17,7 @@ from config import get_settings
 from livekit.agents import RunContext
 
 from tools import outcomes
+from tools.guards import identity_is_fresh
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,12 @@ def _build_context(run_context: RunContext, action_type: str, payload: dict) -> 
         "is_vip": customer.is_vip if customer else False,
         "fraud_suspected": getattr(customer, "fraud_suspected", False) if customer else False,
         "frustration": user_data.consecutive_negative_turns >= _FRUSTRATION_STREAK,
-        "identity_verified": user_data.identity_verified,
+        "identity_verified": identity_is_fresh(user_data),
+        "verified_customer_id": user_data.verified_customer_id,
+        "identity_expires_at": (
+            user_data.expires_at.isoformat()
+            if user_data.expires_at else None
+        ),
         "clarification_attempts": user_data.clarification_attempts,
         "identity_attempts": user_data.identity_attempts,
         "account_age_days": getattr(customer, "account_age_days", 0) if customer else 0,

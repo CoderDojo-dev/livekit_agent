@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -19,6 +20,8 @@ logger = logging.getLogger("token-service")
 # Browser-facing signalling URL (ws:// dev, wss:// in staging/prod). Separate from service URLs.
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
 LIVEKIT_AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "telecom-agent").strip()
+PILOT_MSISDN = os.getenv("PILOT_MSISDN", "").strip()
+CALLER_MSISDN_ATTRIBUTE = "telecom.caller_msisdn"
 
 app = FastAPI(title="token-service")
 app.add_middleware(
@@ -74,8 +77,20 @@ async def token(req: TokenRequest) -> TokenResponse:
         api.AccessToken()
         .with_identity(req.identity)
         .with_name(req.name)
-        .with_grants(api.VideoGrants(room_create=True, room_join=True, room=req.room))
-        .with_ttl(timedelta(hours=1))
+        .with_grants(
+            api.VideoGrants(
+                room_create=False,
+                room_join=True,
+                room=req.room,
+                can_update_own_metadata=False,
+            )
+        )
+        .with_attributes(
+            {CALLER_MSISDN_ATTRIBUTE: PILOT_MSISDN}
+            if PILOT_MSISDN
+            else {}
+        )
+        .with_ttl(timedelta(minutes=15))
     )
     if room_config is not None:
         access_token = access_token.with_room_config(room_config)

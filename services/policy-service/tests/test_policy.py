@@ -1,6 +1,8 @@
 """Unit tests for the deterministic engine + mandatory audit (offline, no FastAPI/network)."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from policy_service.config import PolicyThresholds
 from policy_service.engine import evaluate_action as _engine_evaluate
 from policy_service.engine import evaluate_response as _engine_evaluate_response
@@ -24,7 +26,15 @@ def _service() -> _EngineShim:
 
 
 def _ctx(**over) -> PolicyContext:
-    base = {"action_type": "PAYMENT_DEFERRAL", "identity_verified": True, "account_age_days": 400}
+    customer_id = "00000000-0000-0000-0000-000000000001"
+ base = {
+  "action_type": "PAYMENT_DEFERRAL",
+  "customer_id": customer_id,
+  "identity_verified": True,
+  "verified_customer_id": customer_id,
+  "identity_expires_at": datetime.now(UTC) + timedelta(minutes=10),
+  "account_age_days": 400,
+ }
     base.update(over)
     return PolicyContext(**base)
 
@@ -59,7 +69,14 @@ def test_deferral_high_unpaid_escalates_for_review() -> None:
 
 def test_payment_without_confirmation_is_refused() -> None:
     result = _service().evaluate_action(
-        PolicyContext(action_type="EXECUTE_PAYMENT", identity_verified=True, payment_confirmed=False)
+        PolicyContext(
+  action_type="EXECUTE_PAYMENT",
+  customer_id="00000000-0000-0000-0000-000000000001",
+  identity_verified=True,
+  verified_customer_id="00000000-0000-0000-0000-000000000001",
+  identity_expires_at=datetime.now(UTC) + timedelta(minutes=10),
+  payment_confirmed=False,
+ )
     )
     assert (result.verdict, result.rule_id) == ("refused", "PAY_NO_CONFIRMATION")
 
@@ -67,7 +84,13 @@ def test_payment_without_confirmation_is_refused() -> None:
 def test_payment_above_cap_escalates() -> None:
     result = _service().evaluate_action(
         PolicyContext(
-            action_type="EXECUTE_PAYMENT", identity_verified=True, payment_confirmed=True, amount=5000.0
+            action_type="EXECUTE_PAYMENT",
+  customer_id="00000000-0000-0000-0000-000000000001",
+  identity_verified=True,
+  verified_customer_id="00000000-0000-0000-0000-000000000001",
+  identity_expires_at=datetime.now(UTC) + timedelta(minutes=10),
+  payment_confirmed=True,
+  amount=5000.0,
         )
     )
     assert (result.verdict, result.rule_id) == ("escalate", "PAY_ABOVE_CAP")
@@ -90,3 +113,41 @@ def test_every_action_yields_a_verdict() -> None:
 def test_outbound_pii_is_refused() -> None:
     result = _service().evaluate_response("unknown", "your id is 100021456789")
     assert (result.verdict, result.rule_id) == ("refused", "OUT_PII")
+
+
+def test_verified_identity_must_match_action_customer() -> None:
+ result = _service().evaluate_action(
+  _ctx(
+   customer_id="00000000-0000-0000-0000-000000000001",
+   verified_customer_id="00000000-0000-0000-0000-000000000002",
+  )
+ )
+ assert (result.verdict, result.rule_id) == (
+  "escalate",
+  "IDENTITY_CUSTOMER_MISMATCH",
+ )
+
+
+def test_expired_identity_cannot_authorize_action() -> None:
+ result = _service().evaluate_action(
+  _ctx(identity_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+ )
+ assert (result.verdict, result.rule_id) == (
+  "escalate",
+  "IDENTITY_EXPIRED",
+ )
+
+
+def test_missing_customer_binding_fails_closed() -> None:
+ result = _service().evaluate_action(
+  PolicyContext(
+   action_type="EXECUTE_PAYMENT",
+   identity_verified=True,
+   payment_confirmed=True,
+   amount=10.0,
+  )
+ )
+ assert (result.verdict, result.rule_id) == (
+  "escalate",
+  "IDENTITY_CUSTOMER_MISMATCH",
+ )

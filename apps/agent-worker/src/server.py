@@ -33,6 +33,7 @@ install_pii_masking()
 logger = logging.getLogger("agent-worker")
 
 settings = get_settings()
+CALLER_MSISDN_ATTRIBUTE = "telecom.caller_msisdn"
 
 
 server = AgentServer(
@@ -41,17 +42,32 @@ server = AgentServer(
 )
 
 
-async def _prefetch_user_data(language: str) -> SessionUserData:
-    """Build session state, pre-fetching the caller's Customer-360 snapshot when known."""
+async def _prefetch_user_data(
+    language: str,
+    participant,
+) -> SessionUserData:
+    """Load Customer-360 from trusted signed participant attributes."""
     user_data = SessionUserData(language=language)
-    msisdn = settings.session_caller_msisdn
-    if msisdn:
-        snapshot = await get_context_client().get_snapshot(msisdn)
-        if snapshot is not None:
-            user_data.customer_context = snapshot
-            logger.info("context prefetched: customer_id=%s vip=%s", snapshot.customer_id, snapshot.is_vip)
-        else:
-            logger.info("no context snapshot for the calling line")
+    msisdn = participant.attributes.get(
+        CALLER_MSISDN_ATTRIBUTE,
+        "",
+    ).strip()
+
+    if not msisdn:
+        logger.info("no trusted caller MSISDN attribute")
+        return user_data
+
+    snapshot = await get_context_client().get_snapshot(msisdn)
+    if snapshot is not None:
+        user_data.customer_context = snapshot
+        user_data.language = snapshot.preferred_language
+        logger.info(
+            "context prefetched: customer_id=%s vip=%s",
+            snapshot.customer_id,
+            snapshot.is_vip,
+        )
+    else:
+        logger.info("no context snapshot for trusted calling line")
     return user_data
 
 
@@ -64,7 +80,7 @@ def _open_conversation(ctx: JobContext, user_data: SessionUserData) -> Conversat
     user_data.session_db_id = writer.start_session(
         customer_id=customer.customer_id if customer else None,
         subscription_id=getattr(customer, "subscription_id", None) if customer else None,
-        msisdn=settings.session_caller_msisdn or (customer.msisdn if customer else None),
+        msisdn=customer.msisdn if customer else None,
         livekit_room=getattr(ctx.room, "name", None),
         recording_consent=user_data.recording_consent,
     )
@@ -77,10 +93,12 @@ async def entrypoint(ctx: JobContext) -> None:
     configure_tracer("agent-worker")
     language = settings.session_language
     room_name = getattr(ctx.room, "name", None)
+    participant = await ctx.wait_for_participant()
     logger.info("agent job received room=%s language=%s", room_name, language)
 
+    user_data = await _prefetch_user_data(language, participant)
+    language = user_data.language
     session = build_agent_session(settings, language)
-    user_data = await _prefetch_user_data(language)
     session.userdata = user_data
 
     writer = _open_conversation(ctx, user_data)
