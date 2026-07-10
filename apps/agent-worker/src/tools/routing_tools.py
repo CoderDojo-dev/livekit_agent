@@ -1,23 +1,34 @@
-"""Persona hand-off tools from Triage to specialists (cookbook section 7).
+"""Interruption-safe specialist handoffs from Triage.
 
-Each returns (NextAgent, transition_line), preserving the one persistent AgentSession.
+A LiveKit handoff must return the next Agent itself. Returning a tuple is treated
+as ordinary tool data and can leave the tool-response speech lifecycle stuck.
 """
 from __future__ import annotations
 
 from agents.billing_agent import BillingAgent
 from agents.technical_agent import TechnicalAgent
-from livekit.agents import RunContext, function_tool
+from livekit.agents import Agent, RunContext, function_tool
+
+from tools.voice_flow import current_chat_ctx, handoff_with_message
 
 
 @function_tool()
-async def route_to_billing(context: RunContext) -> tuple[BillingAgent, str]:
-    """Hand off to the billing specialist for invoice, payment, or payment-deferral requests."""
-    context.session.interrupt()
-    return BillingAgent(), "Let me connect you with our billing specialist."
+async def route_to_billing(context: RunContext) -> Agent:
+    """Hand off to the billing specialist while preserving conversation history."""
+    next_agent = BillingAgent(chat_ctx=current_chat_ctx(context))
+    return await handoff_with_message(
+        context,
+        next_agent,
+        "Je vous mets en relation avec notre spécialiste de la facturation.",
+    )
 
 
 @function_tool()
-async def route_to_technical(context: RunContext) -> tuple[TechnicalAgent, str]:
-    """Hand off to the technical specialist for SIM, network, or connectivity issues."""
-    context.session.interrupt()
-    return TechnicalAgent(), "Let me connect you with our technical specialist."
+async def route_to_technical(context: RunContext) -> Agent:
+    """Hand off to the technical specialist while preserving conversation history."""
+    next_agent = TechnicalAgent(chat_ctx=current_chat_ctx(context))
+    return await handoff_with_message(
+        context,
+        next_agent,
+        "Je vous mets en relation avec notre spécialiste technique.",
+    )

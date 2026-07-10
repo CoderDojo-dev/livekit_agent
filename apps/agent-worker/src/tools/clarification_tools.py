@@ -1,31 +1,35 @@
-"""Deterministic clarification counter (CDC section 10.1: two failed clarifications -> ESCALATE).
+"""Deterministic, interruption-safe clarification and escalation.
 
-Asking via this tool (instead of free-text) is what makes the mandatory-escalation trigger real:
-the second unresolved clarification returns an 'escalate' outcome, and clarification_attempts also
-feeds the policy context so the engine's ESC_CLARIFICATION rule is reachable.
+The first clarification is spoken directly, then StopResponse terminates the
+tool-only turn without creating an empty LLM-to-TTS stream. The second failed
+clarification performs the real manager handoff rather than returning an
+instruction and hoping the LLM calls another tool.
 """
 from __future__ import annotations
 
-from livekit.agents import RunContext, function_tool
+from livekit.agents import Agent, RunContext, function_tool
+
+from tools.escalation_tools import escalate_to_manager
+from tools.voice_flow import say_and_stop
 
 
 @function_tool()
-async def request_clarification(context: RunContext, question: str) -> dict:
-    """Ask the caller ONE clarifying question when their request is ambiguous.
-
-    Call this INSTEAD of asking directly, so attempts are counted. After two unresolved
-    clarifications the request must be escalated (outcome 'escalate').
-    """
+async def request_clarification(
+    context: RunContext,
+    question: str,
+) -> Agent | None:
+    """Ask one clarification. Escalate deterministically after the second attempt."""
     user_data = context.session.userdata
     user_data.clarification_attempts += 1
+
     if user_data.clarification_attempts >= 2:
-        return {
-            "outcome": "escalate",
-            "reason": "two_failed_clarifications",
-            "message": "Still unclear after two attempts - call escalate_to_manager.",
-        }
-    return {
-        "outcome": "ask",
-        "question": question,
-        "message": "Ask the caller this one clarifying question, in their language.",
-    }
+        return await escalate_to_manager(context)
+
+    normalized = (question or "").strip()
+    if not normalized:
+        normalized = "Pouvez-vous préciser votre demande, s'il vous plaît ?"
+
+    await say_and_stop(context, normalized)
+
+    # say_and_stop always raises StopResponse. This keeps the annotation explicit.
+    return None
