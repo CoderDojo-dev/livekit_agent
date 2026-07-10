@@ -1,7 +1,7 @@
-# version_20 — Persistence Phase: Verified Identity, Customer-Bound CIN, Policy Freshness
+# version_20 — The Third Working Version with Persistence Fixes
 
-## Purpose
-The third working version of the voice agent, focused on making identity verification durable, customer-bound, and time-limited. Previously, identity was an ephemeral in-memory boolean that could not survive a service restart or be validated server-side. Now every verification attempt is persisted in PostgreSQL, bound to the specific customer, and expires after a configurable TTL.
+## Description
+The third working version with persistence fixes: mention changes & patches. Identity verification rewritten from ephemeral in-memory to persisted, customer-bound, and time-limited. Every verification attempt is stored in PostgreSQL, bound to the specific customer, and expires after a configurable TTL.
 
 ## Changes & Patches
 
