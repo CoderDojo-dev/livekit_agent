@@ -5,7 +5,6 @@ the worker. Conversation writes run off the voice path via ConversationWriter.
 from __future__ import annotations
 
 import logging
-import inspect
 
 from agents.triage_agent import TriageAgent
 from clients.context_client import get_context_client
@@ -36,21 +35,10 @@ logger = logging.getLogger("agent-worker")
 settings = get_settings()
 
 
-def _build_agent_server() -> AgentServer:
-    """Create the AgentServer, naming it when the installed LiveKit SDK supports that option."""
-    agent_name = settings.livekit_agent_name.strip()
-    if agent_name:
-        try:
-            if "agent_name" in inspect.signature(AgentServer).parameters:
-                logger.info("registering LiveKit worker agent_name=%s", agent_name)
-                return AgentServer(agent_name=agent_name)
-        except (TypeError, ValueError):
-            pass
-        logger.warning("LiveKit AgentServer has no agent_name constructor option; using auto-dispatch mode")
-    return AgentServer()
-
-
-server = _build_agent_server()
+server = AgentServer(
+    num_idle_processes=1,
+    job_memory_warn_mb=768,
+)
 
 
 async def _prefetch_user_data(language: str) -> SessionUserData:
@@ -83,7 +71,7 @@ def _open_conversation(ctx: JobContext, user_data: SessionUserData) -> Conversat
     return writer
 
 
-@server.rtc_session()
+@server.rtc_session(agent_name=settings.livekit_agent_name.strip())
 async def entrypoint(ctx: JobContext) -> None:
     """Assemble and start a Triage voice session for the configured language."""
     configure_tracer("agent-worker")
