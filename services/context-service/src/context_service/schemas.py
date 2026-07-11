@@ -1,16 +1,12 @@
-"""Wire DTOs for the context-service (spec section 4). English-only system layer.
-
-Backward compatible with the pre-persistence contract; adds subscription_id + fraud_suspected
-(the canonical identity model, spec section 1).
-"""
+"""Wire DTOs for Customer-360, identity, invoices, and balances."""
 from __future__ import annotations
+
+from datetime import datetime
 
 from pydantic import BaseModel
 
 
 class Customer360(BaseModel):
-    """The caller snapshot pre-fetched into session user-data at call start. Never carries PII secrets."""
-
     customer_id: str
     subscription_id: str | None = None
     full_name: str
@@ -25,23 +21,18 @@ class Customer360(BaseModel):
 
 
 class ResolveIdentityResponse(BaseModel):
-    """MSISDN -> canonical UUIDs (spec section 16.2). The only place this translation happens."""
-
     customer_id: str
     subscription_id: str
     preferred_language: str = "fr"
 
 
 class VerifyIdentityRequest(BaseModel):
-    """Customer-bound CIN verification request."""
-
     customer_id: str
     call_session_id: str
     answer: str
 
-class VerifyIdentityResponse(BaseModel):
-    """Persisted verification result. No submitted credential is returned."""
 
+class VerifyIdentityResponse(BaseModel):
     verified: bool
     status: str
     reason: str | None = None
@@ -49,30 +40,24 @@ class VerifyIdentityResponse(BaseModel):
     verified_customer_id: str | None = None
     verification_level: str | None = None
     verification_method: str | None = None
-    verified_at: str | None = None
-    expires_at: str | None = None
+    verified_at: datetime | None = None
+    expires_at: datetime | None = None
     attempt_count: int = 0
 
 
 class Invoice(BaseModel):
-    """A single invoice (read-only consultation, CDC section 5.1)."""
-
     invoice_id: str
     amount: float
     currency: str = "TND"
     due_date: str
-    status: str  # "open" | "paid" | "overdue"
+    status: str
 
 
 class InvoiceListResponse(BaseModel):
-    """Open invoices for a customer."""
-
     invoices: list[Invoice]
 
 
 class Balance(BaseModel):
-    """Prepaid credit / data balance (read-only, CDC section 5.x)."""
-
     customer_id: str
     credit: float
     currency: str = "TND"
