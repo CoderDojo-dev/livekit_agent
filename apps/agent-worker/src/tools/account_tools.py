@@ -14,13 +14,33 @@ from tools.guards import ensure_identity_verified
 
 
 @function_tool()
-async def get_plan_details(context: RunContext) -> str:
-    """Tell the caller their current plan and line (read-only, from the pre-fetched profile)."""
+async def get_plan_details(context: RunContext) -> dict:
+    """Return verified personal account and plan information."""
+    if not await ensure_identity_verified(context):
+        return outcomes.escalate(
+            "IDENTITY_REQUIRED",
+            "Identity verification is required.",
+        )
+
     customer = context.session.userdata.customer_context
     if customer is None:
-        return "I can't see an active line for this number yet."
-    return f"You're on {customer.subscription_type} for the line {customer.msisdn}."
+        return outcomes.escalate(
+            "UNKNOWN_CALLER",
+            "No customer context is available.",
+        )
 
+    masked_msisdn = f"******{customer.msisdn[-4:]}"
+    return {
+        "outcome": "success",
+        "full_name": customer.full_name,
+        "masked_msisdn": masked_msisdn,
+        "subscription_type": customer.subscription_type,
+        "message": (
+            f"The account belongs to {customer.full_name}. "
+            f"The line ending in {customer.msisdn[-4:]} uses "
+            f"{customer.subscription_type}."
+        ),
+    }
 
 @function_tool()
 async def change_plan(context: RunContext, new_plan_code: str) -> dict:

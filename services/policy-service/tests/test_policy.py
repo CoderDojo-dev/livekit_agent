@@ -27,17 +27,16 @@ def _service() -> _EngineShim:
 
 def _ctx(**over) -> PolicyContext:
     customer_id = "00000000-0000-0000-0000-000000000001"
- base = {
-  "action_type": "PAYMENT_DEFERRAL",
-  "customer_id": customer_id,
-  "identity_verified": True,
-  "verified_customer_id": customer_id,
-  "identity_expires_at": datetime.now(UTC) + timedelta(minutes=10),
-  "account_age_days": 400,
- }
+    base = {
+        "action_type": "PAYMENT_DEFERRAL",
+        "customer_id": customer_id,
+        "identity_verified": True,
+        "verified_customer_id": customer_id,
+        "identity_expires_at": datetime.now(UTC) + timedelta(minutes=10),
+        "account_age_days": 400,
+    }
     base.update(over)
     return PolicyContext(**base)
-
 
 def test_clean_deferral_is_authorized() -> None:
     result = _service().evaluate_action(_ctx(unpaid_amount=42.5))
