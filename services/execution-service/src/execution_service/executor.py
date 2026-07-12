@@ -26,14 +26,23 @@ _TARGET_DOMAIN = {
     "CHANGE_PLAN": "provisioning", "ACTIVATE_ROAMING": "provisioning",
 }
 
+SUPPORTED_ACTIONS = frozenset(_REFERENCE_PREFIX)
+
+
+def _require_supported_action(action_type: str) -> None:
+    if action_type not in SUPPORTED_ACTIONS:
+        raise ValueError(f"unsupported execution action: {action_type}")
+
 
 def _mock_reference(action_type: str) -> str:
-    return f"{_REFERENCE_PREFIX.get(action_type, 'ACT')}-{uuid.uuid4().hex[:10].upper()}"
+    _require_supported_action(action_type)
+    return f"{_REFERENCE_PREFIX[action_type]}-{uuid.uuid4().hex[:10].upper()}"
 
 
 def dispatch(action_type: str, payload: dict, *, customer_id: str | None = None,
              idempotency_key: str | None = None) -> str:
     """Execute the action against the legacy system and return a confirmation reference."""
+    _require_supported_action(action_type)
     if not is_live():
         return _mock_reference(action_type)
     return _dispatch_live(action_type, payload, customer_id, idempotency_key)
@@ -65,4 +74,5 @@ def _dispatch_live(action_type: str, payload: dict, customer_id: str | None, ide
 
 def target_domain(action_type: str) -> str:
     """Map an action type to the domain whose adapter performs it."""
-    return _TARGET_DOMAIN.get(action_type, "execution")
+    _require_supported_action(action_type)
+    return _TARGET_DOMAIN[action_type]

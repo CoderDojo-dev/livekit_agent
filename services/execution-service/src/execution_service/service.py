@@ -17,6 +17,7 @@ from execution_service.executor import dispatch, target_domain
 from execution_service.projections import project_domain_effect
 from execution_service.schemas import ExecuteRequest, ExecuteResponse
 from persistence.models.execution import ActionLedger
+from persistence.models.policy import PolicyVerdict
 from persistence.util import require_uuid, to_uuid
 
 logger = logging.getLogger(__name__)
@@ -35,14 +36,27 @@ class ExecutionService:
         if existing is not None:
             return self._replay(existing)
 
+        session_id = require_uuid(req.session_id)
+        verdict_id = require_uuid(req.policy_verdict_id)
+        verdict = self._session.get(PolicyVerdict, verdict_id)
+
+        if verdict is None:
+            raise ValueError("policy verdict does not exist")
+        if verdict.verdict.upper() != "AUTHORIZED":
+            raise ValueError("policy verdict is not authorized")
+        if verdict.requested_action != req.action_type:
+            raise ValueError("policy verdict action does not match execution action")
+        if verdict.session_id != session_id:
+            raise ValueError("policy verdict belongs to a different session")
+
         row = ActionLedger(
-            session_id=require_uuid(req.session_id),
+            session_id=session_id,
             customer_id=to_uuid(req.customer_id),
             subscription_id=to_uuid(req.subscription_id),
             action_type=req.action_type,
             target_domain=req.target_domain or target_domain(req.action_type),
             idempotency_key=req.idempotency_key,
-            policy_verdict_id=require_uuid(req.policy_verdict_id),
+            policy_verdict_id=verdict_id,
             parameters=req.payload,
             status="pending",
             attempt_count=1,

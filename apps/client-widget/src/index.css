@@ -381,3 +381,319 @@ canvas {
     animation: none;
   }
 }
+
+/* ==========================================================================
+   Session layout, version_23
+   ========================================================================== */
+
+.voice-shell {
+  --session-x: 0px;
+  --session-orb-scale: 1;
+  --session-copy-opacity: 1;
+  --session-copy-shift: 0px;
+  height: 100svh;
+  min-height: 36rem;
+}
+
+.voice-page {
+  height: 100svh;
+  min-height: 36rem;
+}
+
+.voice-stage {
+  position: relative;
+  min-height: 0;
+  padding-block: clamp(0.5rem, 1.5vh, 1.25rem);
+  isolation: isolate;
+}
+
+/*
+ * The source component still uses size="xl", but the canvas is constrained by
+ * viewport height. This fixes the apparent browser zoom without changing the
+ * visualizer, shader, color, or behavior.
+ */
+.voice-orb-frame {
+  min-height: 0;
+  height: clamp(13rem, 42svh, 23rem);
+  transform:
+    translate3d(var(--session-x), 0, 0)
+    scale(var(--session-orb-scale));
+  transform-origin: center;
+  transition:
+    transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.voice-aura {
+  height: clamp(13rem, 42svh, 23rem) !important;
+  width: auto !important;
+  max-width: min(86vw, 23rem);
+  transform: translateZ(0);
+}
+
+.voice-intro {
+  margin-top: clamp(0.25rem, 1vh, 0.75rem);
+  opacity: var(--session-copy-opacity);
+  transform:
+    translate3d(
+      var(--session-x),
+      var(--session-copy-shift),
+      0
+    );
+  transition:
+    opacity 240ms cubic-bezier(0.7, 0, 0.84, 0),
+    transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.voice-intro h1 {
+  max-width: 19ch;
+  font-size: clamp(
+    1.8rem,
+    min(4.5vw, 5.2svh),
+    3rem
+  );
+  line-height: 1.04;
+}
+
+.voice-intro p {
+  font-size: clamp(0.875rem, 1.8svh, 1rem);
+  line-height: 1.5;
+}
+
+.voice-controls {
+  margin-top: clamp(1rem, 2.4vh, 1.75rem);
+  transform: translate3d(var(--session-x), 0, 0);
+  transition:
+    transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.voice-start-audio {
+  margin-top: clamp(0.4rem, 1vh, 0.75rem);
+  transform: translate3d(var(--session-x), 0, 0);
+  transition:
+    transform 620ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+ * Connected layout:
+ * - Aura and controls move into the left working area
+ * - Aura becomes slightly smaller
+ * - landing copy fades away
+ * - conversation receives an independent right column
+ */
+.voice-shell[data-session-active="true"] {
+  --session-x: clamp(-20rem, -22vw, -8rem);
+  --session-orb-scale: 0.82;
+  --session-copy-opacity: 0;
+  --session-copy-shift: 1rem;
+}
+
+.voice-shell[data-session-active="true"] .voice-intro {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 210ms cubic-bezier(0.7, 0, 0.84, 0),
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s linear 220ms;
+}
+
+.voice-shell[data-session-active="true"] .voice-orb-frame {
+  height: clamp(12rem, 36svh, 19rem);
+}
+
+.voice-shell[data-session-active="true"] .voice-aura {
+  height: clamp(12rem, 36svh, 19rem) !important;
+  max-width: min(42vw, 19rem);
+}
+
+/*
+ * Conversation is hidden by React until a real event exists. Once mounted it
+ * occupies the middle-right working area and never overlaps the Aura.
+ */
+.voice-shell[data-session-active="true"] .live-conversation {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  right: clamp(1.5rem, 6vw, 6rem);
+  width: clamp(21rem, 32vw, 29rem);
+  min-width: 0;
+  min-height: 18rem;
+  margin: 0;
+  transform: translate3d(0, -50%, 0);
+  animation:
+    conversation-rail-enter
+    480ms
+    cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+}
+
+.voice-shell[data-session-active="true"]
+.live-conversation__stack {
+  min-height: 16rem;
+  justify-content: center;
+}
+
+/*
+ * Footer and header stay compact. The stage receives the remaining viewport
+ * height instead of forcing the document beyond 100%.
+ */
+.voice-page > header {
+  flex: 0 0 auto;
+}
+
+.voice-page > footer {
+  flex: 0 0 auto;
+  padding-top: clamp(0.75rem, 1.5vh, 1.25rem);
+}
+
+@keyframes conversation-rail-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(2.5rem, -50%, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, -50%, 0);
+  }
+}
+
+/* Laptop-height optimization, including common 1366×768 displays. */
+@media (max-height: 800px) and (min-width: 901px) {
+  .voice-page {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .voice-orb-frame,
+  .voice-aura {
+    height: clamp(12rem, 36svh, 18rem) !important;
+  }
+
+  .voice-intro {
+    gap: 0.55rem;
+  }
+
+  .voice-intro h1 {
+    font-size: clamp(1.7rem, 4.7svh, 2.5rem);
+  }
+
+  .voice-controls {
+    margin-top: 0.85rem;
+  }
+
+  .voice-shell[data-session-active="true"]
+  .voice-orb-frame,
+  .voice-shell[data-session-active="true"]
+  .voice-aura {
+    height: clamp(11rem, 31svh, 16rem) !important;
+  }
+
+  .voice-shell[data-session-active="true"]
+  .live-conversation {
+    min-height: 15rem;
+  }
+
+  .voice-shell[data-session-active="true"]
+  .live-conversation__stack {
+    min-height: 13rem;
+  }
+}
+
+/*
+ * Tablet and mobile are redesigned into a vertical sequence. Do not translate
+ * the Aura off-screen on smaller displays.
+ */
+@media (max-width: 900px) {
+  .voice-shell {
+    height: auto;
+    min-height: 100svh;
+    overflow-y: auto;
+  }
+
+  .voice-page {
+    height: auto;
+    min-height: 100svh;
+  }
+
+  .voice-shell[data-session-active="true"] {
+    --session-x: 0px;
+    --session-orb-scale: 0.84;
+  }
+
+  .voice-shell[data-session-active="true"]
+  .live-conversation {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: min(100%, 34rem);
+    min-height: 13rem;
+    margin: 1rem auto 0;
+    transform: none;
+    animation:
+      conversation-mobile-enter
+      420ms
+      cubic-bezier(0.16, 1, 0.3, 1)
+      both;
+  }
+
+  .voice-shell[data-session-active="true"]
+  .live-conversation__stack {
+    min-height: 11rem;
+  }
+}
+
+@keyframes conversation-mobile-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.25rem, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (max-width: 640px) {
+  .voice-page {
+    padding: 1rem;
+  }
+
+  .voice-orb-frame,
+  .voice-aura {
+    height: clamp(11rem, 35svh, 16rem) !important;
+  }
+
+  .voice-intro h1 {
+    font-size: clamp(1.65rem, 8vw, 2.2rem);
+  }
+
+  .voice-page > footer {
+    margin-top: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-orb-frame,
+  .voice-intro,
+  .voice-controls,
+  .voice-start-audio,
+  .live-conversation {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Hide conversation chrome without unsafe JSX rewriting. */
+.voice-shell[data-session-active="false"] .live-conversation {
+  display: none;
+}
+
+.live-conversation__heading {
+  display: none;
+}

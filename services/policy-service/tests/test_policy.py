@@ -138,15 +138,35 @@ def test_expired_identity_cannot_authorize_action() -> None:
 
 
 def test_missing_customer_binding_fails_closed() -> None:
- result = _service().evaluate_action(
-  PolicyContext(
-   action_type="EXECUTE_PAYMENT",
-   identity_verified=True,
-   payment_confirmed=True,
-   amount=10.0,
-  )
- )
- assert (result.verdict, result.rule_id) == (
-  "escalate",
-  "IDENTITY_CUSTOMER_MISMATCH",
- )
+    result = _service().evaluate_action(
+        PolicyContext(
+            action_type="EXECUTE_PAYMENT",
+            identity_verified=True,
+            payment_confirmed=True,
+            amount=10.0,
+        )
+    )
+    assert (result.verdict, result.rule_id) == (
+        "escalate",
+        "IDENTITY_CUSTOMER_MISMATCH",
+    )
+
+
+def test_unknown_action_fails_closed() -> None:
+    result = _service().evaluate_action(
+        _ctx(action_type="UNBLOCK_ESIM")
+    )
+    assert (result.verdict, result.rule_id) == (
+        "escalate",
+        "POLICY_UNKNOWN_ACTION",
+    )
+
+
+def test_known_account_action_is_explicitly_authorized() -> None:
+    result = _service().evaluate_action(
+        _ctx(action_type="CHANGE_PLAN")
+    )
+    assert (result.verdict, result.rule_id) == (
+        "authorized",
+        "KNOWN_ACTION_AUTHORIZED",
+    )

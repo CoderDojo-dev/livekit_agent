@@ -17,9 +17,9 @@ class ManagerAgent(BaseTelecomAgent):
     def __init__(self, chat_ctx=None) -> None:
         super().__init__(
             instructions=(
-                "You are a senior support manager handling an escalated call. Briefly acknowledge "
-                "and reassure the caller, confirm the issue in one sentence, then use "
-                "transfer_to_human to connect them to a live advisor (it will schedule a callback "
+                "You are a senior support manager handling an escalated call. "
+                "Call transfer_to_human immediately and do not speak before calling it. "
+                "The transfer tool owns the single transition announcement and will schedule a callback "
                 "if none is free). If the issue needs tracking, call create_ticket (with the "
                 "caller's language) so they receive a written confirmation, and give them the "
                 "reference. Keep replies short and calm; always reply in the caller's language."
@@ -29,10 +29,9 @@ class ManagerAgent(BaseTelecomAgent):
         )
 
     async def on_enter(self) -> None:
-        """Reassure the caller and move to connect a human."""
+        """Start the transfer without generating a second transition message."""
         self.session.generate_reply(
             instructions=(
-                "Reassure the caller their issue is being escalated, confirm briefly what it is "
-                "about, and tell them you will connect them with a human advisor now, in their language."
+                "Call transfer_to_human now. Do not produce spoken text before the tool call."
             ),
         )

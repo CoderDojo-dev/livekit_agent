@@ -34,6 +34,8 @@ class SessionUserData:
     current_persona_skill_tag: str = "general"
     callback_requested: bool = False
     callback_when: str | None = None
+    human_transfer_announced: bool = False
+    human_transfer_in_progress: bool = False
 
     # --- conversation persistence (P3) ---
     conversation_writer: object | None = None

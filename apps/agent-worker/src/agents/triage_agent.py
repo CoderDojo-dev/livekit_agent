@@ -8,7 +8,11 @@ from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
 from tools.escalation_tools import escalate_to_manager
-from tools.routing_tools import route_to_billing, route_to_technical
+from tools.routing_tools import (
+    route_to_account_services,
+    route_to_billing,
+    route_to_technical,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +26,8 @@ _INSTRUCTIONS = (
     "concise English query, then answer in {language} and cite the source.\n"
     "For personal billing, invoices, balances, or payments, call route_to_billing.\n"
     "For SIM, network, or connectivity issues, call route_to_technical.\n"
+    "For the caller's phone line, phone number, plan, recharge, or roaming, "
+    "call route_to_account_services.\n"
     "For a human advisor, call escalate_to_manager.\n"
     "For an ambiguous request, call request_clarification.\n"
     "Keep replies short. Never invent data.\n"
@@ -41,6 +47,7 @@ class TriageAgent(BaseTelecomAgent):
             instructions=_INSTRUCTIONS.format(language=lang_name),
             tools=[
                 request_clarification,
+                route_to_account_services,
                 route_to_billing,
                 route_to_technical,
                 escalate_to_manager,
