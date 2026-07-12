@@ -1,4 +1,4 @@
-"""knowledge-service entrypoint: strict dense retrieval and readiness."""
+"""knowledge-service entrypoint: strict filtered hybrid retrieval."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,7 @@ from typing import AsyncIterator
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 
-from knowledge_service.retriever import QdrantNIMRetriever, get_retriever
+from knowledge_service.retriever import HybridRetriever, SearchFilters, get_retriever
 from knowledge_service.schemas import PassageModel, SearchRequest, SearchResponse
 from service_auth import require_internal_key
 
@@ -17,10 +17,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Fail startup unless Qdrant and NVIDIA NIM are both usable."""
     retriever = await run_in_threadpool(get_retriever)
     app.state.retriever = retriever
-    logger.info("strict Qdrant/NIM retriever is ready")
+    logger.info("strict Qdrant/NIM + Postgres hybrid retriever is ready")
     try:
         yield
     finally:
@@ -34,24 +33,27 @@ app = FastAPI(
 )
 
 
-def _retriever(request: Request) -> QdrantNIMRetriever:
+def _retriever(request: Request) -> HybridRetriever:
     retriever = getattr(request.app.state, "retriever", None)
-    if not isinstance(retriever, QdrantNIMRetriever):
+    if not isinstance(retriever, HybridRetriever):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="dense retriever is not ready",
+            detail="hybrid retriever is not ready",
         )
     return retriever
 
 
 @app.get("/health")
 async def health(request: Request) -> dict[str, object]:
-    """Report ready only after the strict dense retriever passed startup gates."""
     retriever = _retriever(request)
     return {
         "status": "ok",
-        "retriever": "qdrant_nim",
-        "checks": {"nvidia_nim": "ok", "qdrant_collection": "ok"},
+        "retriever": "qdrant_nim_postgres_rrf",
+        "checks": {
+            "nvidia_nim": "ok",
+            "qdrant_collection": "ok",
+            "postgres_fts": "ok",
+        },
         "collection": retriever.collection,
         "dimensions": retriever.embedder.config.dimensions,
     }
@@ -59,28 +61,36 @@ async def health(request: Request) -> dict[str, object]:
 
 @app.post("/search", response_model=SearchResponse)
 async def search(request: Request, req: SearchRequest) -> SearchResponse:
-    """Embed a query with NIM and return Qdrant-ranked grounded passages."""
     retriever = _retriever(request)
+    filters = SearchFilters(
+        language=req.language,
+        document_type=req.document_type,
+        applicable_plans=tuple(req.applicable_plans),
+    )
     try:
-        passages = await run_in_threadpool(retriever.search, req.query, req.top_k)
+        passages = await run_in_threadpool(
+            retriever.search,
+            req.query,
+            req.top_k,
+            filters,
+        )
     except Exception as exc:
-        logger.error("dense retrieval failed: %s", exc)
+        logger.error("hybrid retrieval failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="dense retrieval is unavailable",
+            detail="hybrid retrieval is unavailable",
         ) from exc
-
     return SearchResponse(
         passages=[
             PassageModel(
-                text=passage.text,
-                source=passage.source,
-                score=passage.score,
-                language=passage.language,
-                document_type=passage.document_type,
-                metadata=passage.metadata,
+                text=item.text,
+                source=item.source,
+                score=item.score,
+                language=item.language,
+                document_type=item.document_type,
+                metadata=item.metadata,
             )
-            for passage in passages
+            for item in passages
         ]
     )
 

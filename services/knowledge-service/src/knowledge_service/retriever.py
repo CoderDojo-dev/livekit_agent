@@ -1,4 +1,4 @@
-"""Strict dense retrieval over NVIDIA NIM embeddings and Qdrant."""
+"""Filtered dense and hybrid retrieval over NVIDIA NIM, Qdrant, and Postgres."""
 from __future__ import annotations
 
 import re
@@ -17,9 +17,14 @@ class RetrievalError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
-class Passage:
-    """A scored passage with a complete citation contract."""
+class SearchFilters:
+    language: str | None = None
+    document_type: str | None = None
+    applicable_plans: tuple[str, ...] = ()
 
+
+@dataclass(frozen=True, slots=True)
+class Passage:
     text: str
     source: str
     score: float
@@ -29,51 +34,79 @@ class Passage:
 
 
 class Retriever(Protocol):
-    def search(self, query: str, top_k: int = 4) -> list[Passage]: ...
+    def search(
+        self,
+        query: str,
+        top_k: int = 4,
+        filters: SearchFilters | None = None,
+    ) -> list[Passage]: ...
+
+
+def build_qdrant_filter(filters: SearchFilters) -> models.Filter:
+    must: list[models.Condition] = [
+        models.FieldCondition(
+            key="active",
+            match=models.MatchValue(value=True),
+        )
+    ]
+    if filters.language:
+        must.append(
+            models.FieldCondition(
+                key="language",
+                match=models.MatchValue(value=filters.language),
+            )
+        )
+    if filters.document_type:
+        must.append(
+            models.FieldCondition(
+                key="document_type",
+                match=models.MatchValue(value=filters.document_type),
+            )
+        )
+    if filters.applicable_plans:
+        must.append(
+            models.FieldCondition(
+                key="applicable_plans",
+                match=models.MatchAny(any=list(filters.applicable_plans)),
+            )
+        )
+    return models.Filter(must=must)
 
 
 class QdrantNIMRetriever:
-    """Embed queries as `query`, search active Qdrant passages, return citations."""
+    """Dense retrieval with metadata pre-filters applied before vector scoring."""
 
-    def __init__(
-        self,
-        client: QdrantClient,
-        collection: str,
-        embedder: NIMEmbeddingClient,
-    ) -> None:
+    def __init__(self, client: QdrantClient, collection: str, embedder: NIMEmbeddingClient) -> None:
         if not collection.strip():
             raise ValueError("collection is required")
         self.client = client
         self.collection = collection
         self.embedder = embedder
 
-    def search(self, query: str, top_k: int = 4) -> list[Passage]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 4,
+        filters: SearchFilters | None = None,
+    ) -> list[Passage]:
         normalized_query = query.strip()
         if not normalized_query:
             raise ValueError("query must not be empty")
-        if not 1 <= top_k <= 20:
-            raise ValueError("top_k must be between 1 and 20")
-
+        if not 1 <= top_k <= 100:
+            raise ValueError("top_k must be between 1 and 100")
+        effective_filters = filters or SearchFilters()
         vector = self.embedder.embed_query(normalized_query)
         try:
             hits = self.client.search(
                 collection_name=self.collection,
                 query_vector=vector,
-                query_filter=models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="active",
-                            match=models.MatchValue(value=True),
-                        )
-                    ]
-                ),
+                query_filter=build_qdrant_filter(effective_filters),
                 limit=top_k,
                 with_payload=True,
                 with_vectors=False,
             )
         except Exception as exc:
             raise RetrievalError("Qdrant dense search failed") from exc
-
         return [self._passage_from_hit(hit) for hit in hits]
 
     @staticmethod
@@ -81,27 +114,18 @@ class QdrantNIMRetriever:
         payload = hit.payload
         if not isinstance(payload, Mapping):
             raise RetrievalError("Qdrant hit has no payload")
-
-        text = str(payload.get("text") or "").strip()
+        text_value = str(payload.get("text") or "").strip()
         source = str(payload.get("source") or "").strip()
-        language = str(payload.get("language") or "und").strip()
-        document_type = str(payload.get("document_type") or "unknown").strip()
-        if not text or not source:
+        if not text_value or not source:
             raise RetrievalError("Qdrant hit is missing passage text or citation source")
-
         reserved = {"text", "source", "language", "document_type"}
-        metadata = {
-            str(key): value
-            for key, value in payload.items()
-            if key not in reserved
-        }
         return Passage(
-            text=text,
+            text=text_value,
             source=source,
             score=float(hit.score),
-            language=language,
-            document_type=document_type,
-            metadata=metadata,
+            language=str(payload.get("language") or "und"),
+            document_type=str(payload.get("document_type") or "unknown"),
+            metadata={str(k): v for k, v in payload.items() if k not in reserved},
         )
 
     def close(self) -> None:
@@ -109,8 +133,58 @@ class QdrantNIMRetriever:
         self.client.close()
 
 
-def get_retriever() -> QdrantNIMRetriever:
-    """Build the production retriever or raise. There is no lexical downgrade."""
+class HybridRetriever:
+    """Fuse dense Qdrant and sparse Postgres rankings using RRF."""
+
+    def __init__(
+        self,
+        dense: QdrantNIMRetriever,
+        sparse: Any,
+        *,
+        candidate_multiplier: int = 4,
+        rank_constant: int = 60,
+    ) -> None:
+        if candidate_multiplier < 1:
+            raise ValueError("candidate_multiplier must be positive")
+        self.dense = dense
+        self.sparse = sparse
+        self.candidate_multiplier = candidate_multiplier
+        self.rank_constant = rank_constant
+        self.collection = dense.collection
+        self.embedder = dense.embedder
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 4,
+        filters: SearchFilters | None = None,
+    ) -> list[Passage]:
+        from knowledge_service.hybrid import reciprocal_rank_fusion
+
+        if not 1 <= top_k <= 20:
+            raise ValueError("top_k must be between 1 and 20")
+        effective_filters = filters or SearchFilters()
+        candidate_k = min(top_k * self.candidate_multiplier, 100)
+        dense = self.dense.search(query, candidate_k, effective_filters)
+        sparse = self.sparse.search(query, candidate_k, effective_filters)
+        return reciprocal_rank_fusion(
+            dense,
+            sparse,
+            top_k=top_k,
+            rank_constant=self.rank_constant,
+        )
+
+    def close(self) -> None:
+        self.dense.close()
+
+
+def get_retriever() -> HybridRetriever:
+    """Build strict hybrid production retrieval; never downgrade to lexical-only."""
+    import os
+
+    from knowledge_service.hybrid import PostgresSparseRetriever
+    from persistence.engine import get_sessionmaker
+
     config = QdrantConfig.from_env()
     client = config.client()
     embedder: NIMEmbeddingClient | None = None
@@ -118,7 +192,14 @@ def get_retriever() -> QdrantNIMRetriever:
         verify_collection(client, config)
         embedder = NIMEmbeddingClient.from_env()
         embedder.probe()
-        return QdrantNIMRetriever(client, config.collection, embedder)
+        dense = QdrantNIMRetriever(client, config.collection, embedder)
+        sparse = PostgresSparseRetriever(get_sessionmaker())
+        return HybridRetriever(
+            dense,
+            sparse,
+            candidate_multiplier=int(os.getenv("HYBRID_CANDIDATE_MULTIPLIER", "4")),
+            rank_constant=int(os.getenv("HYBRID_RRF_K", "60")),
+        )
     except Exception:
         if embedder is not None:
             embedder.close()
@@ -126,12 +207,11 @@ def get_retriever() -> QdrantNIMRetriever:
         raise
 
 
-# Offline-only helper retained for deterministic unit tests. Production never calls it.
 _TOKEN = re.compile(r"[a-z0-9]+")
 
 
 class LexicalRetriever:
-    """Tiny offline test helper. Forbidden as a production fallback."""
+    """Offline unit-test helper, never selected by the production factory."""
 
     def __init__(self, documents: Sequence[Any] | None = None) -> None:
         if documents is None:
@@ -140,7 +220,13 @@ class LexicalRetriever:
             documents = CORPUS
         self._documents = tuple(documents)
 
-    def search(self, query: str, top_k: int = 4) -> list[Passage]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 4,
+        filters: SearchFilters | None = None,
+    ) -> list[Passage]:
+        del filters
         terms = set(_TOKEN.findall(query.lower()))
         scored: list[Passage] = []
         for document in self._documents:
@@ -154,7 +240,6 @@ class LexicalRetriever:
                         score=overlap / max(len(document_terms) ** 0.5, 1),
                         language=getattr(document, "language", "und"),
                         document_type=getattr(document, "document_type", "offline"),
-                        metadata={},
                     )
                 )
         return sorted(scored, key=lambda item: item.score, reverse=True)[:top_k]
