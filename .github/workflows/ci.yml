@@ -35,7 +35,8 @@ jobs:
       - name: Install shared packages + tooling
         run: |
           pip install --upgrade pip
-          pip install ./packages/domain-core ./packages/persistence ./packages/audit-trail \
+          pip install pytest \
+                      ./packages/domain-core ./packages/persistence ./packages/audit-trail \
                       ./packages/pii-shield ./packages/observability-kit ./packages/service-auth \
                       ./packages/cache ./packages/object-storage ./packages/notification-client \
                       ./packages/integration-adapters
