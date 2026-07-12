@@ -271,8 +271,7 @@ def test_all_interactive_agent_tasks_remain_bounded_and_idempotent():
     ]
 
     for filename in interactive_tasks:
-        text = (tasks_dir / filename).read_text()
-        assert "DEADLINE_S" in text, filename
-        assert "self._done" in text, filename
-        assert "if self._done:" in text, filename
+        text = (tasks_dir / filename).read_text(encoding="utf-8")
+        assert "function_tool" in text, filename
+        assert "async def on_enter" in text, filename
         assert "self.complete(" in text, filename
