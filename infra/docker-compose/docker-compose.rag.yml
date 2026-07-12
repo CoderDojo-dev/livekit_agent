@@ -1,0 +1,13 @@
+# Phase 3 RAG runtime overrides. Use after the base and app Compose files.
+services:
+  knowledge-service:
+    environment:
+      MINIO_ENDPOINT: "minio:9000"
+      KNOWLEDGE_MINIO_BUCKET: "${KNOWLEDGE_MINIO_BUCKET:-telecom-knowledge}"
+      QDRANT_URL: "http://qdrant:6333"
+      EMBEDDING_DIMENSIONS: "384"
+      QDRANT_COLLECTION: "${QDRANT_COLLECTION:-telecom_knowledge}"
+    depends_on:
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      minio: { condition: service_healthy }

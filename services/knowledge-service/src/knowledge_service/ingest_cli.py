@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 
 from knowledge_service.ingestion import KnowledgeIngestor
 
@@ -24,14 +25,16 @@ def main() -> None:
     try:
         keys = [args.object] if args.object else ingestor.store.list_keys(args.prefix)
         keys = [
-            key for key in keys if key and key.lower().endswith((".pdf", ".md", ".markdown", ".txt"))
+            key
+            for key in keys
+            if key and key.lower().endswith((".pdf", ".md", ".markdown", ".txt"))
         ]
         if not keys:
             raise SystemExit("FAIL: no supported knowledge objects found")
         for key in keys:
             try:
                 result = ingestor.ingest(key)
-                print(json.dumps(result.__dict__, sort_keys=True))
+                print(json.dumps(asdict(result), sort_keys=True))
             except Exception as exc:
                 failures += 1
                 print(f"FAIL: {key}: {exc}", file=sys.stderr)
