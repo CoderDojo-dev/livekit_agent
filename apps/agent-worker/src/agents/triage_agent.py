@@ -12,42 +12,33 @@ from tools.routing_tools import route_to_billing, route_to_technical
 
 logger = logging.getLogger(__name__)
 
+_LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
+
 _INSTRUCTIONS = (
     "You are the first point of contact on a telecom customer-support line. "
-    "Determine the caller's need and either answer or route it. "
+    "You MUST speak ONLY in {language}. Never switch to another language.\n"
+    "Determine the caller's need and either answer or route it.\n"
     "For general offers, procedures, and FAQs, call knowledge_search with a "
-    "concise English query, then answer in {language} and cite the source. "
-    "For personal billing, invoices, balances, or payments, call "
-    "route_to_billing. For SIM, network, or connectivity issues, call "
-    "route_to_technical. For a human advisor, call escalate_to_manager. "
-    "For an ambiguous request, call request_clarification. "
-    "Always reply only in {language}. Keep replies short. Never invent data. "
+    "concise English query, then answer in {language} and cite the source.\n"
+    "For personal billing, invoices, balances, or payments, call route_to_billing.\n"
+    "For SIM, network, or connectivity issues, call route_to_technical.\n"
+    "For a human advisor, call escalate_to_manager.\n"
+    "For an ambiguous request, call request_clarification.\n"
+    "Keep replies short. Never invent data.\n"
     "Do not reveal a customer's name or personal details before identity "
     "verification succeeds."
 )
-
-_GREETINGS = {
-    "fr": "Bonjour. Comment puis-je vous aider aujourd'hui ?",
-    "ar": "مرحباً. كيف يمكنني مساعدتك اليوم؟",
-    "en": "Hello. How can I help you today?",
-}
 
 
 class TriageAgent(BaseTelecomAgent):
     """Starting persona for consent, triage, FAQ, and specialist routing."""
 
     def __init__(self, language: str = "fr") -> None:
-        selected_language = (
-            language if language in _GREETINGS else "fr"
-        )
+        selected_language = language if language in _LANG_NAMES else "fr"
+        lang_name = _LANG_NAMES[selected_language]
+
         super().__init__(
-            instructions=_INSTRUCTIONS.format(
-                language={
-                    "fr": "French",
-                    "ar": "Arabic",
-                    "en": "English",
-                }[selected_language]
-            ),
+            instructions=_INSTRUCTIONS.format(language=lang_name),
             tools=[
                 request_clarification,
                 route_to_billing,
@@ -57,20 +48,24 @@ class TriageAgent(BaseTelecomAgent):
             ],
         )
         self._language = selected_language
+        self._lang_name = lang_name
 
     async def on_enter(self) -> None:
         """Collect consent, then greet without disclosing customer PII."""
-        logger.info(
-            "triage agent entered language=%s",
-            self._language,
-        )
+        logger.info("triage agent entered language=%s", self._language)
         user_data = self.session.userdata
 
         if user_data.recording_consent is None:
-            granted = await ConsentTask(chat_ctx=self.chat_ctx)
+            granted = await ConsentTask(
+                language=self._language,
+                chat_ctx=self.chat_ctx.copy(exclude_instructions=True),
+            )
             user_data.recording_consent = bool(granted)
 
-        await self.session.say(
-            _GREETINGS[self._language],
-            allow_interruptions=True,
+        # generate_reply with language-locked instructions (no PII disclosure)
+        await self.session.generate_reply(
+            instructions=(
+                f"In {self._lang_name} only, ask how you can help today. "
+                f"One short sentence. Do NOT mention the caller's name or any personal details."
+            ),
         )
