@@ -118,7 +118,7 @@ vec2 turb(vec2 pos, float t, float it) {
   return pos;
 }
 
-const float ITERATIONS = 36.0;
+const float ITERATIONS = 28.0;
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   vec2 uv = fragCoord / iResolution.xy;

@@ -455,7 +455,7 @@ export function ReactShaderToy({
   style,
   contextAttributes = {},
   lerp = 1,
-  devicePixelRatio = 1,
+  devicePixelRatio = 0.75,
   onDoneLoadingTextures,
   onError = console.error,
   onWarning = console.warn,

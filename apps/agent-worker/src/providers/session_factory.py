@@ -33,4 +33,5 @@ def build_agent_session(settings: Settings, language: str) -> AgentSession:
         llm=build_llm(settings.llm_primary_model, settings.llm_fallback_model, settings.chaos_break_llm, settings.openai_enabled),
         tts=build_tts(preset, settings.tts_model, settings.eleven_voice_id, settings.chaos_break_tts),
         preemptive_generation=settings.preemptive_generation,
+        use_tts_aligned_transcript=True,
     )

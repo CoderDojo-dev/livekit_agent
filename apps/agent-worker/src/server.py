@@ -10,6 +10,7 @@ from agents.triage_agent import TriageAgent
 from clients.context_client import get_context_client
 from config import get_settings
 from conversation.writer import ConversationWriter
+from frontend_events import FrontendEventPublisher
 from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import (
@@ -101,6 +102,7 @@ async def entrypoint(ctx: JobContext) -> None:
     session = build_agent_session(settings, language)
     session.userdata = user_data
 
+    frontend_events = FrontendEventPublisher(ctx.room)
     writer = _open_conversation(ctx, user_data)
 
     async def _finish_conversation() -> None:
@@ -112,6 +114,7 @@ async def entrypoint(ctx: JobContext) -> None:
         await writer.aclose()
 
     ctx.add_shutdown_callback(_finish_conversation)
+    ctx.add_shutdown_callback(frontend_events.aclose)
     ctx.add_shutdown_callback(attach_metrics(session))
 
     @session.on("conversation_item_added")
@@ -132,6 +135,7 @@ async def entrypoint(ctx: JobContext) -> None:
         names = [fc.name for fc in event.function_calls] if event.function_calls else []
         if names:
             logger.info("🛠️✅ Tools executed: %s", ", ".join(names))
+            frontend_events.publish_tool_batch(event)
 
     nc = build_noise_cancellation(settings.noise_cancellation)
     if nc is None:

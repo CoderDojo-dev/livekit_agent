@@ -11,6 +11,7 @@ import { AgentAudioVisualizerAura } from "@/components/agents-ui/agent-audio-vis
 import { AgentControlBar } from "@/components/agents-ui/agent-control-bar";
 import { AgentSessionProvider } from "@/components/agents-ui/agent-session-provider";
 import { StartAudioButton } from "@/components/agents-ui/start-audio-button";
+import { LiveConversation } from "@/components/app/live-conversation";
 import { Button } from "@/components/ui/button";
 
 const TOKEN_SERVICE_URL = (
@@ -278,6 +279,8 @@ function VoiceExperience() {
             className="mt-4 rounded-full"
           />
         </section>
+
+        <LiveConversation />
 
         <footer className="flex flex-col items-center justify-between gap-4 border-t border-border pt-5 text-xs text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">

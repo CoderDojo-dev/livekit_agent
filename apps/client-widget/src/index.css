@@ -98,3 +98,286 @@ button,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Aura performance isolation: no visible design or sizing change. */
+[data-slot="agent-audio-visualizer-aura"],
+canvas {
+  contain: layout paint style;
+}
+
+canvas {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/*
+ * Live conversation rail.
+ *
+ * Desktop: fixed visually at the middle-right of the Aura.
+ * Mobile/tablet: moves below the voice experience to avoid covering controls.
+ *
+ * Only transform and opacity are animated. Layout dimensions are stable.
+ */
+
+.live-conversation {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  right: clamp(1.25rem, 4vw, 4.5rem);
+  display: flex;
+  width: min(27rem, 34vw);
+  min-width: 20rem;
+  min-height: 25rem;
+  transform: translateY(-47%);
+  flex-direction: column;
+  justify-content: center;
+  contain: layout paint style;
+  pointer-events: none;
+}
+
+.live-conversation__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 0.25rem 1rem;
+}
+
+.live-conversation__eyebrow,
+.live-turn__role {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.live-conversation__eyebrow {
+  color: oklch(0.72 0.035 235);
+}
+
+.live-conversation__state {
+  color: oklch(0.69 0.025 235);
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+
+.live-conversation__stack {
+  position: relative;
+  display: flex;
+  min-height: 18rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.live-turn {
+  display: flex;
+  width: min(100%, 25rem);
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid oklch(0.31 0.028 245);
+  border-radius: 1.15rem;
+  padding: 0.9rem 1rem;
+  background: oklch(0.165 0.022 250);
+  box-shadow:
+    0 14px 40px
+    oklch(0.07 0.01 255 / 0.22);
+  will-change: transform, opacity;
+}
+
+.live-turn[data-depth="1"] {
+  filter: saturate(0.78);
+}
+
+.live-turn[data-depth="2"] {
+  filter: saturate(0.55);
+}
+
+.live-turn--caller {
+  margin-left: auto;
+  border-color: oklch(0.48 0.085 215);
+  background: oklch(0.205 0.045 220);
+}
+
+.live-turn--agent {
+  margin-right: auto;
+}
+
+.live-turn--tool {
+  align-self: center;
+  border-color: oklch(0.43 0.065 78);
+  background: oklch(0.2 0.035 72);
+}
+
+.live-turn__content {
+  min-width: 0;
+  flex: 1;
+}
+
+.live-turn__role {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: oklch(0.72 0.035 235);
+}
+
+.live-turn--caller .live-turn__role {
+  color: oklch(0.82 0.09 210);
+}
+
+.live-turn--tool .live-turn__role {
+  color: oklch(0.8 0.105 82);
+}
+
+.live-turn p {
+  margin: 0;
+  color: oklch(0.93 0.012 225);
+  font-size: 0.96rem;
+  font-weight: 450;
+  line-height: 1.55;
+  letter-spacing: 0.005em;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.live-turn__caret {
+  display: inline-block;
+  width: 0.42rem;
+  height: 1em;
+  margin-left: 0.22rem;
+  transform: translateY(0.16em);
+  border-radius: 999px;
+  background: currentColor;
+  animation:
+    live-conversation-caret
+    0.8s
+    steps(1, end)
+    infinite;
+}
+
+.live-turn__tool-icon,
+.live-turn__tool-status {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.live-turn__tool-icon {
+  width: 2rem;
+  height: 2rem;
+  color: oklch(0.83 0.12 82);
+  background: oklch(0.27 0.055 72);
+}
+
+.live-turn__tool-icon svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.live-turn__tool-status {
+  width: 1.65rem;
+  height: 1.65rem;
+  color: oklch(0.84 0.11 150);
+  background: oklch(0.25 0.05 150);
+}
+
+.live-turn__tool-status--error {
+  color: oklch(0.82 0.12 25);
+  background: oklch(0.25 0.055 25);
+}
+
+.live-turn__tool-status svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.live-conversation__waiting,
+.live-conversation--empty p {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: oklch(0.66 0.025 235);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.live-conversation__waiting svg {
+  width: 1rem;
+  height: 1rem;
+  animation:
+    live-conversation-spin
+    1s
+    linear
+    infinite;
+}
+
+.live-conversation--empty {
+  color: oklch(0.66 0.025 235);
+}
+
+@keyframes live-conversation-caret {
+  0%,
+  48% {
+    opacity: 1;
+  }
+
+  49%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes live-conversation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * At widths where the right rail could overlap the Aura, integrate it into
+ * normal flow underneath. This is a layout redesign, not a squeezed desktop UI.
+ */
+@media (max-width: 1100px) {
+  .live-conversation {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: min(100%, 34rem);
+    min-width: 0;
+    min-height: 16rem;
+    margin: 2rem auto 0;
+    transform: none;
+  }
+
+  .live-conversation__stack {
+    min-height: 13rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .live-conversation {
+    width: 100%;
+    min-height: 14rem;
+    margin-top: 1.5rem;
+  }
+
+  .live-conversation__heading {
+    padding-inline: 0;
+  }
+
+  .live-turn {
+    border-radius: 1rem;
+    padding: 0.8rem 0.9rem;
+  }
+
+  .live-turn p {
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-turn__caret,
+  .live-conversation__waiting svg {
+    animation: none;
+  }
+}
