@@ -1,0 +1,36 @@
+[
+  {
+    "name": "flexi_fr_recall",
+    "request": {
+      "query": "Quel forfait mobile postpayé Flexi est disponible ?",
+      "top_k": 10,
+      "language": "fr",
+      "document_type": "product",
+      "applicable_plans": ["flexi"]
+    },
+    "expected_sources": ["validation/hybrid-flexi-fr.md"],
+    "forbidden_sources": ["validation/hybrid-prepaid-en.md"]
+  },
+  {
+    "name": "prepaid_en_isolation",
+    "request": {
+      "query": "Which prepaid starter mobile offer includes calls and data?",
+      "top_k": 10,
+      "language": "en",
+      "document_type": "product",
+      "applicable_plans": ["prepaid"]
+    },
+    "expected_sources": ["validation/hybrid-prepaid-en.md"],
+    "forbidden_sources": ["validation/hybrid-flexi-fr.md"]
+  },
+  {
+    "name": "flexi_exact_sparse_dense",
+    "request": {
+      "query": "FLEXI-HYBRID-2026",
+      "top_k": 10,
+      "applicable_plans": ["flexi"]
+    },
+    "expected_sources": ["validation/hybrid-flexi-fr.md"],
+    "forbidden_sources": ["validation/hybrid-prepaid-en.md"]
+  }
+]
