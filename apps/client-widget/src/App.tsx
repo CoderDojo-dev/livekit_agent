@@ -173,13 +173,19 @@ function VoiceExperience() {
 
   const connected = session.isConnected;
   const pending = isStarting || agent.isPending;
+  const sessionActive =
+    isStarting
+    || session.connectionState !== "disconnected";
 
   return (
-    <main className="relative min-h-svh overflow-hidden bg-background text-foreground">
+    <main
+      className="voice-shell relative min-h-svh overflow-hidden bg-background text-foreground"
+      data-session-active={sessionActive ? "true" : "false"}
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,oklch(0.29_0.08_220)_0%,oklch(0.16_0.025_250)_35%,oklch(0.11_0.012_255)_72%)]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,oklch(0.78_0.13_210),transparent)] opacity-60" />
 
-      <div className="relative mx-auto flex min-h-svh w-full max-w-6xl flex-col px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
+      <div className="voice-page relative mx-auto flex min-h-svh w-full max-w-7xl flex-col px-5 py-5 sm:px-8 sm:py-6 lg:px-10">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-xl border border-border bg-card text-primary shadow-sm">
@@ -197,8 +203,8 @@ function VoiceExperience() {
           </div>
         </header>
 
-        <section className="flex flex-1 flex-col items-center justify-center py-10 text-center sm:py-14">
-          <div className="relative grid min-h-[19rem] w-full place-items-center sm:min-h-[25rem]">
+        <section className="voice-stage flex flex-1 flex-col items-center justify-center text-center">
+          <div className="voice-orb-frame relative grid w-full place-items-center">
             <div className="absolute size-56 rounded-full bg-primary opacity-10 blur-3xl sm:size-72" />
             <AgentAudioVisualizerAura
               size="xl"
@@ -207,12 +213,15 @@ function VoiceExperience() {
               colorShift={0.12}
               themeMode="dark"
               audioTrack={agent.microphoneTrack}
-              className="relative z-10 scale-110 sm:scale-125"
+              className="voice-aura relative z-10"
               aria-label={`Assistant state: ${copy.label}`}
             />
           </div>
 
-          <div className="mt-2 flex max-w-xl flex-col items-center gap-3" aria-live="polite">
+          <div
+            className="voice-intro flex max-w-xl flex-col items-center gap-3"
+            aria-live="polite"
+          >
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-primary">
               <span
                 className={`size-1.5 rounded-full ${
@@ -238,7 +247,7 @@ function VoiceExperience() {
             </div>
           )}
 
-          <div className="mt-8 flex min-h-14 items-center justify-center">
+          <div className="voice-controls flex min-h-14 items-center justify-center">
             {!connected ? (
               <Button
                 size="lg"
@@ -276,7 +285,7 @@ function VoiceExperience() {
           <StartAudioButton
             label="Enable assistant audio"
             variant="outline"
-            className="mt-4 rounded-full"
+            className="voice-start-audio rounded-full"
           />
         </section>
 

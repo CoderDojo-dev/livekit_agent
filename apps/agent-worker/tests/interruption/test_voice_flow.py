@@ -168,6 +168,7 @@ def test_second_clarification_hands_off(monkeypatch):
 @pytest.mark.parametrize(
     ("function_name", "agent_attribute", "expected_type"),
     [
+        ("route_to_account_services", "AccountServicesAgent", "account"),
         ("route_to_billing", "BillingAgent", "billing"),
         ("route_to_technical", "TechnicalAgent", "technical"),
     ],
@@ -193,8 +194,7 @@ def test_specialist_handoffs_preserve_context(
 
         assert result.kind == expected_type
         assert result.chat_ctx is original_chat_ctx
-        assert len(session.say_calls) == 1
-        assert session.say_calls[0][1] is False
+        assert session.say_calls == []
 
     asyncio.run(run())
 
@@ -240,7 +240,7 @@ def test_manager_escalation_paths(
 
         assert isinstance(result, FakeManager)
         assert result.chat_ctx is original_chat_ctx
-        assert session.say_calls[0][1] is False
+        assert session.say_calls == []
         assert writer.calls[0]["trigger"] == expected_trigger
 
     asyncio.run(run())

@@ -6,7 +6,7 @@ import logging
 from agents.manager_agent import ManagerAgent
 from livekit.agents import Agent, RunContext, function_tool
 
-from tools.voice_flow import current_chat_ctx, handoff_with_message
+from tools.voice_flow import current_chat_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,6 @@ async def escalate_to_manager(context: RunContext) -> Agent:
     """Record the escalation and hand off to the manager on the same session."""
     user_data = context.session.userdata
     next_agent = ManagerAgent(chat_ctx=current_chat_ctx(context))
-
-    await handoff_with_message(
-        context,
-        next_agent,
-        "Je vous mets en relation avec un conseiller spécialisé.",
-    )
 
     writer = getattr(user_data, "conversation_writer", None)
     if writer is not None:

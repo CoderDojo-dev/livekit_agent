@@ -28,11 +28,21 @@ SENSITIVE_ACTIONS = frozenset(
     }
 )
 
+# Explicit allowlist. Anything not listed here is unknown and must never execute.
+SUPPORTED_ACTIONS = SENSITIVE_ACTIONS
+
 _ACTION_RULES = (check_payment, check_deferral, check_sim)
 
 
 def evaluate_action(ctx, thresholds) -> VerdictResult:
     """Return the binding three-way verdict for an action (never raises)."""
+    if ctx.action_type not in SUPPORTED_ACTIONS:
+        return VerdictResult(
+            ESCALATE,
+            "POLICY_UNKNOWN_ACTION",
+            f"action '{ctx.action_type}' is not explicitly supported by policy",
+        )
+
     mandatory = check_mandatory(ctx)
     if mandatory is not None:
         return mandatory
@@ -65,7 +75,13 @@ def evaluate_action(ctx, thresholds) -> VerdictResult:
         if result is not None:
             return result
 
-    return VerdictResult(AUTHORIZED, "DEFAULT_ALLOW", "no rule objected to this action")
+    # Known account actions currently share the mandatory identity checks above.
+    # This is explicit authorization, not an open-ended default allow.
+    return VerdictResult(
+        AUTHORIZED,
+        "KNOWN_ACTION_AUTHORIZED",
+        "known action passed mandatory identity and escalation checks",
+    )
 
 
 def evaluate_response(text: str) -> VerdictResult:
