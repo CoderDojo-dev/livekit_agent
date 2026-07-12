@@ -1,25 +1,30 @@
-"""Wire DTOs for the knowledge-service."""
+"""Validated wire DTOs for dense knowledge retrieval."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class SearchRequest(BaseModel):
-    """A knowledge-base search query (English, per cookbook section 1)."""
+    """A multilingual knowledge-base search query."""
 
-    query: str
-    top_k: int = 4
+    query: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=4, ge=1, le=20)
 
 
 class PassageModel(BaseModel):
-    """A single grounded passage with its source reference."""
+    """A grounded passage with citation and classification metadata."""
 
     text: str
     source: str
     score: float
+    language: str
+    document_type: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class SearchResponse(BaseModel):
-    """Ranked passages for a query; every passage carries a source (Blueprint section 7.6)."""
+    """Ranked dense passages; every result carries its source."""
 
     passages: list[PassageModel]

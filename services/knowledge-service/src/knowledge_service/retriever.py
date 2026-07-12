@@ -1,104 +1,156 @@
-"""Retrieval behind a small interface so the index implementation is swappable (KnowledgePort).
-
-Phase 5 ships a dependency-free lexical retriever over the in-memory corpus. The production
-swap is a Qdrant-backed embedding retriever implementing the same interface — the agent code
-and MCP tool never change when it is replaced (Blueprint section 7.6 / ADR vector store).
-"""
+"""Strict dense retrieval over NVIDIA NIM embeddings and Qdrant."""
 from __future__ import annotations
 
-import logging
-import os
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
-from knowledge_service.corpus import CORPUS, Document
+from qdrant_client import QdrantClient, models
 
-_TOKEN = re.compile(r"[a-z0-9]+")
-
-
-def _tokenize(text: str) -> list[str]:
-    return _TOKEN.findall(text.lower())
+from knowledge_service.embeddings import NIMEmbeddingClient
+from knowledge_service.qdrant_store import QdrantConfig, verify_collection
 
 
-@dataclass(frozen=True)
+class RetrievalError(RuntimeError):
+    """Raised when retrieval cannot produce trustworthy grounded results."""
+
+
+@dataclass(frozen=True, slots=True)
 class Passage:
-    """A scored retrieval result carrying its citable source."""
+    """A scored passage with a complete citation contract."""
 
     text: str
     source: str
     score: float
+    language: str
+    document_type: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class Retriever(Protocol):
+    def search(self, query: str, top_k: int = 4) -> list[Passage]: ...
+
+
+class QdrantNIMRetriever:
+    """Embed queries as `query`, search active Qdrant passages, return citations."""
+
+    def __init__(
+        self,
+        client: QdrantClient,
+        collection: str,
+        embedder: NIMEmbeddingClient,
+    ) -> None:
+        if not collection.strip():
+            raise ValueError("collection is required")
+        self.client = client
+        self.collection = collection
+        self.embedder = embedder
+
+    def search(self, query: str, top_k: int = 4) -> list[Passage]:
+        normalized_query = query.strip()
+        if not normalized_query:
+            raise ValueError("query must not be empty")
+        if not 1 <= top_k <= 20:
+            raise ValueError("top_k must be between 1 and 20")
+
+        vector = self.embedder.embed_query(normalized_query)
+        try:
+            hits = self.client.search(
+                collection_name=self.collection,
+                query_vector=vector,
+                query_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="active",
+                            match=models.MatchValue(value=True),
+                        )
+                    ]
+                ),
+                limit=top_k,
+                with_payload=True,
+                with_vectors=False,
+            )
+        except Exception as exc:
+            raise RetrievalError("Qdrant dense search failed") from exc
+
+        return [self._passage_from_hit(hit) for hit in hits]
+
+    @staticmethod
+    def _passage_from_hit(hit: Any) -> Passage:
+        payload = hit.payload
+        if not isinstance(payload, Mapping):
+            raise RetrievalError("Qdrant hit has no payload")
+
+        text = str(payload.get("text") or "").strip()
+        source = str(payload.get("source") or "").strip()
+        language = str(payload.get("language") or "und").strip()
+        document_type = str(payload.get("document_type") or "unknown").strip()
+        if not text or not source:
+            raise RetrievalError("Qdrant hit is missing passage text or citation source")
+
+        reserved = {"text", "source", "language", "document_type"}
+        metadata = {
+            str(key): value
+            for key, value in payload.items()
+            if key not in reserved
+        }
+        return Passage(
+            text=text,
+            source=source,
+            score=float(hit.score),
+            language=language,
+            document_type=document_type,
+            metadata=metadata,
+        )
+
+    def close(self) -> None:
+        self.embedder.close()
+        self.client.close()
+
+
+def get_retriever() -> QdrantNIMRetriever:
+    """Build the production retriever or raise. There is no lexical downgrade."""
+    config = QdrantConfig.from_env()
+    client = config.client()
+    embedder: NIMEmbeddingClient | None = None
+    try:
+        verify_collection(client, config)
+        embedder = NIMEmbeddingClient.from_env()
+        embedder.probe()
+        return QdrantNIMRetriever(client, config.collection, embedder)
+    except Exception:
+        if embedder is not None:
+            embedder.close()
+        client.close()
+        raise
+
+
+# Offline-only helper retained for deterministic unit tests. Production never calls it.
+_TOKEN = re.compile(r"[a-z0-9]+")
 
 
 class LexicalRetriever:
-    """Score documents by query-term overlap. Deterministic, no external dependency."""
+    """Tiny offline test double. Forbidden as a production fallback."""
 
-    def __init__(self, documents: tuple[Document, ...] = CORPUS) -> None:
-        self._documents = documents
+    def __init__(self, documents: Sequence[Any] = ()) -> None:
+        self._documents = tuple(documents)
 
     def search(self, query: str, top_k: int = 4) -> list[Passage]:
-        """Return up to ``top_k`` passages whose text best matches ``query`` (score > 0)."""
-        query_terms = set(_tokenize(query))
-        if not query_terms:
-            return []
+        terms = set(_TOKEN.findall(query.lower()))
         scored: list[Passage] = []
-        for doc in self._documents:
-            doc_terms = _tokenize(f"{doc.title} {doc.text}")
-            overlap = sum(1 for term in doc_terms if term in query_terms)
+        for document in self._documents:
+            document_terms = _TOKEN.findall(f"{document.title} {document.text}".lower())
+            overlap = sum(term in terms for term in document_terms)
             if overlap:
-                score = overlap / (len(doc_terms) ** 0.5)
-                scored.append(Passage(text=doc.text, source=doc.source, score=round(score, 4)))
-        scored.sort(key=lambda passage: passage.score, reverse=True)
-        return scored[:top_k]
-
-
-logger = logging.getLogger(__name__)
-
-
-class QdrantRetriever:
-    """Embedding retriever over Qdrant (report #6), same `search` interface as the lexical one."""
-
-    def __init__(self, client, collection: str, embed) -> None:
-        self._client = client
-        self._collection = collection
-        self._embed = embed
-
-    def search(self, query: str, top_k: int = 4) -> list[Passage]:
-        vector = self._embed(query)
-        hits = self._client.search(collection_name=self._collection, query_vector=vector, limit=top_k)
-        return [
-            Passage(text=h.payload.get("text", ""), source=h.payload.get("source", ""), score=float(h.score))
-            for h in hits
-        ]
-
-
-def _openai_embedder():
-    """Return a callable str->vector using the OpenAI embeddings API (requires OPENAI_API_KEY)."""
-    import httpx
-
-    api_key = os.environ["OPENAI_API_KEY"]
-    model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-
-    def embed(text: str) -> list[float]:
-        resp = httpx.post(
-            "https://api.openai.com/v1/embeddings",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": model, "input": text}, timeout=10.0,
-        )
-        resp.raise_for_status()
-        return resp.json()["data"][0]["embedding"]
-
-    return embed
-
-
-def get_retriever():
-    """Return the Qdrant retriever when QDRANT_URL is set and reachable; else the lexical one."""
-    url = os.getenv("QDRANT_URL")
-    if url:
-        try:
-            from qdrant_client import QdrantClient  # optional dependency
-
-            collection = os.getenv("QDRANT_COLLECTION", "telecom_knowledge")
-            return QdrantRetriever(QdrantClient(url=url), collection, _openai_embedder())
-        except Exception as exc:
-            logger.warning("qdrant unavailable (%s); falling back to lexical retriever", exc)
-    return LexicalRetriever()
+                scored.append(
+                    Passage(
+                        text=document.text,
+                        source=document.source,
+                        score=overlap / max(len(document_terms) ** 0.5, 1),
+                        language=getattr(document, "language", "und"),
+                        document_type=getattr(document, "document_type", "offline"),
+                        metadata={},
+                    )
+                )
+        return sorted(scored, key=lambda item: item.score, reverse=True)[:top_k]
