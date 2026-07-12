@@ -19,6 +19,13 @@ from persistence.models.knowledge import KnowledgeSyncOutbox
 logger = logging.getLogger(__name__)
 
 
+def retry_delay_seconds(base_seconds: float, attempt_count: int) -> float:
+    """Return bounded exponential delay for a 1-based failed attempt."""
+    if base_seconds < 0 or attempt_count < 1:
+        raise ValueError("invalid retry delay inputs")
+    return min(base_seconds * (2 ** (attempt_count - 1)), 3600.0)
+
+
 @dataclass(frozen=True, slots=True)
 class OutboxWorkerConfig:
     batch_size: int = 50
@@ -31,9 +38,7 @@ class OutboxWorkerConfig:
         config = cls(
             batch_size=int(os.getenv("KNOWLEDGE_OUTBOX_BATCH_SIZE", "50")),
             max_attempts=int(os.getenv("KNOWLEDGE_OUTBOX_MAX_ATTEMPTS", "5")),
-            base_backoff_seconds=float(
-                os.getenv("KNOWLEDGE_OUTBOX_BACKOFF_S", "2")
-            ),
+            base_backoff_seconds=float(os.getenv("KNOWLEDGE_OUTBOX_BACKOFF_S", "2")),
             poll_seconds=float(os.getenv("KNOWLEDGE_OUTBOX_POLL_S", "2")),
         )
         if config.batch_size < 1 or config.max_attempts < 1:
@@ -136,8 +141,9 @@ class KnowledgeOutboxWorker:
                 return
             event.attempt_count += 1
             event.status = "failed"
-            delay = self.config.base_backoff_seconds * (
-                2 ** max(event.attempt_count - 1, 0)
+            delay = retry_delay_seconds(
+                self.config.base_backoff_seconds,
+                event.attempt_count,
             )
             event.available_at = datetime.now(UTC) + timedelta(seconds=delay)
             event.last_error = str(exc)[:4000]
