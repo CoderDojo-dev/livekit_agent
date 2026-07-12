@@ -1,0 +1,12 @@
+# RAG-specific app wiring. Use with docker-compose.yml and docker-compose.apps.yml.
+services:
+  knowledge-service:
+    environment:
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_KNOWLEDGE_BUCKET: "${MINIO_KNOWLEDGE_BUCKET:-telecom-knowledge}"
+      QDRANT_COLLECTION: "${QDRANT_COLLECTION:-telecom_knowledge}"
+      EMBEDDING_DIMENSIONS: "${EMBEDDING_DIMENSIONS:-384}"
+    depends_on:
+      minio: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      postgres: { condition: service_healthy }

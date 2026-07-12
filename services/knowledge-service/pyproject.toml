@@ -1,12 +1,15 @@
 [project]
 name = "knowledge-service"
-version = "0.2.0"
-description = "RAG over the documentation corpus with NVIDIA NIM and Qdrant."
+version = "0.3.0"
+description = "RAG ingestion and retrieval with NVIDIA NIM, Qdrant, Postgres, and MinIO."
 requires-python = ">=3.12"
 dependencies = [
   "domain-core",
   "fastapi==0.115.6",
   "httpx==0.28.1",
+  "minio>=7.2,<8",
+  "persistence",
+  "pypdf>=5.1,<6",
   "qdrant-client==1.12.1",
   "service-auth",
   "uvicorn[standard]==0.34.0",
@@ -15,6 +18,8 @@ dependencies = [
 [project.scripts]
 knowledge-service = "knowledge_service.main:run"
 knowledge-bootstrap-qdrant = "knowledge_service.qdrant_store:run_bootstrap"
+knowledge-bootstrap-bucket = "knowledge_service.ingestion_cli:bootstrap_bucket"
+knowledge-ingest = "knowledge_service.ingestion_cli:ingest"
 
 [build-system]
 requires = ["setuptools>=68"]
