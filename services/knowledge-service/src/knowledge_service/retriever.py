@@ -131,9 +131,13 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 
 
 class LexicalRetriever:
-    """Tiny offline test double. Forbidden as a production fallback."""
+    """Tiny offline test helper. Forbidden as a production fallback."""
 
-    def __init__(self, documents: Sequence[Any] = ()) -> None:
+    def __init__(self, documents: Sequence[Any] | None = None) -> None:
+        if documents is None:
+            from knowledge_service.corpus import CORPUS
+
+            documents = CORPUS
         self._documents = tuple(documents)
 
     def search(self, query: str, top_k: int = 4) -> list[Passage]:
