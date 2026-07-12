@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from persistence.engine import get_sessionmaker
 
+from knowledge_service.qdrant_store import QdrantConfig
 from knowledge_service.readiness import ReadinessReport, verify_production_readiness
 from knowledge_service.retriever import HybridRetriever, SearchFilters, get_retriever
 from knowledge_service.schemas import PassageModel, SearchRequest, SearchResponse
@@ -24,9 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         report = await run_in_threadpool(
             verify_production_readiness,
             qdrant=retriever.dense.client,
-            qdrant_config=__import__(
-                "knowledge_service.qdrant_store", fromlist=["QdrantConfig"]
-            ).QdrantConfig.from_env(),
+            qdrant_config=QdrantConfig.from_env(),
             embedder=retriever.embedder,
             session_factory=get_sessionmaker(),
         )
