@@ -1,4 +1,4 @@
-# Phase 3 RAG runtime overrides. Use after the base and app Compose files.
+# RAG runtime overrides and the durable Phase 6 outbox worker.
 services:
   knowledge-service:
     environment:
@@ -7,7 +7,29 @@ services:
       QDRANT_URL: "http://qdrant:6333"
       EMBEDDING_DIMENSIONS: "384"
       QDRANT_COLLECTION: "${QDRANT_COLLECTION:-telecom_knowledge}"
+      HYBRID_CANDIDATE_MULTIPLIER: "${HYBRID_CANDIDATE_MULTIPLIER:-4}"
+      HYBRID_RRF_K: "${HYBRID_RRF_K:-60}"
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
       minio: { condition: service_healthy }
+
+  knowledge-outbox-worker:
+    build:
+      context: ../..
+      dockerfile: services/knowledge-service/Dockerfile
+    command: ["knowledge-outbox-worker"]
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+      QDRANT_URL: "http://qdrant:6333"
+      QDRANT_COLLECTION: "${QDRANT_COLLECTION:-telecom_knowledge}"
+      EMBEDDING_DIMENSIONS: "384"
+      KNOWLEDGE_OUTBOX_BATCH_SIZE: "${KNOWLEDGE_OUTBOX_BATCH_SIZE:-50}"
+      KNOWLEDGE_OUTBOX_MAX_ATTEMPTS: "${KNOWLEDGE_OUTBOX_MAX_ATTEMPTS:-5}"
+      KNOWLEDGE_OUTBOX_BACKOFF_S: "${KNOWLEDGE_OUTBOX_BACKOFF_S:-2}"
+      KNOWLEDGE_OUTBOX_POLL_S: "${KNOWLEDGE_OUTBOX_POLL_S:-2}"
+    depends_on:
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+    restart: unless-stopped
