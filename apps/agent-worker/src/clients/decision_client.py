@@ -6,6 +6,7 @@ from functools import lru_cache
 
 import httpx
 from config import get_settings
+from observability_kit import inject_trace_context
 
 from service_auth import internal_headers
 
@@ -22,7 +23,7 @@ class DecisionClient:
         """Return {action, confidence, rationale}; low confidence on service error."""
         try:
             resp = await self._client.post(
-                "/recommend", json={"action_type": action_type, "context": context}
+                "/recommend", json={"action_type": action_type, "context": context}, headers=inject_trace_context()
             )
             resp.raise_for_status()
             return resp.json()

@@ -20,11 +20,14 @@ from context_service.schemas import (
 )
 from persistence import get_session
 from service_auth import require_internal_key
+from observability_kit import configure_tracer, trace_requests
 
 app = FastAPI(
     title="context-service",
     dependencies=[Depends(require_internal_key)],
 )
+configure_tracer("context-service")
+trace_requests(app, "context-service")
 _cache = get_cache()
 DbSession = Annotated[Session, Depends(get_session)]
 

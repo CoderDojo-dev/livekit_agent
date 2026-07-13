@@ -6,6 +6,7 @@ from functools import lru_cache
 
 import httpx
 from config import get_settings
+from observability_kit import inject_trace_context
 
 from service_auth import internal_headers
 
@@ -25,7 +26,7 @@ class PolicyClient:
     async def evaluate_action(self, context: dict) -> dict:
         """Return the verdict dict for an action; ESCALATE on service error (fail-closed)."""
         try:
-            resp = await self._client.post("/evaluate-action", json=context)
+            resp = await self._client.post("/evaluate-action", json=context, headers=inject_trace_context())
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPError as exc:
@@ -36,7 +37,7 @@ class PolicyClient:
         """Guardrail an outbound response; REFUSED on service error (fail-closed)."""
         try:
             resp = await self._client.post(
-                "/evaluate-response", json={"session_id": session_id, "text": text}
+                "/evaluate-response", json={"session_id": session_id, "text": text}, headers=inject_trace_context()
             )
             resp.raise_for_status()
             return resp.json()

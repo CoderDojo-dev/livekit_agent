@@ -11,8 +11,11 @@ from execution_service.schemas import ExecuteRequest, ExecuteResponse
 from execution_service.service import ExecutionService
 from persistence import get_session
 from service_auth import require_internal_key
+from observability_kit import configure_tracer, trace_requests
 
 app = FastAPI(title="execution-service", dependencies=[Depends(require_internal_key)])
+configure_tracer("execution-service")
+trace_requests(app, "execution-service")
 DbSession = Annotated[Session, Depends(get_session)]
 
 

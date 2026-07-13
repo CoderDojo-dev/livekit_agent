@@ -6,6 +6,7 @@ from functools import lru_cache
 
 import httpx
 from config import get_settings
+from observability_kit import inject_trace_context
 from tools import outcomes
 
 from service_auth import internal_headers
@@ -42,6 +43,7 @@ class ExecutionClient:
                     "subscription_id": subscription_id,
                     "payload": payload,
                 },
+                headers=inject_trace_context(),
             )
             resp.raise_for_status()
             data = resp.json()
