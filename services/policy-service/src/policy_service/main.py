@@ -12,8 +12,11 @@ from policy_service.config import get_thresholds
 from policy_service.schemas import EvaluateResponseRequest, PolicyContext, VerdictResponse
 from policy_service.service import PolicyService
 from service_auth import require_internal_key
+from observability_kit import configure_tracer, trace_requests
 
 app = FastAPI(title="policy-service", dependencies=[Depends(require_internal_key)])
+configure_tracer("policy-service")
+trace_requests(app, "policy-service")
 DbSession = Annotated[Session, Depends(get_session)]
 
 

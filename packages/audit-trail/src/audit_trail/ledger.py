@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
+from observability_kit import trace_span
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +72,11 @@ class AuditLedger:
         self._last_hash = GENESIS_HASH
 
     def append(self, session_id: str, event_type: str, payload: dict) -> AuditEntry:
-        entry = build_entry(str(uuid.uuid4()), session_id, event_type, payload, self._last_hash)
-        self._entries.append(entry)
-        self._last_hash = entry.entry_hash
-        return entry
+        with trace_span("audit.append", attributes={"audit.event_type": event_type, "audit.session_id": str(session_id)}):
+            entry = build_entry(str(uuid.uuid4()), session_id, event_type, payload, self._last_hash)
+            self._entries.append(entry)
+            self._last_hash = entry.entry_hash
+            return entry
 
     def verify(self) -> bool:
         return verify_chain(self._entries)
@@ -98,26 +100,27 @@ class PgAuditLedger:
     def append(self, session_id, event_type: str, payload: dict, entity_reference: str | None = None):
         from persistence.models.audit import AuditLedgerEntry
 
-        self._session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _AUDIT_LOCK_KEY})
-        last = self._session.scalar(
-            select(AuditLedgerEntry).order_by(AuditLedgerEntry.seq.desc()).limit(1)
-        )
-        previous_hash = last.entry_hash if last else GENESIS_HASH
-        created_at = datetime.now(UTC)
-        entry_hash = compute_entry_hash(previous_hash, payload, created_at.isoformat())
-        row = AuditLedgerEntry(
-            session_id=session_id,
-            event_type=event_type,
-            entity_reference=entity_reference,
-            payload=payload,
-            previous_hash=previous_hash,
-            entry_hash=entry_hash,
-            created_at=created_at,
-        )
-        self._session.add(row)
-        self._session.flush()
-        logger.info("audit event_type=%s hash=%s", event_type, entry_hash[:12])
-        return row
+        with trace_span("audit.append", attributes={"audit.event_type": event_type, "audit.session_id": str(session_id)}):
+            self._session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _AUDIT_LOCK_KEY})
+            last = self._session.scalar(
+                select(AuditLedgerEntry).order_by(AuditLedgerEntry.seq.desc()).limit(1)
+            )
+            previous_hash = last.entry_hash if last else GENESIS_HASH
+            created_at = datetime.now(UTC)
+            entry_hash = compute_entry_hash(previous_hash, payload, created_at.isoformat())
+            row = AuditLedgerEntry(
+                session_id=session_id,
+                event_type=event_type,
+                entity_reference=entity_reference,
+                payload=payload,
+                previous_hash=previous_hash,
+                entry_hash=entry_hash,
+                created_at=created_at,
+            )
+            self._session.add(row)
+            self._session.flush()
+            logger.info("audit event_type=%s hash=%s", event_type, entry_hash[:12])
+            return row
 
     def verify(self) -> bool:
         """Recompute the whole chain; False on any break (tamper-evident)."""

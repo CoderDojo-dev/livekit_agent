@@ -10,6 +10,7 @@ from functools import lru_cache
 
 import httpx
 from config import get_settings
+from observability_kit import inject_trace_context
 from session.customer_context import CustomerContext
 
 from service_auth import internal_headers
@@ -26,7 +27,7 @@ class ContextClient:
     async def get_snapshot(self, msisdn: str) -> CustomerContext | None:
         """Return the caller's CustomerContext, or None if unknown/unavailable."""
         try:
-            resp = await self._client.get(f"/context/{msisdn}")
+            resp = await self._client.get(f"/context/{msisdn}", headers=inject_trace_context())
             if resp.status_code == 404:
                 return None
             resp.raise_for_status()
@@ -50,6 +51,7 @@ class ContextClient:
                     "call_session_id": call_session_id,
                     "answer": answer,
                 },
+                headers=inject_trace_context(),
             )
             resp.raise_for_status()
             return resp.json()
@@ -68,7 +70,7 @@ class ContextClient:
     async def get_invoices(self, customer_id: str) -> list[dict]:
         """Return the caller's invoices (read-only, CDC section 5.1); [] on error."""
         try:
-            resp = await self._client.get(f"/billing/{customer_id}/invoices")
+            resp = await self._client.get(f"/billing/{customer_id}/invoices", headers=inject_trace_context())
             resp.raise_for_status()
             return resp.json().get("invoices", [])
         except httpx.HTTPError as exc:
@@ -78,7 +80,7 @@ class ContextClient:
     async def get_balance(self, customer_id: str) -> dict | None:
         """Return the caller's prepaid balance, or None if absent/unavailable."""
         try:
-            resp = await self._client.get(f"/balance/{customer_id}")
+            resp = await self._client.get(f"/balance/{customer_id}", headers=inject_trace_context())
             if resp.status_code == 404:
                 return None
             resp.raise_for_status()
