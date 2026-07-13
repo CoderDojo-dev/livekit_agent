@@ -7,6 +7,7 @@ import { Loader, MessageSquareTextIcon, SendHorizontal } from 'lucide-react';
 import { motion, type MotionProps } from 'motion/react';
 
 import { cn } from '@/lib/utils';
+import { DURATION, EASE_SMOOTH } from '@/lib/motion';
 import { AgentDisconnectButton } from '@/components/agents-ui/agent-disconnect-button';
 import { AgentTrackControl } from '@/components/agents-ui/agent-track-control';
 import {
@@ -57,8 +58,8 @@ const MOTION_PROPS: MotionProps = {
   },
   initial: 'hidden',
   transition: {
-    duration: 0.3,
-    ease: 'easeOut',
+    duration: DURATION.base,
+    ease: EASE_SMOOTH,
   },
 };
 
