@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
@@ -25,7 +25,12 @@ async def health() -> dict:
 @app.post("/execute", response_model=ExecuteResponse)
 def execute(req: ExecuteRequest, session: DbSession) -> ExecuteResponse:
     """Dispatch an AUTHORIZED action idempotently and audit the result."""
-    return ExecutionService(session).execute(req)
+    try:
+        return ExecutionService(session).execute(req)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/audit/verify")

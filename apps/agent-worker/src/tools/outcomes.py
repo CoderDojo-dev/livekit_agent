@@ -44,10 +44,10 @@ def executed(action_type: str, reference: str, replay: bool = False) -> dict:
     }
 
 
-def failed(reason: str) -> dict:
+def failed(reason: str, message: str | None = None) -> dict:
     """A hard execution failure: apologize and offer escalation, never claim success."""
     return {
         "outcome": FAILED,
         "reason": reason,
-        "message": "The action could not be completed right now. Apologize briefly and offer to escalate.",
+        "message": message or "The action could not be completed right now. Apologize briefly and offer to escalate.",
     }

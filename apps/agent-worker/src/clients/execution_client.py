@@ -47,8 +47,17 @@ class ExecutionClient:
             data = resp.json()
             return outcomes.executed(data["action_type"], data["reference"], replay=data.get("replay", False))
         except httpx.HTTPError as exc:
-            logger.error("execution failed for %s: %s", action_type, exc)
-            return outcomes.failed(str(exc))
+            reason = str(exc)
+            if isinstance(exc, httpx.HTTPStatusError):
+                try:
+                    reason = exc.response.json().get("detail", reason)
+                except Exception:
+                    pass
+            logger.error("execution failed for %s: %s", action_type, reason)
+            return outcomes.failed(
+                reason,
+                message="This service is currently unavailable, please try again later. Apologize briefly and offer to escalate.",
+            )
 
     async def aclose(self) -> None:
         await self._client.aclose()
