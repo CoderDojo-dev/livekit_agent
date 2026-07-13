@@ -11,6 +11,7 @@ import logging
 from conversation.writer import sentiment_label
 from livekit.agents import Agent
 from sentiment.sentiment_scorer import get_sentiment_scorer
+from tools.session_flow_tools import end_conversation
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,22 @@ _DEESCALATION_NOTE = (
     "The caller appears repeatedly frustrated. In your next reply, sincerely acknowledge their "
     "frustration, stay brief and calm, and proactively offer to connect them with a human "
     "specialist. If they agree, call escalate_to_manager."
+)
+
+# Shared closing protocol appended to every persona's instructions so ending a
+# call behaves identically no matter which specialist is active.
+CLOSING_PROTOCOL = (
+    "\n\nEnding the call: when the caller's need is fully handled — information "
+    "delivered, a ticket created, an issue escalated, a callback scheduled, or "
+    "the caller signals they are finished — first ask, in the caller's language, "
+    "whether there is anything else you can help with. If they need more, "
+    "continue normally. Only once the caller clearly has nothing else, or clearly "
+    "wants to leave or says goodbye, call end_conversation to close the call. "
+    "Judge this from the caller's intent, not from a fixed list of keywords. "
+    "Never call end_conversation while the caller still needs help, and never end "
+    "without first confirming there is nothing else. When you call "
+    "end_conversation, do not also speak a goodbye yourself — the tool delivers "
+    "the farewell."
 )
 
 
@@ -36,6 +53,21 @@ def _extract_text(message) -> str:
 
 class BaseTelecomAgent(Agent):
     """Every persona inherits this to share the sentiment/escalation + logging observer."""
+
+    def __init__(self, *, instructions: str, tools=None, **kwargs) -> None:
+        """Give every persona the shared closing protocol + end_conversation tool.
+
+        Personas keep passing their own instructions/tools; this centralizes the
+        graceful-end capability so it stays consistent and never drifts per persona.
+        """
+        merged_tools = list(tools or [])
+        if end_conversation not in merged_tools:
+            merged_tools.append(end_conversation)
+        super().__init__(
+            instructions=instructions + CLOSING_PROTOCOL,
+            tools=merged_tools,
+            **kwargs,
+        )
 
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
         """Score the turn, log it (off-path), and inject a de-escalation note when frustration is high."""

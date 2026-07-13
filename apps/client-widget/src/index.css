@@ -50,6 +50,17 @@
   --border: oklch(0.3 0.025 245);
   --input: oklch(0.24 0.025 245);
   --ring: oklch(0.78 0.14 210);
+
+  /*
+   * Motion language — one vocabulary for every call-UI transition.
+   * Mirrored in src/lib/motion.ts for the `motion` (JS) animations.
+   * (prefers-reduced-motion still overrides all of these to ~0ms below.)
+   */
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1); /* enter / settle (canonical) */
+  --ease-exit: cubic-bezier(0.55, 0, 0.85, 0); /* fade / leave */
+  --dur-micro: 320ms; /* small opacity / fades   */
+  --dur-base: 500ms; /* standard element moves  */
+  --dur-macro: 680ms; /* large stage layout shifts */
 }
 
 * {
@@ -420,7 +431,7 @@ canvas {
     scale(var(--session-orb-scale));
   transform-origin: center;
   transition:
-    transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+    transform var(--dur-macro) var(--ease-smooth);
   will-change: transform;
 }
 
@@ -441,8 +452,8 @@ canvas {
       0
     );
   transition:
-    opacity 240ms cubic-bezier(0.7, 0, 0.84, 0),
-    transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity var(--dur-micro) var(--ease-exit),
+    transform var(--dur-base) var(--ease-smooth);
   will-change: opacity, transform;
 }
 
@@ -465,7 +476,7 @@ canvas {
   margin-top: clamp(1rem, 2.4vh, 1.75rem);
   transform: translate3d(var(--session-x), 0, 0);
   transition:
-    transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+    transform var(--dur-macro) var(--ease-smooth);
   will-change: transform;
 }
 
@@ -473,8 +484,8 @@ canvas {
   margin-top: clamp(0.4rem, 1vh, 0.75rem);
   transform: translate3d(var(--session-x), 0, 0);
   transition:
-    transform 620ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    transform var(--dur-macro) var(--ease-smooth),
+    opacity var(--dur-micro) var(--ease-smooth);
 }
 
 /*
@@ -496,9 +507,9 @@ canvas {
   visibility: hidden;
   pointer-events: none;
   transition:
-    opacity 210ms cubic-bezier(0.7, 0, 0.84, 0),
-    transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    visibility 0s linear 220ms;
+    opacity var(--dur-micro) var(--ease-exit),
+    transform var(--dur-base) var(--ease-smooth),
+    visibility 0s linear var(--dur-micro);
 }
 
 .voice-shell[data-session-active="true"] .voice-orb-frame {
@@ -526,8 +537,8 @@ canvas {
   transform: translate3d(0, -50%, 0);
   animation:
     conversation-rail-enter
-    480ms
-    cubic-bezier(0.16, 1, 0.3, 1)
+    var(--dur-base)
+    var(--ease-smooth)
     both;
 }
 
@@ -636,8 +647,8 @@ canvas {
     transform: none;
     animation:
       conversation-mobile-enter
-      420ms
-      cubic-bezier(0.16, 1, 0.3, 1)
+      var(--dur-base)
+      var(--ease-smooth)
       both;
   }
 

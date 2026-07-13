@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 
+import { TRANSITION_BASE, TRANSITION_MICRO } from "@/lib/motion";
+
 
 const TOOL_EVENT_TOPIC = "telecom.tool-events";
 const MAX_VISIBLE_ITEMS = 3;
@@ -316,10 +318,7 @@ export function LiveConversation() {
                   x: 34,
                   scale: 0.96,
                 }}
-                transition={{
-                  duration: 0.32,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
+                transition={TRANSITION_BASE}
               >
                 {item.role === "tool" ? (
                   <>
@@ -390,6 +389,7 @@ export function LiveConversation() {
               className="live-conversation__waiting"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
+              transition={TRANSITION_MICRO}
             >
               <LoaderCircle aria-hidden="true" />
               Listening for the first turn

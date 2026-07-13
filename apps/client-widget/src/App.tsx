@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useAgent,
   useSession,
@@ -6,6 +6,9 @@ import {
 } from "@livekit/components-react";
 import { Headphones, Languages, LockKeyhole, Mic, PhoneCall } from "lucide-react";
 import { TokenSource } from "livekit-client";
+import { AnimatePresence, motion } from "motion/react";
+
+import { TRANSITION_BASE } from "@/lib/motion";
 
 import { AgentAudioVisualizerAura } from "@/components/agents-ui/agent-audio-visualizer-aura";
 import { AgentControlBar } from "@/components/agents-ui/agent-control-bar";
@@ -133,6 +136,7 @@ function VoiceExperience() {
   const agent = useAgent();
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [callId, setCallId] = useState(0);
 
   const copy = STATE_COPY[agent.state] ?? STATE_COPY.disconnected;
 
@@ -140,6 +144,7 @@ function VoiceExperience() {
     if (isStarting || session.isConnected) return;
 
     setError(null);
+    setCallId((n) => n + 1);
     setIsStarting(true);
     void reportClientEvent("start_session_clicked", { audio_only: true });
 
@@ -171,11 +176,29 @@ function VoiceExperience() {
     void reportClientEvent("session_ended");
   }, [session]);
 
+  // When the session disconnects for ANY reason — manual End Call, the agent's
+  // end_conversation tool (which deletes the room server-side), or a dropped
+  // connection — clear transient state so the next call starts clean. The
+  // visible restore (toolbar -> Start button, stage -> intro, transcript rail
+  // hidden) is already driven reactively by `connectionState` via
+  // `inCall`/`sessionActive`, so this only prevents a stale error from
+  // lingering. The result: automatic and manual termination are identical.
+  useEffect(() => {
+    if (session.connectionState === "disconnected") {
+      setError(null);
+    }
+  }, [session.connectionState]);
+
   const connected = session.isConnected;
   const pending = isStarting || agent.isPending;
   const sessionActive =
     isStarting
     || session.connectionState !== "disconnected";
+  // Stable in-call latch — same basis as `sessionActive`/data-session-active.
+  // `isConnected` oscillates during connect/ICE/agent-join; `connectionState`
+  // does not return to "disconnected" until the call actually ends, so gating
+  // the toolbar on it makes the bar mount once and stay put (no flicker).
+  const inCall = session.connectionState !== "disconnected";
 
   return (
     <main
@@ -248,38 +271,56 @@ function VoiceExperience() {
           )}
 
           <div className="voice-controls flex min-h-14 items-center justify-center">
-            {!connected ? (
-              <Button
-                size="lg"
-                onClick={startSession}
-                disabled={isStarting}
-                className="h-14 min-w-48 rounded-full px-7 text-base font-semibold shadow-[0_12px_40px_oklch(0.72_0.15_210/0.18)] transition-transform duration-150 active:scale-[0.98]"
-              >
-                <PhoneCall className="size-5" aria-hidden="true" />
-                {isStarting ? "Connecting..." : "Start voice session"}
-              </Button>
-            ) : (
-              <AgentControlBar
-                variant="livekit"
-                controls={{
-                  microphone: true,
-                  camera: false,
-                  screenShare: false,
-                  chat: false,
-                  leave: true,
-                }}
-                isConnected={connected}
-                isChatOpen={false}
-                onDisconnect={endSession}
-                onDeviceError={({ error: deviceError }) => {
-                  setError(deviceError.message);
-                  void reportClientEvent("media_device_error", {
-                    message: deviceError.message,
-                  });
-                }}
-                className="rounded-full border border-border bg-card p-2 shadow-lg"
-              />
-            )}
+            <AnimatePresence mode="wait" initial={false}>
+              {!inCall ? (
+                <motion.div
+                  key="start"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={TRANSITION_BASE}
+                >
+                  <Button
+                    size="lg"
+                    onClick={startSession}
+                    disabled={isStarting}
+                    className="h-14 min-w-48 rounded-full px-7 text-base font-semibold shadow-[0_12px_40px_oklch(0.72_0.15_210/0.18)] transition-transform duration-150 active:scale-[0.98]"
+                  >
+                    <PhoneCall className="size-5" aria-hidden="true" />
+                    {isStarting ? "Connecting..." : "Start voice session"}
+                  </Button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="controls"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={TRANSITION_BASE}
+                >
+                  <AgentControlBar
+                    variant="livekit"
+                    controls={{
+                      microphone: true,
+                      camera: false,
+                      screenShare: false,
+                      chat: false,
+                      leave: true,
+                    }}
+                    isConnected={connected}
+                    isChatOpen={false}
+                    onDisconnect={endSession}
+                    onDeviceError={({ error: deviceError }) => {
+                      setError(deviceError.message);
+                      void reportClientEvent("media_device_error", {
+                        message: deviceError.message,
+                      });
+                    }}
+                    className="rounded-full border border-border bg-card p-2 shadow-lg"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <StartAudioButton
@@ -289,7 +330,7 @@ function VoiceExperience() {
           />
         </section>
 
-        <LiveConversation />
+        <LiveConversation key={callId} />
 
         <footer className="flex flex-col items-center justify-between gap-4 border-t border-border pt-5 text-xs text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
