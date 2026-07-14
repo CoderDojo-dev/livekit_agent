@@ -17,6 +17,8 @@ from tools.technical_tools import check_network_status, diagnose_data_issue
 
 from agents.base_agent import BaseTelecomAgent
 
+_LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
+
 
 @function_tool()
 async def unblock_sim(context: RunContext) -> dict:
@@ -45,22 +47,25 @@ async def replace_sim(context: RunContext) -> dict:
 class TechnicalAgent(BaseTelecomAgent):
     """Concentrates SIM/network risk. Sensitive ops are identity-gated; opens/resolves tickets."""
 
-    def __init__(self, chat_ctx=None) -> None:
+    def __init__(self, chat_ctx=None, language: str = "fr") -> None:
+        selected_language = language if language in _LANG_NAMES else "fr"
+        lang_name = _LANG_NAMES[selected_language]
         super().__init__(
             instructions=(
-                "You handle technical issues: SIM problems, network and connectivity. "
+                f"You handle technical issues: SIM problems, network and connectivity. "
+                f"You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
                 "To unblock a SIM, use unblock_sim. To request a SIM replacement, use replace_sim. "
                 "To diagnose a data/connectivity complaint, use diagnose_data_issue. "
                 "To check known incidents for an area, use check_network_status. "
                 "For how-to/known-issue questions, call knowledge_search with a concise "
-                "ENGLISH query and answer in the caller's language, citing the source. "
+                f"ENGLISH query and answer in {lang_name}, citing the source. "
                 "If an issue cannot be solved on the call, call create_ticket "
                 "(subject + short description + the caller's language) so the caller gets "
                 "a written confirmation; give them the ticket reference. If the issue IS "
                 "solved during the call, you may resolve_ticket. Keep replies short. "
                 "NEVER claim an operation succeeded yourself - only the tool result decides. "
                 "If a result is 'refused' or 'failed', communicate its 'message' plainly; "
-                "if 'escalate', call escalate_to_manager. Always reply in the caller's language."
+                f"if 'escalate', call escalate_to_manager. Always reply in {lang_name}."
             ),
             chat_ctx=chat_ctx,
             tools=[
@@ -73,9 +78,22 @@ class TechnicalAgent(BaseTelecomAgent):
                 build_ticketing_toolset(),
             ],
         )
+        self._language = selected_language
+        self._lang_name = lang_name
 
     async def on_enter(self) -> None:
-        """Acknowledge the hand-off and invite the technical question."""
-        self.session.generate_reply(
-            instructions="Briefly tell the caller you can help with their technical issue, in their language.",
+        """Acknowledge the hand-off and invite the technical question in the locked language."""
+        user_data = getattr(self.session, "userdata", None)
+        if user_data is not None:
+            lang = getattr(user_data, "language", self._language)
+            lang_code = getattr(lang, "value", lang) if lang else self._language
+            if isinstance(lang_code, str) and lang_code.lower().strip()[:2] in _LANG_NAMES:
+                self._language = lang_code.lower().strip()[:2]
+                self._lang_name = _LANG_NAMES[self._language]
+
+        await self.session.generate_reply(
+            instructions=(
+                f"In {self._lang_name} only, ask the caller how you can help with their "
+                f"technical issue. One short sentence. Never switch language."
+            ),
         )
