@@ -18,6 +18,8 @@ from tools.guards import ensure_identity_verified
 
 from agents.base_agent import BaseTelecomAgent
 
+_LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
+
 
 @function_tool()
 async def make_payment(context: RunContext, amount: float) -> dict:
@@ -59,19 +61,22 @@ async def request_payment_deferral(context: RunContext, requested_days: int) -> 
 class BillingAgent(BaseTelecomAgent):
     """Concentrates billing/payment risk. Reads are free; sensitive writes are guarded + audited."""
 
-    def __init__(self, chat_ctx=None) -> None:
+    def __init__(self, chat_ctx=None, language: str = "fr") -> None:
+        selected_language = language if language in _LANG_NAMES else "fr"
+        lang_name = _LANG_NAMES[selected_language]
         super().__init__(
             instructions=(
-                "You handle billing: invoice/balance consultation, payment, and payment-deferral. "
+                f"You handle billing: invoice/balance consultation, payment, and payment-deferral. "
+                f"You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
                 "For the caller's own invoice or balance, use get_invoice_summary / "
                 "get_balance_summary. To take a payment use make_payment; for a deferral use "
                 "request_payment_deferral. For general offer/procedure/FAQ questions, call "
-                "knowledge_search with a concise ENGLISH query and answer in the caller's "
-                "language, citing the source. Keep replies short. NEVER claim a payment or "
+                f"knowledge_search with a concise ENGLISH query and answer in {lang_name}, "
+                "citing the source. Keep replies short. NEVER claim a payment or "
                 "deferral succeeded yourself - only the tool result decides. Communicate the "
                 "tool's 'message' to the caller: on 'executed' give the reference; on 'refused' "
                 "or 'failed' explain plainly; on 'escalate' explain briefly and call "
-                "escalate_to_manager. Always reply in the caller's language."
+                f"escalate_to_manager. Always reply in {lang_name}."
             ),
             chat_ctx=chat_ctx,
             tools=[
@@ -83,9 +88,22 @@ class BillingAgent(BaseTelecomAgent):
                 build_knowledge_toolset(),
             ],
         )
+        self._language = selected_language
+        self._lang_name = lang_name
 
     async def on_enter(self) -> None:
-        """Acknowledge the hand-off and invite the billing question."""
-        self.session.generate_reply(
-            instructions="Briefly tell the caller you can help with their billing question, in their language.",
+        """Acknowledge the hand-off and invite the billing question in the locked language."""
+        user_data = getattr(self.session, "userdata", None)
+        if user_data is not None:
+            lang = getattr(user_data, "language", self._language)
+            lang_code = getattr(lang, "value", lang) if lang else self._language
+            if isinstance(lang_code, str) and lang_code.lower().strip()[:2] in _LANG_NAMES:
+                self._language = lang_code.lower().strip()[:2]
+                self._lang_name = _LANG_NAMES[self._language]
+
+        await self.session.generate_reply(
+            instructions=(
+                f"In {self._lang_name} only, ask the caller how you can help with their "
+                f"billing question. One short sentence. Never switch language."
+            ),
         )
