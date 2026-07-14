@@ -63,11 +63,17 @@ class BaseTelecomAgent(Agent):
         merged_tools = list(tools or [])
         if end_conversation not in merged_tools:
             merged_tools.append(end_conversation)
+        language = kwargs.pop("language", None)
         super().__init__(
             instructions=instructions + CLOSING_PROTOCOL,
             tools=merged_tools,
             **kwargs,
         )
+        if language:
+            _LANG_MAP = {"fr": "French", "ar": "Arabic", "en": "English"}
+            selected = language if language in _LANG_MAP else "fr"
+            self._language = selected
+            self._lang_name = _LANG_MAP[selected]
 
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
         """Score the turn, log it (off-path), and inject a de-escalation note when frustration is high."""
@@ -94,7 +100,20 @@ class BaseTelecomAgent(Agent):
 
         if getattr(user_data, "should_offer_escalation", False):
             try:
-                turn_ctx.add_message(role="system", content=_DEESCALATION_NOTE)
-                logger.info("frustration high -> injected proactive de-escalation note")
+                lang = getattr(self, "_lang_name", None)
+                if not lang and user_data is not None:
+                    l = getattr(user_data, "language", "fr")
+                    val = getattr(l, "value", l)
+                    _MAP = {"fr": "French", "ar": "Arabic", "en": "English"}
+                    lang = _MAP.get(str(val).lower().strip()[:2], "French")
+                lang = lang or "French"
+                note = (
+                    "The caller appears repeatedly frustrated. In your next reply, strictly in "
+                    f"{lang} ONLY, sincerely acknowledge their frustration, stay brief and calm, "
+                    "and proactively offer to connect them with a human specialist. If they agree, "
+                    "call escalate_to_manager. Never switch language."
+                )
+                turn_ctx.add_message(role="system", content=note)
+                logger.info("frustration high -> injected proactive de-escalation note (%s)", lang)
             except Exception as exc:
                 logger.debug("frustration injection skipped: %s", exc)

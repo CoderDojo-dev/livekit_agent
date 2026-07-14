@@ -18,6 +18,8 @@ class AccountServicesAgent(BaseTelecomAgent):
     """Lower-risk account-management persona; every state change is verdict-checked + audited."""
 
     def __init__(self, chat_ctx=None, language: str = "fr") -> None:
+        from tools.routing_tools import route_to_billing, route_to_technical
+
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
@@ -29,7 +31,7 @@ class AccountServicesAgent(BaseTelecomAgent):
                 "caller is upset or asks for a human, call escalate_to_manager. Keep replies short."
             ),
             chat_ctx=chat_ctx,
-            tools=[get_plan_details, change_plan, top_up, toggle_roaming, escalate_to_manager],
+            tools=[get_plan_details, change_plan, top_up, toggle_roaming, route_to_billing, route_to_technical, escalate_to_manager],
         )
         self._language = selected_language
         self._lang_name = lang_name

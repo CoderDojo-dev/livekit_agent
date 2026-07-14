@@ -48,6 +48,8 @@ class TechnicalAgent(BaseTelecomAgent):
     """Concentrates SIM/network risk. Sensitive ops are identity-gated; opens/resolves tickets."""
 
     def __init__(self, chat_ctx=None, language: str = "fr") -> None:
+        from tools.routing_tools import route_to_account_services, route_to_billing
+
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
@@ -73,6 +75,8 @@ class TechnicalAgent(BaseTelecomAgent):
                 replace_sim,
                 diagnose_data_issue,
                 check_network_status,
+                route_to_account_services,
+                route_to_billing,
                 escalate_to_manager,
                 build_knowledge_toolset(),
                 build_ticketing_toolset(),
