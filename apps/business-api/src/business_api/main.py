@@ -81,6 +81,18 @@ def kpis(session: DbSession, role: SuperviseurRole) -> dict:
     return SupervisionRepository(session).kpis().__dict__
 
 
+@app.get("/api/v1/system/overview")
+def system_overview(session: DbSession, role: SuperviseurRole) -> dict:
+    """Real-time system overview: database counts + service status matrix."""
+    return SupervisionRepository(session).system_overview()
+
+
+@app.get("/api/v1/telemetry/timeline")
+def telemetry_timeline(session: DbSession, role: SuperviseurRole) -> dict:
+    """Time-series metrics and verdict distributions derived from persisted records."""
+    return SupervisionRepository(session).telemetry_timeline()
+
+
 @app.get("/api/v1/audit/verify")
 def audit_verify(
     session: DbSession,
