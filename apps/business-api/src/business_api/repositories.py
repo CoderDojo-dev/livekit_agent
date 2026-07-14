@@ -120,3 +120,66 @@ class SupervisionRepository:
         ) or 0
         avg_frustration = self._s.scalar(select(func.coalesce(func.avg(CallSession.max_frustration_score), 0)))
         return compute_kpis(total, resolved, escalated, avg_frustration)
+
+    def system_overview(self) -> dict:
+        from persistence.models.audit import AuditLedgerEntry
+
+        total_calls = self._s.scalar(select(func.count()).select_from(CallSession)) or 0
+        total_turns = self._s.scalar(select(func.count()).select_from(Turn)) or 0
+        total_verdicts = self._s.scalar(select(func.count()).select_from(PolicyVerdict)) or 0
+        total_actions = self._s.scalar(select(func.count()).select_from(ActionLedger)) or 0
+        total_audit = self._s.scalar(select(func.count()).select_from(AuditLedgerEntry)) or 0
+        total_customers = self._s.scalar(select(func.count()).select_from(Customer)) or 0
+        total_escalations = self._s.scalar(select(func.count()).select_from(EscalationCase)) or 0
+
+        services = [
+            {"name": "context-service", "port": 8101, "domain": "Customer 360 & Auth", "status": "online"},
+            {"name": "knowledge-service", "port": 8102, "domain": "Semantic RAG & Documents", "status": "online"},
+            {"name": "decision-service", "port": 8103, "domain": "Risk Scoring & Candidate Ranking", "status": "online"},
+            {"name": "policy-service", "port": 8104, "domain": "Phase 0 Deterministic Gate", "status": "online"},
+            {"name": "execution-service", "port": 8105, "domain": "Idempotent Action Ledger", "status": "online"},
+            {"name": "notification-service", "port": 8106, "domain": "Multi-channel Messaging", "status": "online"},
+            {"name": "token-service", "port": 8107, "domain": "LiveKit JWT Auth", "status": "online"},
+            {"name": "business-api", "port": 8108, "domain": "Supervisor & Admin API", "status": "online"},
+            {"name": "ai-knowledge-rag", "port": 8201, "domain": "Qdrant Vector Search MCP", "status": "online"},
+            {"name": "ticketing-glpi", "port": 8202, "domain": "GLPI Ticketing MCP", "status": "online"},
+            {"name": "messaging-gateway", "port": 8203, "domain": "SMS/Email Gateway MCP", "status": "online"},
+        ]
+        return {
+            "metrics": {
+                "total_calls": total_calls,
+                "total_turns": total_turns,
+                "total_verdicts": total_verdicts,
+                "total_actions": total_actions,
+                "total_audit_entries": total_audit,
+                "total_customers": total_customers,
+                "total_escalations": total_escalations,
+            },
+            "services": services,
+        }
+
+    def telemetry_timeline(self) -> dict:
+        sessions = self._s.scalars(select(CallSession).order_by(CallSession.created_at.desc()).limit(50)).all()
+        verdicts = self._s.scalars(select(PolicyVerdict).order_by(PolicyVerdict.created_at.desc()).limit(100)).all()
+
+        timeline_points = []
+        for s in reversed(sessions):
+            timeline_points.append({
+                "timestamp": s.created_at.strftime("%H:%M:%S") if s.created_at else "00:00:00",
+                "duration": s.duration_seconds or 0,
+                "frustration": float(s.max_frustration_score or 0.0),
+                "disposition": s.final_disposition or "unknown",
+            })
+
+        authorized = sum(1 for v in verdicts if v.verdict.upper() == "AUTHORIZED")
+        refused = sum(1 for v in verdicts if v.verdict.upper() == "REFUSED")
+        escalated = sum(1 for v in verdicts if v.verdict.upper() == "ESCALATE")
+
+        return {
+            "timeline": timeline_points,
+            "verdict_distribution": {
+                "authorized": authorized,
+                "refused": refused,
+                "escalated": escalated,
+            },
+        }

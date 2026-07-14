@@ -16,37 +16,39 @@ import {
   TableToolbar,
   TableToolbarContent,
   TableToolbarSearch,
-  Tag,
 } from "@carbon/react";
 import { ArrowRight } from "@carbon/icons-react";
 import { api } from "../api";
 import { usePoll } from "../refresh";
-import { ErrorBanner, PageHeader } from "./shared";
+import { ErrorBanner, PageHeader, StatusTag } from "./shared";
+const STATUSES = ["failed", "succeeded", "pending"] as const;
+type ActionStatus = (typeof STATUSES)[number];
 const HEADERS = [
-  { key: "trigger", header: "Trigger" },
-  { key: "target", header: "Target queue" },
-  { key: "session_id", header: "Session" },
-  { key: "dossier", header: "Dossier" },
-  { key: "resolution", header: "Resolution" },
+  { key: "action_type", header: "Action type" },
+  { key: "status", header: "Status" },
+  { key: "idempotency_key", header: "Idempotency key" },
+  { key: "reference", header: "Adapter reference" },
   { key: "inspect", header: "" },
 ];
-export function EscalationQueue({ onInspect }: { onInspect: (sessionId: string) => void }) {
-  const [status, setStatus] = useState<"open" | "resolved">("open");
+export function ActionLedgerPanel({
+  onInspectSession,
+}: {
+  onInspectSession: (id: string) => void;
+}) {
+  const [status, setStatus] = useState<ActionStatus>("failed");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const { data, error, loading } = usePoll(() => api.escalations(status), [status]);
+  const { data, error, loading } = usePoll(() => api.actions(status), [status]);
   const allRows = useMemo(
     () =>
-      (data?.escalations ?? []).map((e) => ({
-        id: e.id,
-        trigger: e.trigger,
-        target: e.target,
-        session_id: e.session_id,
-        dossier:
-          e.dossier && Object.keys(e.dossier).length > 0 ? JSON.stringify(e.dossier) : "—",
-        resolution: e.resolution ?? "pending",
-        inspect: e.session_id,
+      (data?.actions ?? []).map((a) => ({
+        id: a.id,
+        action_type: a.action_type,
+        status: a.status,
+        idempotency_key: a.idempotency_key,
+        reference: a.reference ?? "—",
+        inspect: a.id,
       })),
     [data]
   );
@@ -54,7 +56,7 @@ export function EscalationQueue({ onInspect }: { onInspect: (sessionId: string) 
     const q = search.trim().toLowerCase();
     if (!q) return allRows;
     return allRows.filter((r) =>
-      [r.trigger, r.target, r.session_id, r.dossier, r.resolution].some((v) =>
+      [r.action_type, r.status, r.idempotency_key, r.reference].some((v) =>
         v.toLowerCase().includes(q)
       )
     );
@@ -66,21 +68,22 @@ export function EscalationQueue({ onInspect }: { onInspect: (sessionId: string) 
   const switcher = (
     <ContentSwitcher
       size="sm"
-      selectedIndex={status === "open" ? 0 : 1}
+      selectedIndex={STATUSES.indexOf(status)}
       onChange={({ name }) => {
-        setStatus(name as "open" | "resolved");
+        setStatus(name as ActionStatus);
         setPage(1);
       }}
     >
-      <Switch name="open" text="Open" />
-      <Switch name="resolved" text="Resolved" />
+      <Switch name="failed" text="Failed" />
+      <Switch name="succeeded" text="Succeeded" />
+      <Switch name="pending" text="Pending" />
     </ContentSwitcher>
   );
   if (error) {
     return (
       <>
-        <PageHeader title="Escalation queue" actions={switcher} />
-        <ErrorBanner title="Could not load escalations" error={error} />
+        <PageHeader title="Action ledger" actions={switcher} />
+        <ErrorBanner title="Failed to query action ledger" error={error} />
       </>
     );
   }
@@ -88,19 +91,19 @@ export function EscalationQueue({ onInspect }: { onInspect: (sessionId: string) 
     return (
       <>
         <PageHeader
-          title="Escalation queue"
-          subtitle="Caller dossiers transferred from AI agent personas awaiting human intervention"
+          title="Action ledger"
+          subtitle="Idempotent sensitive operations (EXECUTE_PAYMENT, UNBLOCK_SIM, PAYMENT_DEFERRAL) gated by policy-service"
           actions={switcher}
         />
-        <DataTableSkeleton columnCount={6} rowCount={6} showHeader={false} showToolbar />
+        <DataTableSkeleton columnCount={5} rowCount={6} showHeader={false} showToolbar />
       </>
     );
   }
   return (
     <>
       <PageHeader
-        title="Escalation queue"
-        subtitle="Caller dossiers transferred from AI agent personas awaiting human intervention"
+        title="Action ledger"
+        subtitle="Idempotent sensitive operations (EXECUTE_PAYMENT, UNBLOCK_SIM, PAYMENT_DEFERRAL) gated by policy-service"
         actions={switcher}
       />
       <DataTable rows={paged} headers={HEADERS} isSortable>
@@ -110,7 +113,7 @@ export function EscalationQueue({ onInspect }: { onInspect: (sessionId: string) 
               <TableToolbarContent>
                 <TableToolbarSearch
                   persistent
-                  placeholder="Filter by trigger, queue, session UUID…"
+                  placeholder="Filter by action type, key, reference…"
                   onChange={(_e, value) => {
                     setSearch(value ?? "");
                     setPage(1);
@@ -133,35 +136,21 @@ export function EscalationQueue({ onInspect }: { onInspect: (sessionId: string) 
                   <TableRow {...getRowProps({ row })} key={row.id}>
                     {row.cells.map((cell) => (
                       <TableCell key={cell.id}>
-                        {cell.info.header === "trigger" ? (
-                          <Tag size="sm" type="magenta">
-                            {cell.value}
-                          </Tag>
-                        ) : cell.info.header === "resolution" ? (
-                          cell.value === "pending" ? (
-                            <Tag size="sm" type="red">
-                              PENDING
-                            </Tag>
-                          ) : (
-                            <Tag size="sm" type="green">
-                              {String(cell.value).toUpperCase()}
-                            </Tag>
-                          )
-                        ) : cell.info.header === "session_id" ? (
-                          <span className="mono">{cell.value}</span>
+                        {cell.info.header === "status" ? (
+                          <StatusTag status={String(cell.value)} />
                         ) : cell.info.header === "inspect" ? (
                           <Button
                             kind="ghost"
                             size="sm"
                             renderIcon={ArrowRight}
-                            onClick={() => onInspect(String(cell.value))}
+                            onClick={() => onInspectSession(String(cell.value))}
                           >
-                            Inspect
+                            Trace
                           </Button>
-                        ) : cell.info.header === "dossier" ? (
-                          <span className="mono muted">{cell.value}</span>
+                        ) : cell.info.header === "action_type" ? (
+                          <strong className="mono">{cell.value}</strong>
                         ) : (
-                          cell.value
+                          <span className="mono">{cell.value}</span>
                         )}
                       </TableCell>
                     ))}
@@ -173,7 +162,7 @@ export function EscalationQueue({ onInspect }: { onInspect: (sessionId: string) 
         )}
       </DataTable>
       {filtered.length === 0 ? (
-        <div className="table-empty">No {status} escalations match the current filter.</div>
+        <div className="table-empty">No {status} actions match the current filter.</div>
       ) : (
         <Pagination
           page={page}
