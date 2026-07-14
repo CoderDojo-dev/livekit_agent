@@ -11,7 +11,7 @@ import logging
 from conversation.writer import sentiment_label
 from livekit.agents import Agent
 from sentiment.sentiment_scorer import get_sentiment_scorer
-from tools.session_flow_tools import end_conversation
+from tools.session_flow_tools import end_conversation, switch_spoken_language
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,8 @@ class BaseTelecomAgent(Agent):
         merged_tools = list(tools or [])
         if end_conversation not in merged_tools:
             merged_tools.append(end_conversation)
+        if switch_spoken_language not in merged_tools:
+            merged_tools.append(switch_spoken_language)
         language = kwargs.pop("language", None)
         super().__init__(
             instructions=instructions + CLOSING_PROTOCOL,

@@ -83,3 +83,72 @@ async def end_conversation(context: RunContext) -> None:
 
     # No trailing LLM/TTS turn after the farewell.
     raise StopResponse()
+
+
+@function_tool()
+async def switch_spoken_language(context: RunContext, new_language: str) -> dict:
+    """Switch the spoken language of the call (STT, TTS, agent instructions, and user data) on the fly."""
+    _MAP = {"fr": "French", "ar": "Arabic", "en": "English"}
+    norm = new_language.lower().strip()[:2] if isinstance(new_language, str) else "fr"
+    if norm not in _MAP:
+        return {
+            "outcome": "refused",
+            "reason": "unsupported_language",
+            "message": f"Politely explain that only French, Arabic, and English are supported ({new_language} requested).",
+        }
+
+    session = context.session
+    user_data = getattr(session, "userdata", None)
+    old_lang = getattr(user_data, "language", "fr") if user_data else "fr"
+    old_val = getattr(old_lang, "value", old_lang)
+    if str(old_val).lower().strip()[:2] == norm:
+        return {
+            "outcome": "already_active",
+            "language": norm,
+            "message": f"Politely acknowledge that we are already speaking in {_MAP[norm]}.",
+        }
+
+    if user_data is not None:
+        setattr(user_data, "language", norm)
+
+    try:
+        from config import get_settings
+        from config.language_presets import LANGUAGE_PRESETS
+        from providers.stt import build_stt
+        from providers.tts import build_tts
+
+        settings = get_settings()
+        preset = LANGUAGE_PRESETS.get(norm, LANGUAGE_PRESETS["fr"])
+        session.stt = build_stt(preset, settings.stt_model, break_primary=getattr(settings, "chaos_break_stt", False))
+        session.tts = build_tts(preset, settings.tts_model, settings.eleven_voice_id, break_primary=getattr(settings, "chaos_break_tts", False))
+    except Exception as exc:
+        logger.warning("stt/tts hot-swap encountered an issue: %s", exc)
+
+    agent = getattr(session, "current_agent", None)
+    if agent is not None:
+        setattr(agent, "_language", norm)
+        setattr(agent, "_lang_name", _MAP[norm])
+
+    try:
+        chat_ctx = getattr(agent, "chat_ctx", None) or getattr(session, "chat_ctx", None)
+        if chat_ctx and getattr(chat_ctx, "messages", None):
+            first_msg = chat_ctx.messages[0]
+            if getattr(first_msg, "role", "") == "system":
+                content = getattr(first_msg, "content", "") or getattr(first_msg, "text_content", "")
+                if isinstance(content, str):
+                    for old_code, old_name in _MAP.items():
+                        content = content.replace(old_name, _MAP[norm])
+                        content = content.replace(old_code.upper(), norm.upper())
+                    if hasattr(first_msg, "content"):
+                        first_msg.content = content
+                    if hasattr(first_msg, "text_content"):
+                        first_msg.text_content = content
+    except Exception as exc:
+        logger.debug("chat_ctx instructions update skipped: %s", exc)
+
+    logger.info("switched spoken language mid-call from %s to %s", old_val, norm)
+    return {
+        "outcome": "executed",
+        "language": norm,
+        "message": f"Acknowledge in {_MAP[norm]} that we have switched languages to {_MAP[norm]}, and ask how you can help.",
+    }
