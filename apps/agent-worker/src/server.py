@@ -23,6 +23,7 @@ from livekit.agents.llm import ChatMessage
 from observability.log_masking import install_pii_masking
 from observability.metrics_hook import attach_metrics
 from providers.noise_cancellation import build_noise_cancellation
+from providers._resilience import monitor_room_resilience
 from providers.session_factory import build_agent_session
 from session import SessionUserData
 
@@ -138,6 +139,7 @@ async def entrypoint(ctx: JobContext) -> None:
             frontend_events.publish_tool_batch(event)
 
     nc = build_noise_cancellation(settings.noise_cancellation)
+    monitor_room_resilience(ctx.room, session, user_data)
     if nc is None:
         await session.start(agent=TriageAgent(language=language), room=ctx.room)
     else:

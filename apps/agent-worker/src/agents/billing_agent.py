@@ -62,6 +62,8 @@ class BillingAgent(BaseTelecomAgent):
     """Concentrates billing/payment risk. Reads are free; sensitive writes are guarded + audited."""
 
     def __init__(self, chat_ctx=None, language: str = "fr") -> None:
+        from tools.routing_tools import route_to_account_services, route_to_technical
+
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
@@ -84,6 +86,8 @@ class BillingAgent(BaseTelecomAgent):
                 get_balance_summary,
                 make_payment,
                 request_payment_deferral,
+                route_to_account_services,
+                route_to_technical,
                 escalate_to_manager,
                 build_knowledge_toolset(),
             ],

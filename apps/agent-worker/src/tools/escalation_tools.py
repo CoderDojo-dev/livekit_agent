@@ -22,11 +22,21 @@ def _trigger_for(user_data) -> str:
     return "hard_failure"
 
 
+def _resolve_language(context: RunContext) -> str:
+    user_data = getattr(context.session, "userdata", None)
+    if user_data is not None:
+        lang = getattr(user_data, "language", "fr")
+        val = getattr(lang, "value", lang)
+        if isinstance(val, str) and val.lower().strip()[:2] in {"fr", "ar", "en"}:
+            return val.lower().strip()[:2]
+    return "fr"
+
+
 @function_tool()
 async def escalate_to_manager(context: RunContext) -> Agent:
     """Record the escalation and hand off to the manager on the same session."""
     user_data = context.session.userdata
-    next_agent = ManagerAgent(chat_ctx=current_chat_ctx(context))
+    next_agent = ManagerAgent(chat_ctx=current_chat_ctx(context), language=_resolve_language(context))
 
     writer = getattr(user_data, "conversation_writer", None)
     if writer is not None:
