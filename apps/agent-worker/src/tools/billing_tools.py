@@ -41,17 +41,24 @@ async def get_invoice_summary(context: RunContext) -> dict:
         }
 
     latest = invoices[0]
-    amount = latest["amount"]
+    total = latest["amount"]
+    # `outstanding` is what is still owed after payments; `amount` is the frozen invoice total.
+    outstanding = latest.get("outstanding", total)
     currency = latest.get("currency", "TND")
+    status = latest["status"]
+    settled = status == "paid" or outstanding <= 0
     return {
         "outcome": "success",
-        "amount_due": amount,
+        "amount_due": outstanding,
+        "invoice_total": total,
         "currency": currency,
         "due_date": latest["due_date"],
-        "status": latest["status"],
+        "status": status,
         "message": (
-            f"Your latest invoice is {amount:.3f} {currency}, "
-            f"due on {latest['due_date']}, status {latest['status']}."
+            f"Your latest invoice of {total:.3f} {currency} is fully paid; nothing is due."
+            if settled else
+            f"Your latest invoice is {total:.3f} {currency}, with {outstanding:.3f} {currency} "
+            f"still due on {latest['due_date']}, status {status}."
         ),
     }
 
@@ -96,18 +103,24 @@ async def get_balance_summary(context: RunContext) -> dict:
             "message": "Your postpaid account has no invoice on file.",
         }
 
+    # Postpaid "balance" is what is still owed across open invoices, not the frozen total.
+    outstanding = sum(
+        inv.get("outstanding", inv["amount"])
+        for inv in invoices
+        if inv.get("status") != "paid"
+    )
     latest = invoices[0]
-    amount = latest["amount"]
     currency = latest.get("currency", "TND")
     return {
         "outcome": "success",
         "account_type": "postpaid",
-        "amount_due": amount,
+        "amount_due": outstanding,
         "currency": currency,
         "status": latest["status"],
         "due_date": latest["due_date"],
         "message": (
-            f"Your current postpaid invoice is {amount:.3f} {currency}, "
-            f"status {latest['status']}."
+            f"Your postpaid account is settled; nothing is currently due."
+            if outstanding <= 0 else
+            f"You currently owe {outstanding:.3f} {currency}, due on {latest['due_date']}."
         ),
     }

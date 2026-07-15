@@ -1,22 +1,34 @@
 """Domain write projections (spec sections 5-7): the durable effect of an AUTHORIZED action.
 
-When the (mock) adapter dispatch succeeds, the action's effect is projected into the owning
-domain schema - a captured payment, a deferral plan, a recharge, a SIM case - carrying the same
-idempotency_key as execution.action_ledger and the policy_verdict_id that authorized it. The
-projection runs in a SAVEPOINT inside the execute transaction, so a projection problem can never
-undo the action ledger or the audit chain. Defensive: missing data logs and skips.
+Every projection does two things:
+
+  1. **Record the transaction** - a captured payment, a deferral plan, a recharge, a SIM case -
+     carrying the same idempotency_key as execution.action_ledger and the policy_verdict_id that
+     authorized it.
+  2. **Apply the effect to the live state** the Context façade reads back: an invoice's
+     outstanding_amount/status, a prepaid balance_value, a subscription's status/plan/roaming.
+
+Without (2) an action is only a receipt: the caller pays their bill, a payments row appears, and
+the very next question still answers "you owe 42.500 TND" because billing.invoices never moved.
+Read and write must agree on one system of record.
+
+The projection runs in a SAVEPOINT inside the execute transaction, so a projection problem can
+never undo the action ledger or the audit chain. Defensive: missing data logs and skips.
+Live-state rows are SELECT ... FOR UPDATE so concurrent actions on one customer serialize.
 """
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from persistence.models.billing import Account, Invoice, Payment, PaymentPlan
-from persistence.models.ocs import Recharge
-from persistence.models.provisioning import PlanChangeHistory, ProvisioningRequest
+from persistence.models.crm import Subscription
+from persistence.models.ocs import BalanceAccount, Recharge
+from persistence.models.provisioning import PlanChangeHistory, ProvisioningRequest, SimOrder
 from persistence.models.sim import BlockUnblockCase
 from persistence.util import to_uuid
 
@@ -26,9 +38,16 @@ logger = logging.getLogger(__name__)
 _PROJECTION = {
     "EXECUTE_PAYMENT": "payment", "PAYMENT_DEFERRAL": "payment_plan",
     "TOP_UP": "recharge", "UNBLOCK_SIM": "sim_case", "REACTIVATE_SIM": "sim_case",
+    "REPLACE_SIM": "sim_order",
     "CHANGE_PLAN": "provisioning", "ACTIVATE_ROAMING": "provisioning",
 }
 _SIM_ACTION = {"UNBLOCK_SIM": "UNBLOCK", "REACTIVATE_SIM": "REACTIVATE"}
+
+# Invoice statuses that still owe money; a payment settles these oldest-due first.
+_OPEN_INVOICE_STATUSES = ("issued", "overdue", "partial")
+
+_MONEY_Q = Decimal("0.01")      # billing.invoices / billing.payments -> Numeric(12, 2)
+_BALANCE_Q = Decimal("0.0001")  # ocs.balance_accounts.balance_value  -> Numeric(14, 4)
 
 
 def projection_kind(action_type: str) -> str | None:
@@ -47,6 +66,33 @@ def installment_amount(total, count) -> float:
     return round(float(total or 0) / count, 3)
 
 
+def money(value) -> Decimal:
+    """Coerce a loose JSON amount to a non-negative Decimal (0 when absent/unusable)."""
+    try:
+        parsed = Decimal(str(value if value is not None else 0))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(0)
+    return parsed if parsed > 0 else Decimal(0)
+
+
+def settle(amount: Decimal, outstanding: list[Decimal]) -> tuple[list[Decimal], Decimal]:
+    """Allocate ``amount`` across ``outstanding`` FIFO.
+
+    Returns (new_outstanding_per_invoice, unapplied_remainder). Pure: the DB projection applies
+    the result. Overpayment leaves a remainder rather than creating a negative outstanding.
+    """
+    remaining = amount
+    result: list[Decimal] = []
+    for owed in outstanding:
+        if remaining <= 0 or owed <= 0:
+            result.append(owed if owed > 0 else Decimal(0))
+            continue
+        applied = min(owed, remaining)
+        remaining -= applied
+        result.append((owed - applied).quantize(_MONEY_Q))
+    return result, remaining
+
+
 # ---- DB projection ----
 def project_domain_effect(session: Session, req, ledger_row) -> None:
     """Write the domain row for ``req`` (dispatch already succeeded). Caller wraps this in a savepoint."""
@@ -59,8 +105,15 @@ def project_domain_effect(session: Session, req, ledger_row) -> None:
         _recharge(session, req, ledger_row)
     elif kind == "sim_case":
         _sim_case(session, req, ledger_row)
+    elif kind == "sim_order":
+        _sim_order(session, req, ledger_row)
     elif kind == "provisioning":
         _provisioning(session, req, ledger_row)
+
+
+def _dec(value) -> Decimal:
+    """Read a Numeric column as a Decimal (0 when NULL)."""
+    return Decimal(str(value)) if value is not None else Decimal(0)
 
 
 def _account_for(session: Session, customer_id):
@@ -68,18 +121,71 @@ def _account_for(session: Session, customer_id):
     return session.scalar(select(Account).where(Account.customer_id == cid)) if cid else None
 
 
+def _subscription_id(session: Session, req):
+    """The request's subscription, falling back to the customer's active line."""
+    sid = to_uuid(req.subscription_id)
+    if sid is not None:
+        return sid
+    cid = to_uuid(req.customer_id)
+    if cid is None:
+        return None
+    row = session.scalar(
+        select(Subscription).where(
+            Subscription.customer_id == cid, Subscription.deleted_at.is_(None)
+        )
+    )
+    return row.id if row is not None else None
+
+
+def _target_invoices(session: Session, req) -> list[Invoice]:
+    """Invoices a payment/deferral applies to: the named one, else every open one, oldest due first."""
+    named = req.payload.get("invoice_id") or req.payload.get("invoice_number")
+    if named:
+        row = session.scalar(
+            select(Invoice).where(Invoice.invoice_number == str(named)).with_for_update()
+        )
+        return [row] if row is not None else []
+    cid = to_uuid(req.customer_id)
+    if cid is None:
+        return []
+    return list(
+        session.scalars(
+            select(Invoice)
+            .where(Invoice.customer_id == cid, Invoice.status.in_(_OPEN_INVOICE_STATUSES))
+            .order_by(Invoice.due_date.asc())
+            .with_for_update()
+        )
+    )
+
+
 def _payment(session: Session, req, ledger_row) -> None:
     account = _account_for(session, req.customer_id)
     if account is None:
         logger.warning("payment projection skipped: no billing account for %s", req.customer_id)
         return
-    invoice = None
-    inv_num = req.payload.get("invoice_id") or req.payload.get("invoice_number")
-    if inv_num:
-        invoice = session.scalar(select(Invoice).where(Invoice.invoice_number == str(inv_num)))
+
+    amount = money(req.payload.get("amount"))
+    invoices = _target_invoices(session, req)
+
+    # Apply the money to the live invoice state so the caller's outstanding balance moves.
+    new_outstanding, unapplied = settle(amount, [_dec(inv.outstanding_amount) for inv in invoices])
+    settled: list[Invoice] = []
+    for invoice, owed in zip(invoices, new_outstanding):
+        if _dec(invoice.outstanding_amount) == owed:
+            continue  # untouched by this payment
+        invoice.outstanding_amount = owed
+        invoice.status = "paid" if owed <= 0 else "partial"
+        settled.append(invoice)
+
+    if unapplied > 0:
+        logger.info(
+            "payment %s exceeded outstanding by %s for customer %s (recorded as credit)",
+            req.idempotency_key, unapplied, req.customer_id,
+        )
+
     session.add(Payment(
         account_id=account.id,
-        invoice_id=invoice.id if invoice else None,
+        invoice_id=settled[0].id if settled else None,
         customer_id=to_uuid(req.customer_id),
         amount=req.payload.get("amount") or 0,
         method=req.payload.get("method", "card"),
@@ -95,24 +201,67 @@ def _payment_plan(session: Session, req, ledger_row) -> None:
     if account is None:
         logger.warning("plan projection skipped: no billing account for %s", req.customer_id)
         return
+
+    days = int(req.payload.get("requested_days") or 0)
     total = req.payload.get("amount") or req.payload.get("unpaid_amount") or 0
     count = req.payload.get("installment_count") or 1
+
+    # Push the live due dates out; an overdue invoice that is now deferred is no longer overdue.
+    deferral_until: date | None = None
+    if days > 0:
+        for invoice in _target_invoices(session, req):
+            new_due = invoice.due_date + timedelta(days=days)
+            invoice.due_date = new_due
+            if invoice.status == "overdue":
+                invoice.status = "issued"
+            if deferral_until is None or new_due > deferral_until:
+                deferral_until = new_due
+    else:
+        logger.warning("deferral projection: non-positive requested_days for %s", req.customer_id)
+
     session.add(PaymentPlan(
         account_id=account.id,
         customer_id=to_uuid(req.customer_id),
         total_amount=total,
         installment_count=count,
         installment_amount=installment_amount(total, count),
+        deferral_until=deferral_until,
         status="active",
         policy_verdict_id=to_uuid(req.policy_verdict_id),
     ))
 
 
+def _main_balance(session: Session, subscription_id, customer_id) -> BalanceAccount | None:
+    """The subscription's live main (credit) balance, opening one if the line has none yet."""
+    row = session.scalar(
+        select(BalanceAccount)
+        .where(
+            BalanceAccount.subscription_id == subscription_id,
+            BalanceAccount.balance_type == "main",
+        )
+        .with_for_update()
+    )
+    if row is not None:
+        return row
+    cid = to_uuid(customer_id)
+    if cid is None:
+        return None
+    row = BalanceAccount(
+        subscription_id=subscription_id, customer_id=cid, balance_type="main",
+        balance_value=Decimal(0), balance_unit="TND", status="active",
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
 def _recharge(session: Session, req, ledger_row) -> None:
-    sid = to_uuid(req.subscription_id)
+    sid = _subscription_id(session, req)
     if sid is None:
         logger.warning("recharge projection skipped: no subscription on request")
         return
+
+    amount = money(req.payload.get("amount"))
     session.add(Recharge(
         subscription_id=sid,
         customer_id=to_uuid(req.customer_id),
@@ -123,13 +272,22 @@ def _recharge(session: Session, req, ledger_row) -> None:
         status="completed",
     ))
 
+    # Credit the live prepaid balance the Context façade reads back.
+    balance = _main_balance(session, sid, req.customer_id)
+    if balance is None:
+        logger.warning("top-up recorded but no main balance account for subscription %s", sid)
+        return
+    balance.balance_value = (_dec(balance.balance_value) + amount).quantize(_BALANCE_Q)
+    balance.updated_at = datetime.now(UTC)
+
 
 def _sim_case(session: Session, req, ledger_row) -> None:
     action = sim_case_action(req.action_type)
-    sid = to_uuid(req.subscription_id)
+    sid = _subscription_id(session, req)
     if action is None or sid is None:
         logger.warning("sim projection skipped: action=%s subscription=%s", action, req.subscription_id)
         return
+
     session.add(BlockUnblockCase(
         subscription_id=sid,
         action=action,
@@ -139,11 +297,28 @@ def _sim_case(session: Session, req, ledger_row) -> None:
         idempotency_key=req.idempotency_key,
     ))
 
+    # Restore the live line so Customer-360 stops reporting it blocked/suspended.
+    subscription = session.get(Subscription, sid)
+    if subscription is not None:
+        subscription.status = "ACTIVE"
+
+
+def _sim_order(session: Session, req, ledger_row) -> None:
+    """REPLACE_SIM: raise a real replacement order carrying the dispatch reference."""
+    sid = _subscription_id(session, req)
+    session.add(SimOrder(
+        customer_id=to_uuid(req.customer_id),
+        subscription_id=sid,
+        sim_type=str(req.payload.get("sim_type") or "physical"),
+        status="requested",
+        tracking_code=ledger_row.adapter_reference,
+    ))
+
 
 def _provisioning(session: Session, req, ledger_row) -> None:
-    from datetime import datetime
+    sid = _subscription_id(session, req)
+    subscription = session.get(Subscription, sid) if sid is not None else None
 
-    sid = to_uuid(req.subscription_id)
     session.add(ProvisioningRequest(
         subscription_id=sid,
         customer_id=to_uuid(req.customer_id),
@@ -154,10 +329,20 @@ def _provisioning(session: Session, req, ledger_row) -> None:
         parameters=req.payload,
         completed_at=datetime.now(UTC),
     ))
-    if req.action_type == "CHANGE_PLAN" and sid is not None:
+
+    if subscription is None:
+        logger.warning("provisioning effect skipped: no subscription for %s", req.customer_id)
+        return
+
+    if req.action_type == "CHANGE_PLAN":
+        to_plan = str(req.payload.get("plan_code") or "unknown")
         session.add(PlanChangeHistory(
             subscription_id=sid,
-            from_plan=req.payload.get("from_plan"),
-            to_plan=str(req.payload.get("plan_code") or "unknown"),
+            from_plan=subscription.plan_code,  # the CURRENT plan, not an absent payload field
+            to_plan=to_plan,
             changed_by="agent",
+            effective_date=date.today(),
         ))
+        subscription.plan_code = to_plan
+    elif req.action_type == "ACTIVATE_ROAMING":
+        subscription.roaming_enabled = True

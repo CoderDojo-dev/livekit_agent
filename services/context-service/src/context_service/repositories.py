@@ -68,15 +68,22 @@ class CrmRepository:
 
     # --- reads ---
     def _invoice_rows(self, customer_id) -> list[InvoiceRow]:
-        stmt = select(InvoiceRow).where(InvoiceRow.customer_id == customer_id)
+        # Most recent first: the agent presents invoices[0] as "your latest invoice",
+        # so the order has to be deterministic rather than whatever the heap returns.
+        stmt = (
+            select(InvoiceRow)
+            .where(InvoiceRow.customer_id == customer_id)
+            .order_by(InvoiceRow.issue_date.desc())
+        )
         return list(self._session.scalars(stmt))
 
     def get_invoices(self, customer_id: str) -> list[Invoice]:
-        """Return the customer's invoices (read-only, CDC section 5.1)."""
+        """Return the customer's invoices, most recent first (read-only, CDC section 5.1)."""
         return [
             Invoice(
                 invoice_id=row.invoice_number,
                 amount=float(row.total_amount),
+                outstanding=float(row.outstanding_amount or 0),
                 currency=row.currency_code,
                 due_date=row.due_date.isoformat(),
                 status=mapping.invoice_status(row.status),

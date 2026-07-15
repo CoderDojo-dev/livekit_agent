@@ -49,7 +49,13 @@ async def request_payment_deferral(context: RunContext, requested_days: int) -> 
     unpaid_amount = 0.0
     if user_data.customer_context is not None:
         invoices = await get_context_client().get_invoices(user_data.customer_context.customer_id)
-        unpaid_amount = sum(inv["amount"] for inv in invoices if inv.get("status") != "paid")
+        # What is still owed after any payments already applied - not the frozen invoice totals,
+        # which would over-state the debt (and skew the policy cap) after a partial payment.
+        unpaid_amount = sum(
+            inv.get("outstanding", inv["amount"])
+            for inv in invoices
+            if inv.get("status") != "paid"
+        )
 
     return await execute_guarded_action(
         context,
