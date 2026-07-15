@@ -47,7 +47,8 @@ class VerifyIdentityResponse(BaseModel):
 
 class Invoice(BaseModel):
     invoice_id: str
-    amount: float
+    amount: float             # the invoice total (never changes once issued)
+    outstanding: float = 0.0  # what is still owed after payments (0 once settled)
     currency: str = "TND"
     due_date: str
     status: str
