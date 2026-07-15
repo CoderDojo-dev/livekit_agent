@@ -15,12 +15,6 @@ from tools.session_flow_tools import end_conversation, switch_spoken_language
 
 logger = logging.getLogger(__name__)
 
-_DEESCALATION_NOTE = (
-    "The caller appears repeatedly frustrated. In your next reply, sincerely acknowledge their "
-    "frustration, stay brief and calm, and proactively offer to connect them with a human "
-    "specialist. If they agree, call escalate_to_manager."
-)
-
 # Shared closing protocol appended to every persona's instructions so ending a
 # call behaves identically no matter which specialist is active.
 CLOSING_PROTOCOL = (
@@ -35,6 +29,16 @@ CLOSING_PROTOCOL = (
     "without first confirming there is nothing else. When you call "
     "end_conversation, do not also speak a goodbye yourself — the tool delivers "
     "the farewell."
+)
+
+# Resolves the contradiction between the per-persona "Never switch to another
+# language" lock and the auto-injected switch_spoken_language tool: the lock
+# still prevents self-initiated drift, but an EXPLICIT caller request is allowed.
+LANGUAGE_SWITCH_POLICY = (
+    "\n\nLanguage: keep speaking your fixed language and never drift on your own. "
+    "The only exception overriding any 'never switch language' rule above: if the "
+    "caller EXPLICITLY asks to continue in French, Arabic, or English, call "
+    "switch_spoken_language with that language code, then continue in it."
 )
 
 
@@ -67,7 +71,7 @@ class BaseTelecomAgent(Agent):
             merged_tools.append(switch_spoken_language)
         language = kwargs.pop("language", None)
         super().__init__(
-            instructions=instructions + CLOSING_PROTOCOL,
+            instructions=instructions + CLOSING_PROTOCOL + LANGUAGE_SWITCH_POLICY,
             tools=merged_tools,
             **kwargs,
         )
