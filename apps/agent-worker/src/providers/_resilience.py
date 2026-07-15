@@ -60,7 +60,14 @@ class SessionResilienceMonitor:
         if self.session is not None and hasattr(self.session, "say"):
             with suppress(Exception):
                 import asyncio
-                asyncio.create_task(self.session.say("Sorry for the brief connection interruption. I am right here."))
+                _APOLOGY = {
+                    "fr": "Désolé pour cette brève interruption. Je suis de nouveau avec vous.",
+                    "ar": "نعتذر عن الانقطاع القصير. أنا معك الآن من جديد.",
+                    "en": "Sorry for the brief connection interruption. I am right here.",
+                }
+                _lang = getattr(self.user_data, "language", "fr")
+                _code = str(getattr(_lang, "value", _lang) or "fr").lower().strip()[:2]
+                asyncio.create_task(self.session.say(_APOLOGY.get(_code, _APOLOGY["fr"])))
 
     def _on_disconnected(self, reason: object | None = None) -> None:
         room_name = getattr(self.room, "name", "unknown")

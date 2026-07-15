@@ -15,6 +15,7 @@ satisfied.
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 
 from livekit import api
 from livekit.agents import RunContext, function_tool, get_job_context
@@ -41,6 +42,39 @@ def _language_code(user_data) -> str:
     value = getattr(language, "value", language)  # tolerate enum or str
     code = str(value or "fr").lower()[:2]
     return code if code in _FAREWELLS else "fr"
+
+
+
+def _wrapped_providers(adapter, attr):
+    """Concrete providers behind a FallbackAdapter (STT/TTS), or [adapter] itself."""
+    instances = getattr(adapter, attr, None)
+    if instances:
+        return list(instances)
+    return [adapter] if adapter is not None else []
+
+
+def _update_stt_language(session, preset) -> None:
+    """Best-effort: re-point every live STT provider at the new language."""
+    for stt in _wrapped_providers(getattr(session, "stt", None), "_stt_instances"):
+        upd = getattr(stt, "update_options", None)
+        if callable(upd):
+            with suppress(Exception):
+                upd(language=preset["deepgram_language"])
+
+
+def _update_tts_language(session, preset) -> None:
+    """Best-effort: re-point every live TTS provider at the new language + voice."""
+    for tts in _wrapped_providers(getattr(session, "tts", None), "_tts_instances"):
+        upd = getattr(tts, "update_options", None)
+        if not callable(upd):
+            continue
+        try:
+            upd(language=preset["tts_iso"], voice=preset["cartesia_voice_id"])
+        except TypeError:
+            with suppress(Exception):
+                upd(language=preset["tts_iso"])
+        except Exception:
+            pass
 
 
 @function_tool()
@@ -111,40 +145,32 @@ async def switch_spoken_language(context: RunContext, new_language: str) -> dict
     if user_data is not None:
         setattr(user_data, "language", norm)
 
-    try:
-        from config import get_settings
-        from config.language_presets import LANGUAGE_PRESETS
-        from providers.stt import build_stt
-        from providers.tts import build_tts
+    # Hot-swap the LIVE pipeline. session.stt/.tts are READ-ONLY FallbackAdapters
+    # in livekit-agents 1.6.3 (assigning to them raises AttributeError), so reach
+    # the wrapped concrete providers and update their language in place via the
+    # supported update_options() API (Deepgram STT + Cartesia TTS).
+    from config.language_presets import LANGUAGE_PRESETS
 
-        settings = get_settings()
-        preset = LANGUAGE_PRESETS.get(norm, LANGUAGE_PRESETS["fr"])
-        session.stt = build_stt(preset, settings.stt_model, break_primary=getattr(settings, "chaos_break_stt", False))
-        session.tts = build_tts(preset, settings.tts_model, settings.eleven_voice_id, break_primary=getattr(settings, "chaos_break_tts", False))
-    except Exception as exc:
-        logger.warning("stt/tts hot-swap encountered an issue: %s", exc)
+    preset = LANGUAGE_PRESETS.get(norm, LANGUAGE_PRESETS["fr"])
+    _update_stt_language(session, preset)
+    _update_tts_language(session, preset)
 
     agent = getattr(session, "current_agent", None)
     if agent is not None:
         setattr(agent, "_language", norm)
         setattr(agent, "_lang_name", _MAP[norm])
-
-    try:
-        chat_ctx = getattr(agent, "chat_ctx", None) or getattr(session, "chat_ctx", None)
-        if chat_ctx and getattr(chat_ctx, "messages", None):
-            first_msg = chat_ctx.messages[0]
-            if getattr(first_msg, "role", "") == "system":
-                content = getattr(first_msg, "content", "") or getattr(first_msg, "text_content", "")
-                if isinstance(content, str):
-                    for old_code, old_name in _MAP.items():
-                        content = content.replace(old_name, _MAP[norm])
-                        content = content.replace(old_code.upper(), norm.upper())
-                    if hasattr(first_msg, "content"):
-                        first_msg.content = content
-                    if hasattr(first_msg, "text_content"):
-                        first_msg.text_content = content
-    except Exception as exc:
-        logger.debug("chat_ctx instructions update skipped: %s", exc)
+        # Re-point the system instructions via the SUPPORTED async API. The old
+        # chat_ctx.messages[0].content mutation was a guaranteed no-op:
+        # ChatContext.messages is a read-only computed list and ChatMessage.content
+        # is a list (not a str), so the `isinstance(content, str)` guard never passed.
+        try:
+            current = getattr(agent, "instructions", "") or ""
+            if isinstance(current, str) and current:
+                for _code, name in _MAP.items():
+                    current = current.replace(name, _MAP[norm])
+                await agent.update_instructions(current)
+        except Exception as exc:
+            logger.debug("instruction language update skipped: %s", exc)
 
     logger.info("switched spoken language mid-call from %s to %s", old_val, norm)
     return {
