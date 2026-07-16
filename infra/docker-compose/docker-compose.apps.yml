@@ -27,6 +27,9 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
       QDRANT_URL: "http://qdrant:6333"
+      # Container path of the weights baked in at build time - pinned here so a host-oriented
+      # .env cannot point the service at a directory that does not exist inside the image.
+      EMBEDDING_CACHE_DIR: "/opt/models"
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }

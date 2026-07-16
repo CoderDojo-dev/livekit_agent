@@ -5,13 +5,17 @@ description = "RAG over the documentation corpus + vector store (Qdrant)."
 requires-python = ">=3.12"
 dependencies = [
   "httpx==0.28.1",
-  "service-auth","fastapi==0.115.6", "uvicorn[standard]==0.34.0", "domain-core"]
-
-[project.optional-dependencies]
-qdrant = ["qdrant-client==1.12.1"]
+  "service-auth",
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.34.0",
+  "domain-core",
+  "qdrant-client==1.12.1",
+  "fastembed==0.8.0",
+]
 
 [project.scripts]
 knowledge-service = "knowledge_service.main:run"
+knowledge-bootstrap-qdrant = "knowledge_service.qdrant_store:bootstrap"
 
 [build-system]
 requires = ["setuptools>=68"]
