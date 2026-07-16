@@ -11,11 +11,20 @@ dependencies = [
   "domain-core",
   "qdrant-client==1.12.1",
   "fastembed==0.8.0",
+  "persistence",
+  "object-storage",
+  "minio>=7.2",
+  "pypdf==5.9.0",
+  "python-docx==1.2.0",
+  "python-multipart==0.0.32",
 ]
 
 [project.scripts]
 knowledge-service = "knowledge_service.main:run"
 knowledge-bootstrap-qdrant = "knowledge_service.qdrant_store:bootstrap"
+knowledge-ingest = "knowledge_service.ingestion:run"
+knowledge-sync-outbox = "knowledge_service.sync_worker:run"
+knowledge-reindex = "knowledge_service.reindex:run"
 
 [build-system]
 requires = ["setuptools>=68"]

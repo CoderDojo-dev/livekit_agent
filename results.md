@@ -40,4 +40,4 @@ Per instructions: fall back to `intfloat/multilingual-e5-base` (768 dims) OR adj
 
 E5-small is **functionally working** — the probe is too strict for E5's compressed score range. Proceed with e5-small or switch to e5-base (768 dims, schema change required).
 
-our latest github repo with all patches applied pereviously are here : 
+our latest github repo with all patches applied pereviously are here : https://github.com/chouaib-saad/livekit_agent/tree/version_36

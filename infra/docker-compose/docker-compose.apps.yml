@@ -30,9 +30,15 @@ services:
       # Container path of the weights baked in at build time - pinned here so a host-oriented
       # .env cannot point the service at a directory that does not exist inside the image.
       EMBEDDING_CACHE_DIR: "/opt/models"
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      MINIO_SECURE: "false"
+      KNOWLEDGE_MINIO_BUCKET: "${KNOWLEDGE_MINIO_BUCKET:-telecom-knowledge}"
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
+      minio: { condition: service_healthy }
     ports: ["8102:8102"]
     restart: unless-stopped
   decision-service:

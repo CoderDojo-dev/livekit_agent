@@ -12,6 +12,7 @@ RUN useradd -m app
 COPY packages/ ./packages/
 RUN pip install ./packages/domain-core ./packages/persistence ./packages/audit-trail ./packages/pii-shield ./packages/observability-kit ./packages/service-auth ./packages/cache ./packages/object-storage ./packages/notification-client ./packages/integration-adapters
 COPY services/knowledge-service/ ./services/knowledge-service/
+COPY scripts/ /app/scripts/
 RUN pip install ./services/knowledge-service
 # Pre-download + verify the ONNX weights into the image. Uses the service's own code path so the
 # build is always testing the exact code that runs in production.

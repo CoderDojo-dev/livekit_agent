@@ -29,6 +29,11 @@ PAYLOAD_INDEXES: dict[str, str] = {
     "document_type": "keyword",
     "source": "keyword",
     "active": "bool",
+    # Phase 5 pre-filters. Indexed so Qdrant narrows the candidate set BEFORE vector scoring
+    # rather than scanning every point and discarding afterwards.
+    "applicable_plans": "keyword",
+    "product_codes": "keyword",
+    "region": "keyword",
 }
 
 
