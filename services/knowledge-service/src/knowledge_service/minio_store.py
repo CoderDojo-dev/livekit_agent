@@ -80,6 +80,14 @@ class KnowledgeStore:
         return self.uri(key)
 
 
+    def delete(self, key: str) -> None:
+        """Remove an object. Idempotent: deleting an absent key is not an error."""
+        try:
+            self._client.remove_object(self._bucket, key)
+        except Exception as exc:
+            raise KnowledgeStoreError(f"cannot delete {key!r}: {exc}") from exc
+
+
 def get_knowledge_store() -> KnowledgeStore:
     """Build the knowledge store, creating the bucket if absent. Raises if MinIO is unusable."""
     endpoint = os.getenv("MINIO_ENDPOINT")

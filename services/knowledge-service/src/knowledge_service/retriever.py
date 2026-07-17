@@ -22,6 +22,45 @@ logger = logging.getLogger(__name__)
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
+# --- Relevance gate -----------------------------------------------------------------------
+# E5 is trained with a low-temperature (0.01) InfoNCE loss, so cosine scores compress into a
+# narrow band: on this corpus a perfect hit scores 0.89 while two documents with NOTHING to do
+# with the question still score 0.80 and 0.78. Returning them is not a ranking nuisance - it is
+# a correctness problem. When the knowledge base has no answer, every passage is irrelevant yet
+# still scores ~0.78, and an LLM handed three plausible-looking passages will ground an answer
+# on them instead of saying it does not know.
+#
+# Two gates, because neither alone is safe:
+#   * FLOOR    - an absolute cutoff. Kills the "nothing is relevant" case, where a relative
+#                gate would happily keep the best of a bad set.
+#   * RELATIVE - a share of the top score. Kills the "one good hit plus filler" case, and
+#                adapts to the fact that E5's absolute scores drift between queries.
+# A passage survives only if it clears BOTH.
+#
+# Calibrated on the 5-document corpus with scripts/knowledge_score_probe.py. Measured:
+#
+#   query                          top     noise kept @0.93        verdict
+#   "activate roaming" (en)        0.8953  -                       clean
+#   "activer le roaming" (fr)      0.8606  -                       clean
+#   "التجوال الدولي" (ar)           0.8310  billing-cycle @0.965    LEAKED
+#   "why is my data slow" (en)     0.8670  3 docs @0.944-0.964     LEAKED
+#   "fix my washing machine"       0.7880  (control: all dropped)  clean
+#
+# RELATIVE 0.93 let ratios of 0.944-0.965 through, so it separated nothing; 0.97 drops every
+# measured leak while keeping each true positive. Note this is a PRECISION choice: a second
+# genuinely-relevant chunk scoring below 97% of the top is now dropped too. On a real corpus,
+# where several chunks of one document are legitimately relevant and score close together, that
+# is usually harmless - but re-run the probe before trusting it.
+#
+# LANGUAGE ASYMMETRY (structural, not a tuning artifact): cross-lingual similarity is
+# systematically lower than same-language, so the headroom above the noise ceiling (0.7880) is
+# en=0.107, fr=0.073, ar=0.043. One global FLOOR is therefore ~2.5x tighter for Arabic: it sits
+# 0.012 above the control ceiling and only 0.031 below the true Arabic answer. That gap is the
+# real limit of e5-small here, and no threshold can widen it - a cross-encoder reranker or a
+# larger e5 can, at a RAM cost. Watch for Arabic false negatives first.
+DEFAULT_SCORE_FLOOR = float(os.getenv("KNOWLEDGE_SCORE_FLOOR", "0.80"))
+DEFAULT_RELATIVE_CUTOFF = float(os.getenv("KNOWLEDGE_RELATIVE_CUTOFF", "0.97"))
+
 
 def _tokenize(text: str) -> list[str]:
     return _TOKEN.findall(text.lower())
@@ -62,6 +101,7 @@ class LexicalRetriever:
         top_k: int = 4,
         filters: dict | None = None,
         min_score: float | None = None,
+        apply_gate: bool = True,
     ) -> list[Passage]:
         """Return up to ``top_k`` passages whose text best matches ``query`` (score > 0).
 
@@ -151,6 +191,7 @@ class QdrantE5Retriever:
         top_k: int = 4,
         filters: dict | None = None,
         min_score: float | None = None,
+        apply_gate: bool = True,
     ) -> list[Passage]:
         """Return the ``top_k`` nearest active passages matching ``filters``.
 
@@ -175,7 +216,41 @@ class QdrantE5Retriever:
             )
         except Exception as exc:
             raise RetrieverUnavailable(f"qdrant search failed: {exc}") from exc
-        return [self._passage(point) for point in response.points]
+
+        passages = [self._passage(point) for point in response.points]
+        if not apply_gate:
+            # Calibration only: return what Qdrant ranked, ungated. `min_score=0` alone does NOT
+            # do this - it zeroes the floor while the relative cutoff still filters, which made
+            # an earlier probe report gated scores as if they were raw.
+            return passages
+        return apply_relevance_gate(passages, floor=min_score)
+
+
+def apply_relevance_gate(
+    passages: list[Passage],
+    floor: float | None = None,
+    relative: float | None = None,
+) -> list[Passage]:
+    """Drop passages that are merely the *least bad* rather than actually relevant.
+
+    Pure and order-preserving (Qdrant already returns best-first). Returning an empty list is a
+    valid, desirable answer: it makes the agent say it has no information instead of inventing
+    one from filler.
+    """
+    if not passages:
+        return []
+    floor = DEFAULT_SCORE_FLOOR if floor is None else floor
+    relative = DEFAULT_RELATIVE_CUTOFF if relative is None else relative
+
+    top = max(passage.score for passage in passages)
+    threshold = max(floor, top * relative)
+    kept = [passage for passage in passages if passage.score >= threshold]
+    if len(kept) < len(passages):
+        logger.info(
+            "relevance gate: kept %d/%d passages (top=%.4f, threshold=%.4f)",
+            len(kept), len(passages), top, threshold,
+        )
+    return kept
 
 
 _retriever = None

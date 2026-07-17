@@ -69,3 +69,35 @@ class UploadResponse(BaseModel):
     chunks: int = 0
     indexed: int = 0
     message: str = ""
+
+
+class DocumentSummary(BaseModel):
+    """One document in the corpus, as the operator sees it."""
+
+    document_id: str
+    source: str
+    title: str = ""
+    language: str = ""
+    document_type: str = ""
+    version: int = 1
+    status: str = ""
+    chunks: int = 0
+    checksum: str = ""
+
+
+class DocumentListResponse(BaseModel):
+    """The corpus inventory: what is actually searchable right now."""
+
+    documents: list[DocumentSummary]
+    total_documents: int = 0
+    total_chunks: int = 0
+
+
+class PurgeResponse(BaseModel):
+    """Result of removing a document from index, records, and bucket."""
+
+    source: str
+    documents_archived: int = 0
+    chunks_deactivated: int = 0
+    points_removed: int = 0
+    object_removed: bool = False

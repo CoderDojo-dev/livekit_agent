@@ -20,7 +20,10 @@ from knowledge_service.embeddings import EmbeddingError, get_embedder
 from knowledge_service.qdrant_store import QdrantError, qdrant_collection, verify_collection
 from knowledge_service.retriever import RetrieverUnavailable, get_retriever
 from knowledge_service.schemas import (
+    DocumentListResponse,
+    DocumentSummary,
     PassageModel,
+    PurgeResponse,
     SearchRequest,
     SearchResponse,
     UploadResponse,
@@ -151,6 +154,57 @@ async def upload_document(
     if result["status"] == "failed":
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=result["message"])
     return UploadResponse(**result)
+
+
+@app.get("/knowledge/documents", response_model=DocumentListResponse)
+async def list_knowledge_documents() -> DocumentListResponse:
+    """Inventory of the corpus: what is indexed, in what version, with how many live chunks.
+
+    Without this an operator cannot see what the agent will answer from - and cannot spot that a
+    stray upload is outranking real procedures.
+    """
+    from knowledge_service.lifecycle import list_documents
+    from persistence.engine import session_scope
+
+    def _read() -> list[dict]:
+        with session_scope() as session:
+            return list_documents(session)
+
+    rows = await run_in_threadpool(_read)
+    documents = [DocumentSummary(**row) for row in rows]
+    return DocumentListResponse(
+        documents=documents,
+        total_documents=len(documents),
+        total_chunks=sum(document.chunks for document in documents),
+    )
+
+
+@app.delete("/knowledge/documents/{source:path}", response_model=PurgeResponse)
+async def purge_knowledge_document(source: str, remove_object: bool = True) -> PurgeResponse:
+    """Remove a document from the index, the records, and the bucket.
+
+    `source` is the bucket key (e.g. `tests/env_config.txt`), so it contains slashes - hence the
+    `:path` converter. The object is deleted by default: an archived document no longer matches
+    the checksum guard, so a file left in the bucket would be re-ingested on the next scan.
+    """
+    from knowledge_service.lifecycle import purge_document
+    from knowledge_service.retriever import reset_retriever
+    from persistence.engine import session_scope
+
+    def _purge() -> dict:
+        with session_scope() as session:
+            return purge_document(session, source, remove_object=remove_object)
+
+    try:
+        result = await run_in_threadpool(_purge)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception as exc:
+        logger.exception("purge failed for %s", source)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+
+    reset_retriever()  # the index shrank; drop any memo (it may now be empty)
+    return PurgeResponse(**result)
 
 
 def run() -> None:
