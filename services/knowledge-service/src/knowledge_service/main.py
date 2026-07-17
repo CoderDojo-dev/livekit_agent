@@ -51,6 +51,14 @@ async def lifespan(app: FastAPI):
         logger.info("dense retriever ready")
     except RetrieverUnavailable as exc:
         logger.error("retriever unavailable: %s", exc)
+    from knowledge_service.reranker import RerankError, get_reranker, reranker_enabled
+
+    if reranker_enabled():
+        try:
+            get_reranker().health_check()  # ~1.1 GB: not on the first caller's question
+            logger.info("reranker warm and validated")
+        except RerankError as exc:
+            logger.error("reranker failed to warm up: %s", exc)
     yield
 
 
@@ -86,6 +94,17 @@ def health(response: Response) -> dict:
         checks["retriever"] = "ok"
     except RetrieverUnavailable as exc:
         checks["retriever"] = f"error: {exc}"
+
+    # The reranker IS the relevance gate on this corpus; if it is dead /search returns 503, so
+    # readiness must reflect it instead of reporting a healthy-but-mute service.
+    from knowledge_service.reranker import RerankError, get_reranker, reranker_enabled
+
+    if reranker_enabled():
+        try:
+            get_reranker().health_check()
+            checks["reranker"] = "ok"
+        except RerankError as exc:
+            checks["reranker"] = f"error: {exc}"
 
     ready = all(value == "ok" for value in checks.values())
     if not ready:

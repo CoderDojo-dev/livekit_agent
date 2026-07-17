@@ -18,6 +18,7 @@ RUN pip install ./services/knowledge-service
 # build is always testing the exact code that runs in production.
 RUN mkdir -p /opt/models \
  && python -c "from knowledge_service.embeddings import get_embedder; e=get_embedder(); e.health_check(); print('model baked, dims', e.dimensions)" \
+ && python -c "from knowledge_service.reranker import get_reranker, reranker_enabled; r=get_reranker() if reranker_enabled() else None; r.health_check() if r else None; print('reranker baked:', r.model_name if r else 'disabled')" \
  && chown -R app:app /opt/models
 USER app
 EXPOSE 8102

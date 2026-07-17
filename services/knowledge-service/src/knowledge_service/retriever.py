@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from knowledge_service.corpus import CORPUS, Document
 
@@ -58,6 +58,12 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 # 0.012 above the control ceiling and only 0.031 below the true Arabic answer. That gap is the
 # real limit of e5-small here, and no threshold can widen it - a cross-encoder reranker or a
 # larger e5 can, at a RAM cost. Watch for Arabic false negatives first.
+#
+# SUPERSEDED BY PHASE 7. On the real 16-document corpus these thresholds are provably unusable:
+# the control query peaks at 0.8411 while the Arabic true positive scores 0.8310 - the noise
+# outranks the correct answer, so every FLOOR either admits the noise or deletes Arabic. They
+# survive only as the degraded path when KNOWLEDGE_RERANKER_ENABLED=false, and remain calibrated
+# for the 5-document corpus, not this one. The cross-encoder is the real gate now.
 DEFAULT_SCORE_FLOOR = float(os.getenv("KNOWLEDGE_SCORE_FLOOR", "0.80"))
 DEFAULT_RELATIVE_CUTOFF = float(os.getenv("KNOWLEDGE_RELATIVE_CUTOFF", "0.97"))
 
@@ -205,11 +211,17 @@ class QdrantE5Retriever:
             vector = self._embedder.embed_query(query)  # applies the `query: ` prefix
         except Exception as exc:
             raise RetrieverUnavailable(f"cannot embed query: {exc}") from exc
+        # The reranker can only choose from what the bi-encoder returned, so over-fetch: a
+        # correct passage the dense stage ranked 7th is invisible to a top_k=4 query.
+        from knowledge_service.reranker import rerank_candidates, reranker_enabled
+
+        use_reranker = apply_gate and reranker_enabled()
+        limit = max(top_k, rerank_candidates()) if use_reranker else top_k
         try:
             response = self._client.query_points(
                 collection_name=self._collection,
                 query=vector,
-                limit=top_k,
+                limit=limit,
                 with_payload=True,
                 query_filter=self._build_filter(filters),
                 score_threshold=min_score,
@@ -223,7 +235,48 @@ class QdrantE5Retriever:
             # do this - it zeroes the floor while the relative cutoff still filters, which made
             # an earlier probe report gated scores as if they were raw.
             return passages
-        return apply_relevance_gate(passages, floor=min_score)
+        if use_reranker:
+            return rerank_passages(query, passages, top_k)
+        return apply_relevance_gate(passages, floor=min_score)[:top_k]
+
+
+def rerank_passages(query: str, passages: list[Passage], top_k: int) -> list[Passage]:
+    """Re-score dense candidates with the cross-encoder and keep only the relevant ones.
+
+    The returned `score` becomes the cross-encoder relevance probability (0-1); the original
+    cosine lands in `metadata["dense_score"]` so the two stages stay comparable in the probe.
+
+    On reranker failure this raises rather than falling back to the cosine gate. That gate is
+    measurably broken on this corpus - the control query sails through it - so falling back
+    would feed the agent confident noise. An honest 503 makes the agent say it has no
+    information; a silent downgrade makes it invent one.
+    """
+    from knowledge_service.reranker import RerankError, get_reranker, rerank_threshold
+
+    if not passages:
+        return []
+    try:
+        scores = get_reranker().score(query, [passage.text for passage in passages])
+    except RerankError as exc:
+        raise RetrieverUnavailable(f"reranker unavailable: {exc}") from exc
+
+    threshold = rerank_threshold()
+    ranked = sorted(zip(passages, scores), key=lambda pair: pair[1], reverse=True)
+    kept = [
+        replace(
+            passage,
+            score=round(score, 4),
+            metadata={**passage.metadata, "dense_score": passage.score},
+        )
+        for passage, score in ranked
+        if score >= threshold
+    ]
+    if len(kept) < len(passages):
+        logger.info(
+            "reranker: kept %d/%d passages (threshold=%.2f, best=%.4f)",
+            len(kept), len(passages), threshold, ranked[0][1] if ranked else 0.0,
+        )
+    return kept[:top_k]
 
 
 def apply_relevance_gate(
