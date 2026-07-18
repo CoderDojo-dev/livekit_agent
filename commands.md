@@ -84,6 +84,9 @@ cd apps/supervisor-dashboard && npm run typecheck
 cd apps/client-widget && npm install
 ```
 
+cd apps/client-widget && npm run dev
+
+
 ## Individual Services (via honcho)
 
 Services are defined in the Procfile and managed by honcho:
