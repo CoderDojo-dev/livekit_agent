@@ -1,4 +1,4 @@
-# version_42 — P0 Fix: Calibration Probe Decoupling
+# version_42 — P0 Fix + Qdrant Persistence + Client Widget Command
 
 ## What's Fixed
 
@@ -17,10 +17,19 @@ New columns in the calibration table:
 
 Summary and calibration help text now point at `ce_max_kept`, not `ce_top1`. A new "P0 diagnostic" section prints queries where `ce_top1 != ce_max_kept` (delta > 0.01).
 
-## No Container / SDK Changes
-This version contains no Dockerfile, docker-compose, pyproject.toml, or LiveKit SDK changes. It is purely a probe calibration fix.
+## Container Changes
+
+### Qdrant data persistence (`infra/docker-compose/docker-compose.yml`)
+Added a named `qdrant-data` volume mounted at `/qdrant/storage` so Qdrant's vector index and payload data survive container recreations (`docker compose down` / `up -d`). Previously Qdrant state was ephemeral — every restart required re-ingesting all documents.
+
+## Other Changes
+
+### Client-widget dev command (`commands.md`)
+Added `cd apps/client-widget && npm run dev` reference for running the client widget development server.
 
 ## Files Changed
 | File | Status | Description |
 |------|--------|-------------|
 | `scripts/knowledge_score_probe.py` | MODIFIED | P0 fix: decouple ce_top1 from ce_max_kept; replicate gated pipeline state; add fused_n diagnostic |
+| `infra/docker-compose/docker-compose.yml` | MODIFIED | Add qdrant-data named volume for persistent Qdrant storage |
+| `commands.md` | MODIFIED | Add client-widget dev command entry |
