@@ -51,11 +51,21 @@ async def lifespan(app: FastAPI):
         logger.info("dense retriever ready")
     except RetrieverUnavailable as exc:
         logger.error("retriever unavailable: %s", exc)
+    try:
+        from knowledge_service.embeddings import get_sparse_embedder, hybrid_enabled
+
+        if hybrid_enabled():
+            get_sparse_embedder().health_check()
+            logger.info("sparse BM25 embedder warm")
+    except Exception as exc:
+        logger.error("sparse embedder failed to warm up: %s", exc)
+    # Cross-encoder reranker (Phase 7, retired from realtime path in Phase 8). Default OFF:
+    # kept for offline eval; not on the readiness path. The hybrid dense+BM25+RRF is the gate.
     from knowledge_service.reranker import RerankError, get_reranker, reranker_enabled
 
     if reranker_enabled():
         try:
-            get_reranker().health_check()  # ~1.1 GB: not on the first caller's question
+            get_reranker().health_check()  # ~1.1 GB if enabled
             logger.info("reranker warm and validated")
         except RerankError as exc:
             logger.error("reranker failed to warm up: %s", exc)
@@ -95,16 +105,15 @@ def health(response: Response) -> dict:
     except RetrieverUnavailable as exc:
         checks["retriever"] = f"error: {exc}"
 
-    # The reranker IS the relevance gate on this corpus; if it is dead /search returns 503, so
-    # readiness must reflect it instead of reporting a healthy-but-mute service.
-    from knowledge_service.reranker import RerankError, get_reranker, reranker_enabled
+    # Sparse BM25 embedder (Phase 8 hybrid). Tiny model, quick check.
+    from knowledge_service.embeddings import get_sparse_embedder, hybrid_enabled
 
-    if reranker_enabled():
+    if hybrid_enabled():
         try:
-            get_reranker().health_check()
-            checks["reranker"] = "ok"
-        except RerankError as exc:
-            checks["reranker"] = f"error: {exc}"
+            get_sparse_embedder().health_check()
+            checks["sparse_embedder"] = "ok"
+        except Exception as exc:
+            checks["sparse_embedder"] = f"error: {exc}"
 
     ready = all(value == "ok" for value in checks.values())
     if not ready:

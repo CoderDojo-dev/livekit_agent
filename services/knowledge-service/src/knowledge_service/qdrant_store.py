@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_COLLECTION = "telecom_knowledge"
 DEFAULT_URL = "http://localhost:6333"
 
+# Named vectors in the hybrid collection (RAG phase 8). The dense vector is the E5 bi-encoder
+# embedding; the sparse vector is BM25 with an IDF modifier computed across the collection.
+DENSE_VECTOR_NAME = "dense"
+SPARSE_VECTOR_NAME = "bm25"
+
 # Fields Phase 5 pre-filters on. Keyword for exact match, bool for the active flag.
 PAYLOAD_INDEXES: dict[str, str] = {
     "language": "keyword",
@@ -65,9 +70,14 @@ def get_client():
 def ensure_collection(client=None, collection: str | None = None) -> dict:
     """Create the collection + payload indexes if absent; verify them if present.
 
-    Idempotent. Returns a small report describing the resulting collection.
+    Idempotent. Returns a small report describing the resulting collection. The collection uses
+    NAMED vectors: a dense E5 vector + a sparse BM25 vector, so the hybrid retriever can query
+    either (or fuse both via RRF).
     """
-    from qdrant_client.models import Distance, HnswConfigDiff, VectorParams
+    from qdrant_client.models import (
+        Distance, HnswConfigDiff, VectorParams,
+        SparseVectorParams, Modifier,
+    )
 
     client = client or get_client()
     name = collection or qdrant_collection()
@@ -79,11 +89,17 @@ def ensure_collection(client=None, collection: str | None = None) -> dict:
         raise QdrantError(f"cannot reach Qdrant at {qdrant_url()}: {exc}") from exc
 
     if not exists:
-        logger.info("creating Qdrant collection %s (%d dims, cosine)", name, dimensions)
+        logger.info("creating Qdrant collection %s (%d dims, cosine + bm25 sparse)", name, dimensions)
         try:
             client.create_collection(
                 collection_name=name,
-                vectors_config=VectorParams(size=dimensions, distance=Distance.COSINE),
+                vectors_config={
+                    DENSE_VECTOR_NAME: VectorParams(size=dimensions, distance=Distance.COSINE),
+                },
+                sparse_vectors_config={
+                    # IDF modifier => Qdrant computes BM25 IDF weighting across the collection.
+                    SPARSE_VECTOR_NAME: SparseVectorParams(modifier=Modifier.IDF),
+                },
                 # m=16 / ef_construct=128 are Qdrant's balanced defaults: good recall at a
                 # small corpus, and the graph stays cheap to build during ingestion.
                 hnsw_config=HnswConfigDiff(m=16, ef_construct=128),
@@ -121,16 +137,16 @@ def verify_collection(client=None, collection: str | None = None) -> dict:
 
     params = info.config.params
     vectors = params.vectors
-    # Unnamed (single) vector config is what we create; a named-vectors mapping means the
-    # collection was built by something else and the pipeline's assumptions do not hold.
-    if isinstance(vectors, dict):
+    # Named vectors: we expect a "dense" key (E5) and a "bm25" sparse vector. An unnamed single
+    # vector means the collection was built by the old pipeline and must be recreated.
+    if not isinstance(vectors, dict) or DENSE_VECTOR_NAME not in vectors:
         raise QdrantError(
-            f"collection {name!r} uses named vectors {sorted(vectors)}; "
-            f"this pipeline expects a single unnamed vector"
+            f"collection {name!r} must have a named '{DENSE_VECTOR_NAME}' vector; recreate it "
+            f"with `knowledge-bootstrap-qdrant`"
         )
-
-    size = int(vectors.size)
-    distance = str(vectors.distance).split(".")[-1].lower()
+    dense = vectors[DENSE_VECTOR_NAME]
+    size = int(dense.size)
+    distance = str(dense.distance).split(".")[-1].lower()
 
     if size != expected_dimensions:
         raise QdrantError(
@@ -139,6 +155,10 @@ def verify_collection(client=None, collection: str | None = None) -> dict:
         )
     if distance != "cosine":
         raise QdrantError(f"collection {name!r} uses {distance!r} distance; expected cosine")
+
+    sparse = getattr(params, "sparse_vectors", None) or {}
+    if SPARSE_VECTOR_NAME not in sparse:
+        raise QdrantError(f"collection {name!r} is missing sparse vector {SPARSE_VECTOR_NAME!r}")
 
     try:
         schema = set(info.payload_schema or {})

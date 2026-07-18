@@ -19,9 +19,9 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from knowledge_service.embeddings import get_embedder
+from knowledge_service.embeddings import get_embedder, get_sparse_embedder, hybrid_enabled
 from knowledge_service.ingestion import qdrant_payload
-from knowledge_service.qdrant_store import get_client, qdrant_collection
+from knowledge_service.qdrant_store import get_client, qdrant_collection, DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
 from persistence.models.knowledge import KnowledgeChunk, KnowledgeDocument, KnowledgeSyncOutbox
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _due(session: Session, limit: int) -> list[KnowledgeSyncOutbox]:
 
 
 def _apply_upsert(session: Session, client, embedder, event: KnowledgeSyncOutbox) -> str:
-    from qdrant_client.models import PointStruct
+    from qdrant_client.models import PointStruct, SparseVector
 
     chunk = session.get(KnowledgeChunk, event.aggregate_id)
     if chunk is None:
@@ -67,13 +67,19 @@ def _apply_upsert(session: Session, client, embedder, event: KnowledgeSyncOutbox
     if document is None:
         return "orphan"
 
-    vector = embedder.embed_passages([chunk.text_content])[0]
-    if len(vector) != chunk.embedding_dimensions:
+    dense_vec = embedder.embed_passages([chunk.text_content])[0]
+    if len(dense_vec) != chunk.embedding_dimensions:
         # The chunk was embedded by a different model than the one configured now. Indexing it
         # would mix incompatible vector spaces in one collection.
         raise RuntimeError(
             f"chunk {chunk.id} was embedded as {chunk.embedding_dimensions}d by "
-            f"{chunk.embedding_model!r}; current model emits {len(vector)}d - re-ingest instead"
+            f"{chunk.embedding_model!r}; current model emits {len(dense_vec)}d - re-ingest instead"
+        )
+    vector = {DENSE_VECTOR_NAME: dense_vec}
+    if hybrid_enabled():
+        sparse = get_sparse_embedder().embed_passages([chunk.text_content])[0]
+        vector[SPARSE_VECTOR_NAME] = SparseVector(
+            indices=list(sparse.indices), values=list(sparse.values)
         )
     client.upsert(
         collection_name=qdrant_collection(),

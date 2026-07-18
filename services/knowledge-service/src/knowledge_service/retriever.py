@@ -64,8 +64,16 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 # outranks the correct answer, so every FLOOR either admits the noise or deletes Arabic. They
 # survive only as the degraded path when KNOWLEDGE_RERANKER_ENABLED=false, and remain calibrated
 # for the 5-document corpus, not this one. The cross-encoder is the real gate now.
-DEFAULT_SCORE_FLOOR = float(os.getenv("KNOWLEDGE_SCORE_FLOOR", "0.80"))
-DEFAULT_RELATIVE_CUTOFF = float(os.getenv("KNOWLEDGE_RELATIVE_CUTOFF", "0.97"))
+#
+# PHASE 8 (hybrid FR). The corpus is now French-native, so same-language e5-small similarity is
+# high and well-separated. The dense cosine FLOOR is the relevance gate again; BM25 sparse + RRF
+# fusion reorders the passages that already cleared it for keyword precision. The 1.1 GB
+# cross-encoder is retired from the realtime path (kept only for offline eval). Recalibrate
+# FLOOR/RELATIVE on the same-language French scores with scripts/knowledge_score_probe.py.
+DEFAULT_SCORE_FLOOR = float(os.getenv("KNOWLEDGE_SCORE_FLOOR", "0.82"))
+DEFAULT_RELATIVE_CUTOFF = float(os.getenv("KNOWLEDGE_RELATIVE_CUTOFF", "0.90"))
+RRF_K = int(os.getenv("KNOWLEDGE_RRF_K", "60"))
+DEFAULT_LANGUAGE_FILTER = os.getenv("KNOWLEDGE_DEFAULT_LANGUAGE", "fr")
 
 
 def _tokenize(text: str) -> list[str]:
@@ -201,43 +209,92 @@ class QdrantE5Retriever:
     ) -> list[Passage]:
         """Return the ``top_k`` nearest active passages matching ``filters``.
 
-        ``min_score`` is passed to Qdrant as a cutoff. Calibrate it for E5: its low-temperature
-        (0.01) InfoNCE training makes cosine scores cluster around 0.7-1.0, so a 0.5 threshold
-        borrowed from another model filters nothing, and 0.9 filters everything.
+        Phase 8 hybrid retrieval: dense E5 cosine is the relevance GATE (score_threshold = FLOOR);
+        BM25 sparse + RRF fusion reorder the passages that already cleared it for keyword
+        precision. The honest "no answer -> []" guarantee is preserved: if the dense stage
+        returns nothing, nothing is returned - sparse-only noise cannot leak through.
         """
         if not query or not query.strip():
             return []
+        from knowledge_service.embeddings import hybrid_enabled, get_sparse_embedder
+        from knowledge_service.qdrant_store import DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
+        from qdrant_client.models import SparseVector
+
+        # French-only by default: cross-lingual noise cannot leak in.
+        filters = {**(filters or {})}
+        filters.setdefault("language", DEFAULT_LANGUAGE_FILTER)
+        qfilter = self._build_filter(filters)
+
         try:
-            vector = self._embedder.embed_query(query)  # applies the `query: ` prefix
+            dense_vec = self._embedder.embed_query(query)  # applies the `query: ` prefix
         except Exception as exc:
             raise RetrieverUnavailable(f"cannot embed query: {exc}") from exc
-        # The reranker can only choose from what the bi-encoder returned, so over-fetch: a
-        # correct passage the dense stage ranked 7th is invisible to a top_k=4 query.
-        from knowledge_service.reranker import rerank_candidates, reranker_enabled
 
-        use_reranker = apply_gate and reranker_enabled()
-        limit = max(top_k, rerank_candidates()) if use_reranker else top_k
+        floor = DEFAULT_SCORE_FLOOR if min_score is None else min_score
+        candidates = max(top_k, int(os.getenv("KNOWLEDGE_RERANK_CANDIDATES", "12")))
+
         try:
-            response = self._client.query_points(
+            dense_hits = self._client.query_points(
                 collection_name=self._collection,
-                query=vector,
-                limit=limit,
+                query=dense_vec,
+                using=DENSE_VECTOR_NAME,
+                limit=candidates,
                 with_payload=True,
-                query_filter=self._build_filter(filters),
-                score_threshold=min_score,
-            )
+                query_filter=qfilter,
+                score_threshold=(floor if apply_gate else None),
+            ).points
         except Exception as exc:
-            raise RetrieverUnavailable(f"qdrant search failed: {exc}") from exc
+            raise RetrieverUnavailable(f"qdrant dense search failed: {exc}") from exc
 
-        passages = [self._passage(point) for point in response.points]
         if not apply_gate:
-            # Calibration only: return what Qdrant ranked, ungated. `min_score=0` alone does NOT
-            # do this - it zeroes the floor while the relative cutoff still filters, which made
-            # an earlier probe report gated scores as if they were raw.
-            return passages
-        if use_reranker:
-            return rerank_passages(query, passages, top_k)
-        return apply_relevance_gate(passages, floor=min_score)[:top_k]
+            # Calibration only: return what Qdrant ranked, ungated.
+            return [self._passage(p) for p in dense_hits]
+        if not dense_hits:
+            return []                                   # honest empty answer
+        if not hybrid_enabled():
+            return [self._passage(p) for p in dense_hits][:top_k]
+
+        try:
+            sq = get_sparse_embedder().embed_query(query)
+            sparse_hits = self._client.query_points(
+                collection_name=self._collection,
+                query=SparseVector(indices=list(sq.indices), values=list(sq.values)),
+                using=SPARSE_VECTOR_NAME,
+                limit=candidates,
+                with_payload=True,
+                query_filter=qfilter,
+            ).points
+        except Exception:
+            sparse_hits = []                            # dense already gated; degrade gracefully
+
+        return self._rrf_fuse(dense_hits, sparse_hits, top_k)
+
+    @staticmethod
+    def _rrf_fuse(dense_hits, sparse_hits, top_k):
+        """Reciprocal Rank Fusion over the dense and sparse ranked lists.
+
+        RRF is rank-based (1/(k+rank), k=60) so it needs no score normalization across the two
+        very different score scales (cosine ~0.8-1.0 vs BM25 ~0-40). The original dense cosine
+        is preserved in metadata["dense_score"] so the probe can still see it.
+        """
+        ranks: dict = {}
+        payloads: dict = {}
+        dense_score: dict = {}
+        for lst in (dense_hits, sparse_hits):
+            for rank, point in enumerate(lst):
+                key = point.id
+                ranks[key] = ranks.get(key, 0.0) + 1.0 / (RRF_K + rank + 1)
+                payloads.setdefault(key, point)
+        for point in dense_hits:
+            dense_score[point.id] = float(point.score)
+        ordered = sorted(ranks, key=ranks.get, reverse=True)[:top_k]
+        out = []
+        for key in ordered:
+            p = QdrantE5Retriever._passage(payloads[key])
+            out.append(replace(p, score=round(ranks[key], 6),
+                metadata={**p.metadata, "dense_score": dense_score.get(key),
+                           "rrf_score": round(ranks[key], 6)}))
+        return out
 
 
 def rerank_passages(query: str, passages: list[Passage], top_k: int) -> list[Passage]:

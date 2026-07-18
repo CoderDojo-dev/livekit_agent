@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from knowledge_service.embeddings import LocalEmbedder, get_embedder
+from knowledge_service.embeddings import LocalEmbedder, get_embedder, get_sparse_embedder, hybrid_enabled
 from knowledge_service.minio_store import KnowledgeStore, get_knowledge_store
 from knowledge_service.parsers import (
     SUPPORTED_SUFFIXES,
@@ -32,7 +32,7 @@ from knowledge_service.parsers import (
     extract_text,
     is_supported,
 )
-from knowledge_service.qdrant_store import get_client, qdrant_collection
+from knowledge_service.qdrant_store import get_client, qdrant_collection, DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
 from persistence.models.knowledge import (
     KnowledgeChunk,
     KnowledgeDocument,
@@ -336,7 +336,14 @@ def ingest_object(
     for start in range(0, len(passages), EMBED_BATCH):
         vectors.extend(embedder.embed_passages(passages[start : start + EMBED_BATCH]))
 
-    points: list[tuple[uuid.UUID, list[float], dict]] = []
+    sparse_vectors: list | None = None
+    if hybrid_enabled():
+        sparse_embedder = get_sparse_embedder()
+        sparse_vectors = []
+        for start in range(0, len(passages), EMBED_BATCH):
+            sparse_vectors.extend(sparse_embedder.embed_passages(passages[start : start + EMBED_BATCH]))
+
+    points: list[tuple[uuid.UUID, list[float], object, dict]] = []
     for ordinal, (passage, vector) in enumerate(zip(passages, vectors)):
         point_id = uuid.uuid4()
         chunk = KnowledgeChunk(
@@ -354,7 +361,8 @@ def ingest_object(
         session.add(chunk)
         session.flush()
         payload = qdrant_payload(document, passage, ordinal)
-        points.append((point_id, vector, payload))
+        sparse_vec = sparse_vectors[ordinal] if sparse_vectors is not None else None
+        points.append((point_id, vector, sparse_vec, payload))
         session.add(
             KnowledgeSyncOutbox(
                 aggregate_type="chunk",
@@ -378,18 +386,20 @@ def ingest_object(
 def _upsert_points(client, points, retired_point_ids) -> None:
     """Push vectors to Qdrant. The outbox already holds the intent, so a failure here is
     recoverable: it is logged and replayed, never silently lost."""
-    from qdrant_client.models import PointStruct
+    from qdrant_client.models import PointStruct, SparseVector
 
     collection = qdrant_collection()
     try:
         if points:
-            client.upsert(
-                collection_name=collection,
-                points=[
-                    PointStruct(id=str(pid), vector=vector, payload=payload)
-                    for pid, vector, payload in points
-                ],
-            )
+            struct = []
+            for pid, dense_vec, sparse_vec, payload in points:
+                vector = {DENSE_VECTOR_NAME: dense_vec}
+                if sparse_vec is not None:
+                    vector[SPARSE_VECTOR_NAME] = SparseVector(
+                        indices=list(sparse_vec.indices), values=list(sparse_vec.values)
+                    )
+                struct.append(PointStruct(id=str(pid), vector=vector, payload=payload))
+            client.upsert(collection_name=collection, points=struct)
         if retired_point_ids:
             client.delete(
                 collection_name=collection,

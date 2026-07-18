@@ -18,10 +18,11 @@ RUN pip install ./services/knowledge-service
 # build is always testing the exact code that runs in production.
 RUN mkdir -p /opt/models \
  && python -c "from knowledge_service.embeddings import get_embedder; e=get_embedder(); e.health_check(); print('model baked, dims', e.dimensions)" \
- && python -c "from knowledge_service.reranker import get_reranker, reranker_enabled; r=get_reranker() if reranker_enabled() else None; r.health_check() if r else None; print('reranker baked:', r.model_name if r else 'disabled')" \
+ && python -c "from knowledge_service.embeddings import get_sparse_embedder, hybrid_enabled; s=get_sparse_embedder() if hybrid_enabled() else None; s.health_check() if s else None; print('sparse baked:', s.model_name if s else 'disabled')" \
  && chown -R app:app /opt/models
 USER app
 EXPOSE 8102
-# start-period covers the ONNX warm-up; /health is a real readiness check (model + collection).
+# start-period covers the ONNX warm-up of the embedder (~30s). The sparse BM25 model is tiny
+# (~instant). The 1.1 GB cross-encoder reranker is NOT baked (disabled by default in Phase 8).
 HEALTHCHECK --interval=15s --timeout=10s --retries=5 --start-period=60s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health')" || exit 1
 CMD ["uvicorn", "knowledge_service.main:app", "--host", "0.0.0.0", "--port", "8102"]

@@ -40,8 +40,9 @@ class RerankError(RuntimeError):
 
 
 def reranker_enabled() -> bool:
-    """On by default: with it off, the relevance gate provably cannot separate noise."""
-    return os.getenv("KNOWLEDGE_RERANKER_ENABLED", "true").strip().lower() == "true"
+    """Off by default in Phase 8: the hybrid dense+BM25+RRF is the realtime relevance gate.
+    Enable for offline A/B evaluation — 1.1 GB RAM, 2-5s per query."""
+    return os.getenv("KNOWLEDGE_RERANKER_ENABLED", "false").strip().lower() == "true"
 
 
 def reranker_model_name() -> str:

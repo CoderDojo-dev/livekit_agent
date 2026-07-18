@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import functools
 from enum import StrEnum
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "intfloat/multilingual-e5-small"
 DEFAULT_DIMENSIONS = 384
 DEFAULT_CACHE_DIR = "/opt/models"
+
+# --- Sparse BM25 embedder (RAG phase 8: hybrid dense + sparse retrieval) -----------------
+DEFAULT_SPARSE_MODEL = "Qdrant/bm25"
+
+
+def sparse_model_name() -> str:
+    return os.getenv("KNOWLEDGE_SPARSE_MODEL", DEFAULT_SPARSE_MODEL)
+
+
+def hybrid_enabled() -> bool:
+    return os.getenv("KNOWLEDGE_HYBRID_ENABLED", "true").strip().lower() == "true"
 
 # fastembed does not natively know about E5; it must be registered so the
 # pipeline can pick the right pooling strategy.
@@ -143,6 +155,12 @@ class LocalEmbedder:
         # Pre-compute the prefix requirement once (the model is fixed for the
         # lifetime of the process).
         self._prefixed = uses_e5_prefix(self._model_name)
+        # LRU cache on query embeddings: repeated FAQ questions are common on a voice line,
+        # and the embedding is deterministic per text so caching is safe. Vectors are converted
+        # to tuples (hashable/immutable) for the cache and back to lists on read.
+        self._query_cache = functools.lru_cache(
+            maxsize=int(os.getenv("KNOWLEDGE_QUERY_CACHE", "256"))
+        )(self._embed_query_uncached)
 
     @property
     def model_name(self) -> str:
@@ -228,9 +246,15 @@ class LocalEmbedder:
         """Embed corpus chunks for indexing (prepends ``passage: `` for E5)."""
         return self.embed(texts, InputType.PASSAGE)
 
+    def _embed_query_uncached(self, text: str) -> tuple[float, ...]:
+        return tuple(self.embed([text], InputType.QUERY)[0])
+
     def embed_query(self, text: str) -> list[float]:
-        """Embed a single caller question for search (prepends ``query: `` for E5)."""
-        return self.embed([text], InputType.QUERY)[0]
+        """Embed a single caller question for search (prepends ``query: `` for E5).
+
+        Cached: identical question text returns the same vector without re-running the model.
+        """
+        return list(self._query_cache(text.strip()))
 
     def health_check(self) -> None:
         """Prove the model loads and emits the configured width. Raises on any problem."""
@@ -250,3 +274,75 @@ def get_embedder() -> LocalEmbedder:
             if _embedder is None:
                 _embedder = LocalEmbedder()
     return _embedder
+
+
+class LocalSparseEmbedder:
+    """BM25 sparse vectors via fastembed. CPU-only, no weights to download of note (~tiny).
+
+    Produces (indices, values) sparse vectors. Stored server-side in Qdrant with an IDF
+    modifier so document-frequency weighting is computed across the whole collection.
+    """
+
+    def __init__(self, model_name: str | None = None, cache_dir: str | None = None) -> None:
+        self._model_name = model_name or sparse_model_name()
+        self._cache_dir = cache_dir or embedding_cache_dir()
+        self._model = None
+        self._lock = threading.Lock()
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def _ensure_model(self):
+        if self._model is not None:
+            return self._model
+        with self._lock:
+            if self._model is None:
+                try:
+                    from fastembed import SparseTextEmbedding
+                except ImportError as exc:
+                    raise EmbeddingError(f"fastembed sparse unavailable: {exc}") from exc
+                try:
+                    self._model = SparseTextEmbedding(
+                        model_name=self._model_name, cache_dir=self._cache_dir
+                    )
+                except Exception as exc:
+                    raise EmbeddingError(
+                        f"cannot load sparse model {self._model_name!r}: {exc}"
+                    ) from exc
+                logger.info("sparse model loaded: %s", self._model_name)
+        return self._model
+
+    def _embed(self, texts: list[str], *, is_query: bool):
+        model = self._ensure_model()
+        fn = model.query_embed if is_query else model.embed
+        try:
+            return list(fn(texts))
+        except Exception as exc:
+            raise EmbeddingError(f"sparse embedding failed: {exc}") from exc
+
+    def embed_passages(self, texts: list[str]):
+        """Returns list of fastembed SparseEmbedding (has .indices, .values)."""
+        return self._embed(texts, is_query=False)
+
+    def embed_query(self, text: str):
+        return self._embed([text], is_query=True)[0]
+
+    def health_check(self) -> None:
+        result = self.embed_query("health check")
+        if len(result.indices) == 0:
+            # empty is valid for out-of-vocab; just prove the model runs
+            pass
+
+
+_sparse_embedder: LocalSparseEmbedder | None = None
+_sparse_lock = threading.Lock()
+
+
+def get_sparse_embedder() -> LocalSparseEmbedder:
+    global _sparse_embedder
+    if _sparse_embedder is None:
+        with _sparse_lock:
+            if _sparse_embedder is None:
+                _sparse_embedder = LocalSparseEmbedder()
+    return _sparse_embedder
