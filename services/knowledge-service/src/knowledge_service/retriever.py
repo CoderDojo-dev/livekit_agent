@@ -74,6 +74,7 @@ DEFAULT_SCORE_FLOOR = float(os.getenv("KNOWLEDGE_SCORE_FLOOR", "0.82"))
 DEFAULT_RELATIVE_CUTOFF = float(os.getenv("KNOWLEDGE_RELATIVE_CUTOFF", "0.90"))
 RRF_K = int(os.getenv("KNOWLEDGE_RRF_K", "60"))
 DEFAULT_LANGUAGE_FILTER = os.getenv("KNOWLEDGE_DEFAULT_LANGUAGE", "fr")
+SPARSE_MIN = float(os.getenv("KNOWLEDGE_SPARSE_MIN", "0.0"))
 
 
 def _tokenize(text: str) -> list[str]:
@@ -267,7 +268,56 @@ class QdrantE5Retriever:
         except Exception:
             sparse_hits = []                            # dense already gated; degrade gracefully
 
-        return self._rrf_fuse(dense_hits, sparse_hits, top_k)
+        # --- Lexical (BM25) co-gate (Phase 8.1) -------------------------------------------
+        # A query must have real keyword support in the corpus, not just a same-language cosine
+        # glow. max BM25 score among sparse hits must clear SPARSE_MIN. 0 = disabled. This kills
+        # keyword-absent French noise (weather, appliance, recruitment) at ~0 ms.
+        if apply_gate and SPARSE_MIN > 0:
+            max_bm25 = float(sparse_hits[0].score) if sparse_hits else 0.0
+            if max_bm25 < SPARSE_MIN:
+                logger.info(
+                    "lexical gate: no keyword support (max_bm25=%.4f < %.4f) -> []",
+                    max_bm25, SPARSE_MIN,
+                )
+                return []
+
+        from knowledge_service.ce_gate import (
+            CEGateError,
+            ce_gate_enabled,
+            ce_max_candidates,
+            ce_threshold,
+            get_ce_gate,
+        )
+
+        # Fuse to the CE candidate width so the gate sees the full survivor pool, not just
+        # top_k. When the CE gate is off (or apply_gate is False), fuse to top_k as before.
+        ce_on = apply_gate and ce_gate_enabled()
+        fuse_width = ce_max_candidates() if ce_on else top_k
+        fused = self._rrf_fuse(dense_hits, sparse_hits, fuse_width)
+
+        # --- Small cross-encoder gate (Phase 8.1) -----------------------------------------
+        # Re-score the (query, passage) pairs jointly; keep only genuinely relevant ones. On CE
+        # failure degrade to the dense+lexical result (no 503) — the cheap gates already removed
+        # the worst noise, so this is safe. `passage.score` STAYS the dense cosine (B5); the CE
+        # verdict lives in metadata["ce_score"] only, so downstream confidence scales are stable.
+        if ce_on and fused:
+            try:
+                scores = get_ce_gate().scores(query, [p.text for p in fused])
+            except CEGateError as exc:
+                logger.warning("CE gate unavailable, serving dense+lexical result: %s", exc)
+                return fused[:top_k]
+            threshold = ce_threshold()
+            ranked = sorted(zip(fused, scores), key=lambda t: t[1], reverse=True)
+            kept = [
+                replace(p, metadata={**p.metadata, "ce_score": round(s, 4)})
+                for p, s in ranked
+                if s >= threshold
+            ]
+            if not kept:
+                logger.info("CE gate: 0/%d passed threshold=%.2f -> []", len(fused), threshold)
+            return kept[:top_k]
+
+        return fused[:top_k]
 
     @staticmethod
     def _rrf_fuse(dense_hits, sparse_hits, top_k):

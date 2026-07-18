@@ -41,6 +41,16 @@ LANGUAGE_SWITCH_POLICY = (
     "switch_spoken_language with that language code, then continue in it."
 )
 
+# Phase 8.1: knowledge-answer abstention rule. Appended ONLY to the personas that call
+# knowledge_search (triage, billing, technical). Forces the agent to ground in retrieved
+# passages and say "Je n'ai pas cette information." when they don't directly answer, so a
+# residual retrieval leak (see Phase 8 report §6) cannot become a hallucinated answer.
+KNOWLEDGE_ABSTENTION_RULE = (
+    "When you use the knowledge_search tool: answer ONLY from the returned passages and cite the "
+    "source. If the passages do not directly answer the question, reply in French: "
+    "\"Je n'ai pas cette information.\" Do not guess or fill gaps from general knowledge."
+)
+
 
 def _extract_text(message) -> str:
     """Best-effort extraction of the user's text from a ChatMessage (content may be str or list)."""

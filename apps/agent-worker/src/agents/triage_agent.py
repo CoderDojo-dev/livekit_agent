@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from agents.base_agent import BaseTelecomAgent
+from agents.base_agent import BaseTelecomAgent, KNOWLEDGE_ABSTENTION_RULE
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
@@ -44,7 +44,8 @@ class TriageAgent(BaseTelecomAgent):
         lang_name = _LANG_NAMES[selected_language]
 
         super().__init__(
-            instructions=_INSTRUCTIONS.format(language=lang_name),
+            instructions=_INSTRUCTIONS.format(language=lang_name)
+            + "\n\n" + KNOWLEDGE_ABSTENTION_RULE,
             tools=[
                 request_clarification,
                 route_to_account_services,

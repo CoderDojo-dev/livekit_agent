@@ -16,7 +16,7 @@ from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 
-from agents.base_agent import BaseTelecomAgent
+from agents.base_agent import BaseTelecomAgent, KNOWLEDGE_ABSTENTION_RULE
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 
@@ -85,6 +85,7 @@ class BillingAgent(BaseTelecomAgent):
                 "tool's 'message' to the caller: on 'executed' give the reference; on 'refused' "
                 "or 'failed' explain plainly; on 'escalate' explain briefly and call "
                 f"escalate_to_manager. Always reply in {lang_name}."
+                + "\n\n" + KNOWLEDGE_ABSTENTION_RULE
             ),
             chat_ctx=chat_ctx,
             tools=[

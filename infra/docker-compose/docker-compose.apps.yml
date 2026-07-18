@@ -30,6 +30,11 @@ services:
       # Container path of the weights baked in at build time - pinned here so a host-oriented
       # .env cannot point the service at a directory that does not exist inside the image.
       EMBEDDING_CACHE_DIR: "/opt/models"
+      HF_HOME: "/opt/models"
+      # Cap torch/numpy CPU threads to 4 — the CE gate's set_num_threads() is not always
+      # respected (other libs can reset it), so OMP/MKL env vars are the reliable control.
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
       MINIO_ENDPOINT: "minio:9000"
       MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
@@ -40,6 +45,11 @@ services:
       qdrant: { condition: service_healthy }
       minio: { condition: service_healthy }
     ports: ["8102:8102"]
+    volumes:
+      # Persist the model cache (dense, sparse, CE) across container recreations.
+      # First start: populated from the image (E5 + BM25 baked). CE model downloads
+      # at runtime and survives subsequent `up -d` recreations.
+      - knowledge-models:/opt/models
     restart: unless-stopped
   decision-service:
     build:
@@ -174,3 +184,6 @@ services:
       ai-knowledge-rag: { condition: service_started }
       ticketing-glpi: { condition: service_started }
     restart: unless-stopped
+
+volumes:
+  knowledge-models:

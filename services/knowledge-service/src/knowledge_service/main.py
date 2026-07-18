@@ -69,6 +69,20 @@ async def lifespan(app: FastAPI):
             logger.info("reranker warm and validated")
         except RerankError as exc:
             logger.error("reranker failed to warm up: %s", exc)
+    # Small cross-encoder gate (Phase 8.1, ~118 MB). Degradable: failure is logged,
+    # not raised — the dense+sparse path passes through unchanged. Warms in a background
+    # thread so a slow HuggingFace download does NOT block the lifespan (and /health).
+    from knowledge_service.ce_gate import CEGateError, ce_gate_enabled, get_ce_gate
+    import threading
+
+    if ce_gate_enabled():
+        def _warm_ce_gate():
+            try:
+                get_ce_gate().health_check()
+                logger.info("CE gate warm and validated")
+            except CEGateError as exc:
+                logger.warning("CE gate failed to warm: %s", exc)
+        threading.Thread(target=_warm_ce_gate, daemon=True).start()
     yield
 
 
@@ -115,7 +129,20 @@ def health(response: Response) -> dict:
         except Exception as exc:
             checks["sparse_embedder"] = f"error: {exc}"
 
-    ready = all(value == "ok" for value in checks.values())
+    # Small CE gate (Phase 8.1). OUTSIDE the readiness gate: error does NOT cause 503.
+    # Does NOT trigger a download — just reports the current state so /health stays fast.
+    from knowledge_service.ce_gate import ce_gate_enabled, get_ce_gate
+
+    if ce_gate_enabled():
+        gate = get_ce_gate()
+        if gate._model is not None:
+            checks["ce_gate"] = "ok"
+        else:
+            checks["ce_gate"] = "warming"
+    else:
+        checks["ce_gate"] = "disabled"
+
+    ready = all(v == "ok" for k, v in checks.items() if k != "ce_gate")
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 

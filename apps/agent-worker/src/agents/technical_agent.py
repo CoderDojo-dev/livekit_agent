@@ -15,7 +15,7 @@ from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 from tools.technical_tools import check_network_status, diagnose_data_issue
 
-from agents.base_agent import BaseTelecomAgent
+from agents.base_agent import BaseTelecomAgent, KNOWLEDGE_ABSTENTION_RULE
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 
@@ -68,6 +68,7 @@ class TechnicalAgent(BaseTelecomAgent):
                 "NEVER claim an operation succeeded yourself - only the tool result decides. "
                 "If a result is 'refused' or 'failed', communicate its 'message' plainly; "
                 f"if 'escalate', call escalate_to_manager. Always reply in {lang_name}."
+                + "\n\n" + KNOWLEDGE_ABSTENTION_RULE
             ),
             chat_ctx=chat_ctx,
             tools=[
