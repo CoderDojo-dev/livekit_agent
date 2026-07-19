@@ -5,7 +5,8 @@ description = "Internal MCP server: GLPI ticket lifecycle (create/status/resolve
 requires-python = ">=3.12"
 dependencies = [
   "persistence",
-  "mcp>=1.0.0,<2",
+  "observability-kit",
+  "mcp>=1.24,<2",
   "httpx==0.28.1",
 ]
 

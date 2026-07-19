@@ -1,0 +1,166 @@
+"""Agent-side ticketing facades (identity-injecting wrappers over the ticketing-glpi MCP tools).
+
+Why these exist instead of exposing the raw MCP tools to the model: the caller's identity
+(customer_id, subscription_id) lives in the session's CustomerContext, resolved from the MSISDN
+at call start. The MCP server runs in a separate process and cannot see it, so if the model were
+asked to pass customer_id it would guess or omit it - which is exactly why every mirrored ticket
+had a NULL customer_id. These wrappers inject the VERIFIED ids from session context, so the model
+only supplies the human content (subject, description) and the platform supplies identity.
+
+They also give the agent the proactive behaviour the product needs: check_customer_tickets lets
+a persona see a caller's open tickets and tell them where their problem stands, in French.
+"""
+from __future__ import annotations
+
+import os
+
+import httpx
+from livekit.agents import RunContext, function_tool
+
+_TICKETING_HTTP_URL = os.getenv(
+    "TICKETING_HTTP_URL",
+    os.getenv("TICKETING_MCP_URL", "http://localhost:8202/mcp").replace("/mcp", ""),
+)
+_INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+
+
+def _customer(context: RunContext):
+    """The caller's verified context snapshot, or None when the line is unresolved."""
+    user_data = getattr(context.session, "userdata", None)
+    return getattr(user_data, "customer_context", None) if user_data else None
+
+
+async def _mcp_call(tool: str, arguments: dict) -> dict | list | None:
+    """Invoke a ticketing-glpi MCP tool over streamable HTTP and return its structured result.
+
+    The agent already reaches this MCP server through the LLM toolset; this direct path is only
+    for the identity-injecting wrappers, which must run platform-supplied ids the model can't see.
+    """
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamablehttp_client
+
+    url = os.getenv("TICKETING_MCP_URL", "http://localhost:8202/mcp")
+    headers = {"X-API-Key": _INTERNAL_API_KEY} if _INTERNAL_API_KEY else {}
+    try:
+        from observability_kit.telemetry import inject_trace_context
+        headers = inject_trace_context(headers)
+    except Exception:
+        pass
+
+    async with streamablehttp_client(url, headers=headers) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(tool, arguments)
+            if result.structuredContent is not None:
+                content = result.structuredContent
+                # FastMCP wraps list/scalar returns under {"result": ...}.
+                return content.get("result", content) if isinstance(content, dict) else content
+            return None
+
+
+@function_tool()
+async def create_support_ticket(
+    context: RunContext,
+    subject: str,
+    description: str,
+    category: str = "other",
+    priority: str = "",
+) -> dict:
+    """Open a support ticket for an issue that could not be solved on the call.
+
+    Identity (customer + subscription) is taken from the verified session context, not from you.
+    You supply only the human content.
+
+    Args:
+        subject: Short ticket subject in the caller's language.
+        description: What needs follow-up.
+        category: network_complaint / formal_complaint / technical / billing / other.
+        priority: low / medium / high / urgent (optional; leave empty if unsure).
+    """
+    customer = _customer(context)
+    if customer is None:
+        return {"outcome": "unavailable",
+                "message": "No active line is resolved for this caller; cannot open a ticket."}
+
+    language = getattr(customer, "preferred_language", "fr") or "fr"
+    result = await _mcp_call("create_ticket", {
+        "customer_id": customer.customer_id,
+        "subject": subject,
+        "description": description,
+        "language": language,
+        "category": category,
+        "subscription_id": customer.subscription_id or "",
+        "priority": priority or "",
+    })
+    return result or {"outcome": "failed", "message": "Ticket service did not respond."}
+
+
+@function_tool()
+async def check_customer_tickets(context: RunContext) -> dict:
+    """List the caller's existing tickets so you can tell them where their problem stands.
+
+    Use this proactively when a caller mentions a problem: if an open ticket already covers it,
+    reassure them it is being handled; if one is resolved, tell them the good news. Identity is
+    taken from the verified session context.
+    """
+    customer = _customer(context)
+    if customer is None:
+        return {"outcome": "unavailable", "tickets": [],
+                "message": "No active line is resolved for this caller."}
+
+    result = await _mcp_call("lookup_tickets", {"customer_id": customer.customer_id})
+    tickets = result if isinstance(result, list) else []
+    open_states = {"open", "in_progress", "pending"}
+    open_tickets = [t for t in tickets if t.get("status") in open_states]
+    resolved = [t for t in tickets if t.get("status") in {"resolved", "closed"}]
+    return {
+        "outcome": "listed",
+        "total": len(tickets),
+        "open_count": len(open_tickets),
+        "resolved_count": len(resolved),
+        "tickets": tickets,
+        "message": (
+            "Summarize for the caller in their language: if an open ticket matches their "
+            "problem, tell them it is registered and being handled; if a matching ticket is "
+            "resolved, tell them the good news. Never invent a ticket that is not in this list."
+        ),
+    }
+
+
+@function_tool()
+async def get_ticket_state(context: RunContext, ticket_id: str) -> dict:
+    """Check the current status of one ticket by its reference (e.g. 'GLPI-42')."""
+    result = await _mcp_call("get_ticket_status", {"ticket_id": ticket_id})
+    return result or {"found": False, "message": "Ticket service did not respond."}
+
+
+@function_tool()
+async def mark_ticket_resolved(context: RunContext, ticket_id: str, resolution: str) -> dict:
+    """Resolve a ticket when the caller's issue was solved during the call.
+
+    Args:
+        ticket_id: The ticket reference (e.g. 'GLPI-42').
+        resolution: A short note on how it was solved.
+    """
+    result = await _mcp_call("resolve_ticket", {"ticket_id": ticket_id, "resolution": resolution})
+    return result or {"found": False, "message": "Ticket service did not respond."}
+
+
+@function_tool()
+async def update_support_ticket(
+    context: RunContext,
+    ticket_id: str,
+    subject: str = "",
+    description: str = "",
+    priority: str = "",
+    category: str = "",
+) -> dict:
+    """Update an existing ticket's subject, description, priority, or category."""
+    result = await _mcp_call("update_ticket", {
+        "ticket_id": ticket_id,
+        "subject": subject,
+        "description": description,
+        "priority": priority,
+        "category": category,
+    })
+    return result or {"found": False, "message": "Ticket service did not respond."}

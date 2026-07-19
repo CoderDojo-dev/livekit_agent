@@ -1,0 +1,41 @@
+# Local GLPI for live ticketing tests (dev only). Opt in with:
+#   docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.glpi.yml up -d
+#
+# First run: open http://localhost:8080, complete the install wizard against the glpi-db below,
+# then Setup > General > API: enable the REST API, create an App-Token, and in your user
+# preferences create a user_token. Put both in .env (GLPI_APP_TOKEN / GLPI_USER_TOKEN),
+# set GLPI_BASE_URL=http://glpi:80/apirest.php and CONNECTOR_MODE=live, and recreate
+# ticketing-glpi + agent-worker.
+services:
+  glpi-db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: ${GLPI_DB_ROOT_PASSWORD:-glpiroot}
+      MARIADB_DATABASE: ${GLPI_DB_NAME:-glpi}
+      MARIADB_USER: ${GLPI_DB_USER:-glpi}
+      MARIADB_PASSWORD: ${GLPI_DB_PASSWORD:-glpi}
+    command: ["--transaction-isolation=READ-COMMITTED", "--log-bin", "--binlog-format=ROW"]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - glpi-db-data:/var/lib/mysql
+    restart: unless-stopped
+
+  glpi:
+    image: diouxx/glpi:10.0.15
+    environment:
+      TIMEZONE: ${GLPI_TIMEZONE:-Europe/Paris}
+    depends_on:
+      glpi-db: { condition: service_healthy }
+    ports:
+      - "8080:80"
+    volumes:
+      - glpi-app-data:/var/www/html/glpi
+    restart: unless-stopped
+
+volumes:
+  glpi-db-data:
+  glpi-app-data:

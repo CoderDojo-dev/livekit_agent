@@ -141,6 +141,10 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
       NOTIFICATION_SERVICE_URL: "http://notification-service:8106"
+      CONNECTOR_MODE: "${CONNECTOR_MODE:-mock}"
+      GLPI_BASE_URL: "${GLPI_BASE_URL:-}"
+      GLPI_APP_TOKEN: "${GLPI_APP_TOKEN:-}"
+      GLPI_USER_TOKEN: "${GLPI_USER_TOKEN:-}"
     depends_on:
       postgres: { condition: service_healthy }
       notification-service: { condition: service_started }
@@ -174,6 +178,7 @@ services:
       NOTIFICATION_SERVICE_URL: "http://notification-service:8106"
       KNOWLEDGE_MCP_URL: "http://ai-knowledge-rag:8201/mcp"
       TICKETING_MCP_URL: "http://ticketing-glpi:8202/mcp"
+      TICKETING_HTTP_URL: "http://ticketing-glpi:8202"
     depends_on:
       postgres: { condition: service_healthy }
       context-service: { condition: service_started }

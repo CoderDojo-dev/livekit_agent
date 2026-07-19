@@ -7,13 +7,19 @@ from __future__ import annotations
 
 from livekit.agents import RunContext, function_tool
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
-from mcp_clients.ticketing_toolset import build_ticketing_toolset
 from tasks.sim_replacement_task_group import SimReplacementTaskGroup
 from tools import outcomes
 from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 from tools.technical_tools import check_network_status, diagnose_data_issue
+from tools.ticket_tools import (
+    check_customer_tickets,
+    create_support_ticket,
+    get_ticket_state,
+    mark_ticket_resolved,
+    update_support_ticket,
+)
 
 from agents.base_agent import BaseTelecomAgent, KNOWLEDGE_ABSTENTION_RULE
 
@@ -61,10 +67,15 @@ class TechnicalAgent(BaseTelecomAgent):
                 "To check known incidents for an area, use check_network_status. "
                 "For how-to/known-issue questions, call knowledge_search with a concise "
                 f"ENGLISH query and answer in {lang_name}, citing the source. "
-                "If an issue cannot be solved on the call, call create_ticket "
-                "(subject + short description + the caller's language) so the caller gets "
-                "a written confirmation; give them the ticket reference. If the issue IS "
-                "solved during the call, you may resolve_ticket. Keep replies short. "
+                "When a caller describes a problem, FIRST call check_customer_tickets: "
+                "if an open ticket already covers it, reassure them it is registered "
+                "and being handled; if a matching ticket is now resolved, tell them "
+                "the good news. If an issue cannot be solved on the call and no ticket "
+                "covers it, call create_support_ticket (subject + short description) so "
+                "the caller gets a written confirmation; give them the ticket reference. "
+                "If the issue IS solved during the call, call mark_ticket_resolved. "
+                "To check one ticket use get_ticket_state; to amend one use "
+                "update_support_ticket. Never invent a ticket or a status. Keep replies short. "
                 "NEVER claim an operation succeeded yourself - only the tool result decides. "
                 "If a result is 'refused' or 'failed', communicate its 'message' plainly; "
                 f"if 'escalate', call escalate_to_manager. Always reply in {lang_name}."
@@ -79,8 +90,12 @@ class TechnicalAgent(BaseTelecomAgent):
                 route_to_account_services,
                 route_to_billing,
                 escalate_to_manager,
+                create_support_ticket,
+                check_customer_tickets,
+                get_ticket_state,
+                mark_ticket_resolved,
+                update_support_ticket,
                 build_knowledge_toolset(),
-                build_ticketing_toolset(),
             ],
         )
         self._language = selected_language

@@ -5,7 +5,11 @@ escalated issue is tracked and the caller gets a written confirmation.
 """
 from __future__ import annotations
 
-from mcp_clients.ticketing_toolset import build_ticketing_toolset
+from tools.ticket_tools import (
+    check_customer_tickets,
+    create_support_ticket,
+    get_ticket_state,
+)
 from telephony.sip_transfer import transfer_to_human
 
 from agents.base_agent import BaseTelecomAgent
@@ -24,12 +28,19 @@ class ManagerAgent(BaseTelecomAgent):
                 f"You are a senior support manager handling an escalated call. You MUST speak ONLY in {lang_name}. Never switch language.\n"
                 "Call transfer_to_human immediately and do not speak before calling it. "
                 "The transfer tool owns the single transition announcement and will schedule a callback "
-                "if none is free). If the issue needs tracking, call create_ticket (with the "
+                "if none is free). To see the caller's existing tickets call "
+                "check_customer_tickets; if the issue needs tracking and none covers it, "
+                "call create_support_ticket (with the "
                 "caller's language) so they receive a written confirmation, and give them the "
                 f"reference. Keep replies short and calm; always reply in {lang_name}."
             ),
             chat_ctx=chat_ctx,
-            tools=[transfer_to_human, build_ticketing_toolset()],
+            tools=[
+                transfer_to_human,
+                create_support_ticket,
+                check_customer_tickets,
+                get_ticket_state,
+            ],
             language=selected_language,
         )
         self._language = selected_language
