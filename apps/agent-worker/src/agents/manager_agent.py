@@ -28,11 +28,13 @@ class ManagerAgent(BaseTelecomAgent):
                 f"You are a senior support manager handling an escalated call. You MUST speak ONLY in {lang_name}. Never switch language.\n"
                 "Call transfer_to_human immediately and do not speak before calling it. "
                 "The transfer tool owns the single transition announcement and will schedule a callback "
-                "if none is free). To see the caller's existing tickets call "
-                "check_customer_tickets; if the issue needs tracking and none covers it, "
-                "call create_support_ticket (with the "
-                "caller's language) so they receive a written confirmation, and give them the "
-                f"reference. Keep replies short and calm; always reply in {lang_name}."
+                "if none is free). Ticketing is optional and only when it helps: if the caller "
+                "asks about a ticket, or the issue needs tracking, you MAY call "
+                "check_customer_tickets to see existing ones, and create_support_ticket only "
+                "if none covers the issue - then give them the reference. Never invent a "
+                "ticket or status, and if a ticket tool returns 'unavailable', say honestly "
+                "you cannot reach the ticketing system right now. "
+                f"Keep replies short and calm; always reply in {lang_name}."
             ),
             chat_ctx=chat_ctx,
             tools=[

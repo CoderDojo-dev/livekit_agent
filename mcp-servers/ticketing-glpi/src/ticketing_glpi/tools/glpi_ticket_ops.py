@@ -18,7 +18,21 @@ import httpx
 from ticketing_glpi.adapters import mirror
 from ticketing_glpi.adapters.glpi_client import get_glpi_client
 
-_client = get_glpi_client()
+_client = None
+
+
+def _glpi():
+    """Lazily build the live GLPI client on first use.
+
+    Lazy so the module imports even before GLPI env is loaded (the /health route and tests do
+    not need a live client); the first ticket operation is what requires - and validates - a
+    real GLPI, raising GlpiConfigError if it is not configured.
+    """
+    global _client
+    if _client is None:
+        _client = get_glpi_client()
+    return _client
+
 NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://localhost:8106")
 _INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
@@ -49,7 +63,7 @@ async def create_ticket(customer_id: str, subject: str, description: str,
         requester_glpi_id: The caller's GLPI user id, when mapped (enables live search).
     """
     ticket = await asyncio.to_thread(
-        _client.create, customer_id, subject, description,
+        _glpi().create, customer_id, subject, description,
         mirror.normalize_category(category), priority or None, requester_glpi_id,
     )
     await asyncio.to_thread(
@@ -87,7 +101,7 @@ async def create_ticket(customer_id: str, subject: str, description: str,
 
 async def get_ticket_status(ticket_id: str) -> dict:
     """Look up one ticket's status. Reconciles GLPI -> mirror so admin changes are reflected."""
-    live = await asyncio.to_thread(_client.get, ticket_id)
+    live = await asyncio.to_thread(_glpi().get, ticket_id)
     if live is not None:
         # GLPI answered: write the fresh status through so the local view stays current.
         await asyncio.to_thread(
@@ -108,7 +122,7 @@ async def update_ticket(ticket_id: str, subject: str = "", description: str = ""
                         priority: str = "", category: str = "", status: str = "") -> dict:
     """Update a ticket's fields (subject/description/priority/category/status) in GLPI + mirror."""
     ticket = await asyncio.to_thread(
-        _client.update, ticket_id, subject or None, description or None,
+        _glpi().update, ticket_id, subject or None, description or None,
         priority or None, status or None,
     )
     await asyncio.to_thread(
@@ -126,7 +140,7 @@ async def update_ticket(ticket_id: str, subject: str = "", description: str = ""
 
 async def resolve_ticket(ticket_id: str, resolution: str) -> dict:
     """Resolve a ticket when the issue is solved during the call (GLPI status=5 + mirror)."""
-    ticket = await asyncio.to_thread(_client.resolve, ticket_id, resolution)
+    ticket = await asyncio.to_thread(_glpi().resolve, ticket_id, resolution)
     await asyncio.to_thread(mirror.mirror_set_status, ticket_id, "resolved")
     if ticket is None:
         mirrored = await asyncio.to_thread(mirror.read_status, ticket_id)
@@ -138,7 +152,7 @@ async def resolve_ticket(ticket_id: str, resolution: str) -> dict:
 
 async def close_ticket(ticket_id: str) -> dict:
     """Close a ticket (GLPI status=6 + mirror)."""
-    ticket = await asyncio.to_thread(_client.close, ticket_id)
+    ticket = await asyncio.to_thread(_glpi().close, ticket_id)
     await asyncio.to_thread(mirror.mirror_set_status, ticket_id, "closed")
     if ticket is None:
         mirrored = await asyncio.to_thread(mirror.read_status, ticket_id)
@@ -150,7 +164,7 @@ async def close_ticket(ticket_id: str) -> dict:
 
 async def delete_ticket(ticket_id: str) -> dict:
     """Delete a ticket from GLPI and the mirror (used to withdraw a mistaken ticket)."""
-    deleted = await asyncio.to_thread(_client.delete, ticket_id)
+    deleted = await asyncio.to_thread(_glpi().delete, ticket_id)
     mirror_deleted = await asyncio.to_thread(mirror.mirror_delete, ticket_id)
     return {"deleted": bool(deleted or mirror_deleted), "ticket_id": ticket_id}
 
@@ -166,7 +180,7 @@ async def lookup_tickets(customer_id: str, requester_glpi_id: int | None = None)
     if mirrored:
         return mirrored
 
-    live = await asyncio.to_thread(_client.list_for, requester_glpi_id or customer_id)
+    live = await asyncio.to_thread(_glpi().list_for, requester_glpi_id or customer_id)
     for ticket in live:
         await asyncio.to_thread(
             mirror.upsert_from_glpi, ticket.ticket_id, customer_id,

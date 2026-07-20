@@ -12,6 +12,7 @@ a persona see a caller's open tickets and tell them where their problem stands, 
 """
 from __future__ import annotations
 
+import logging
 import os
 
 import httpx
@@ -22,6 +23,7 @@ _TICKETING_HTTP_URL = os.getenv(
     os.getenv("TICKETING_MCP_URL", "http://localhost:8202/mcp").replace("/mcp", ""),
 )
 _INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+logger = logging.getLogger(__name__)
 
 
 def _customer(context: RunContext):
@@ -30,11 +32,17 @@ def _customer(context: RunContext):
     return getattr(user_data, "customer_context", None) if user_data else None
 
 
+class TicketingUnavailable(RuntimeError):
+    """The ticketing service could not be reached or errored. Surfaced as an honest failure."""
+
+
 async def _mcp_call(tool: str, arguments: dict) -> dict | list | None:
     """Invoke a ticketing-glpi MCP tool over streamable HTTP and return its structured result.
 
-    The agent already reaches this MCP server through the LLM toolset; this direct path is only
-    for the identity-injecting wrappers, which must run platform-supplied ids the model can't see.
+    Raises TicketingUnavailable on any transport/protocol failure so the caller-facing wrappers
+    can tell the truth ("I can't reach the ticketing system right now") instead of letting a raw
+    exception crash the tool call and leave the agent silent. There is NO fake fallback: a real
+    failure is reported as a failure.
     """
     from mcp import ClientSession
     from mcp.client.streamable_http import streamablehttp_client
@@ -47,15 +55,39 @@ async def _mcp_call(tool: str, arguments: dict) -> dict | list | None:
     except Exception:
         pass
 
-    async with streamablehttp_client(url, headers=headers) as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
-            if result.structuredContent is not None:
-                content = result.structuredContent
-                # FastMCP wraps list/scalar returns under {"result": ...}.
-                return content.get("result", content) if isinstance(content, dict) else content
-            return None
+    try:
+        async with streamablehttp_client(url, headers=headers) as (read, write, _):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool, arguments)
+                if getattr(result, "isError", False):
+                    raise TicketingUnavailable(f"ticketing tool {tool!r} returned an error")
+                if result.structuredContent is not None:
+                    content = result.structuredContent
+                    # FastMCP wraps list/scalar returns under {"result": ...}.
+                    return content.get("result", content) if isinstance(content, dict) else content
+                return None
+    except TicketingUnavailable:
+        raise
+    except Exception as exc:  # connection refused, timeout, protocol error
+        logger.error("ticketing MCP call %s failed: %s", tool, exc)
+        raise TicketingUnavailable(str(exc)) from exc
+
+
+# What every wrapper returns when ticketing is unreachable. The message tells the model to be
+# honest with the caller and never invent a ticket or a status.
+def _unavailable(extra: dict | None = None) -> dict:
+    payload = {
+        "outcome": "unavailable",
+        "message": (
+            "The ticketing system is unavailable right now. Tell the caller honestly, in their "
+            "language, that you cannot access or record tickets at the moment and will try later. "
+            "Do NOT invent a ticket, a reference, or a status."
+        ),
+    }
+    if extra:
+        payload.update(extra)
+    return payload
 
 
 @function_tool()
@@ -83,16 +115,19 @@ async def create_support_ticket(
                 "message": "No active line is resolved for this caller; cannot open a ticket."}
 
     language = getattr(customer, "preferred_language", "fr") or "fr"
-    result = await _mcp_call("create_ticket", {
-        "customer_id": customer.customer_id,
-        "subject": subject,
-        "description": description,
-        "language": language,
-        "category": category,
-        "subscription_id": customer.subscription_id or "",
-        "priority": priority or "",
-    })
-    return result or {"outcome": "failed", "message": "Ticket service did not respond."}
+    try:
+        result = await _mcp_call("create_ticket", {
+            "customer_id": customer.customer_id,
+            "subject": subject,
+            "description": description,
+            "language": language,
+            "category": category,
+            "subscription_id": customer.subscription_id or "",
+            "priority": priority or "",
+        })
+    except TicketingUnavailable:
+        return _unavailable()
+    return result or _unavailable()
 
 
 @function_tool()
@@ -108,7 +143,10 @@ async def check_customer_tickets(context: RunContext) -> dict:
         return {"outcome": "unavailable", "tickets": [],
                 "message": "No active line is resolved for this caller."}
 
-    result = await _mcp_call("lookup_tickets", {"customer_id": customer.customer_id})
+    try:
+        result = await _mcp_call("lookup_tickets", {"customer_id": customer.customer_id})
+    except TicketingUnavailable:
+        return _unavailable({"tickets": []})
     tickets = result if isinstance(result, list) else []
     open_states = {"open", "in_progress", "pending"}
     open_tickets = [t for t in tickets if t.get("status") in open_states]
@@ -130,8 +168,11 @@ async def check_customer_tickets(context: RunContext) -> dict:
 @function_tool()
 async def get_ticket_state(context: RunContext, ticket_id: str) -> dict:
     """Check the current status of one ticket by its reference (e.g. 'GLPI-42')."""
-    result = await _mcp_call("get_ticket_status", {"ticket_id": ticket_id})
-    return result or {"found": False, "message": "Ticket service did not respond."}
+    try:
+        result = await _mcp_call("get_ticket_status", {"ticket_id": ticket_id})
+    except TicketingUnavailable:
+        return _unavailable()
+    return result or _unavailable()
 
 
 @function_tool()
@@ -142,8 +183,11 @@ async def mark_ticket_resolved(context: RunContext, ticket_id: str, resolution: 
         ticket_id: The ticket reference (e.g. 'GLPI-42').
         resolution: A short note on how it was solved.
     """
-    result = await _mcp_call("resolve_ticket", {"ticket_id": ticket_id, "resolution": resolution})
-    return result or {"found": False, "message": "Ticket service did not respond."}
+    try:
+        result = await _mcp_call("resolve_ticket", {"ticket_id": ticket_id, "resolution": resolution})
+    except TicketingUnavailable:
+        return _unavailable()
+    return result or _unavailable()
 
 
 @function_tool()
@@ -156,11 +200,14 @@ async def update_support_ticket(
     category: str = "",
 ) -> dict:
     """Update an existing ticket's subject, description, priority, or category."""
-    result = await _mcp_call("update_ticket", {
-        "ticket_id": ticket_id,
-        "subject": subject,
-        "description": description,
-        "priority": priority,
-        "category": category,
-    })
-    return result or {"found": False, "message": "Ticket service did not respond."}
+    try:
+        result = await _mcp_call("update_ticket", {
+            "ticket_id": ticket_id,
+            "subject": subject,
+            "description": description,
+            "priority": priority,
+            "category": category,
+        })
+    except TicketingUnavailable:
+        return _unavailable()
+    return result or _unavailable()

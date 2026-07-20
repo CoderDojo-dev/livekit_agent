@@ -1,8 +1,9 @@
-"""GLPI ticket client: full CRUD over the GLPI REST API, with an in-memory mock twin.
+"""GLPI ticket client: full CRUD over the real GLPI REST API.
 
 GLPI is the source of truth for tickets; the Postgres mirror (mirror.py) is a durable, queryable
-local projection of it. Both clients expose the SAME interface so the MCP tools never branch on
-mode:
+local projection of it (a cache). There is no mock: the ticketing subsystem only runs against a
+real GLPI, so a failure is a real failure the agent must report honestly, never a silent fake.
+The client exposes:
 
     create(customer_id, subject, description, category, priority, requester_glpi_id) -> Ticket
     get(ticket_id)                     -> Ticket | None
@@ -69,67 +70,8 @@ def _numeric(ticket_id: str) -> str:
     return ticket_id.replace("GLPI-", "").strip()
 
 
-class MockGlpiClient:
-    """In-memory GLPI twin for local dev, CI and offline verification. Same interface as live."""
-
-    def __init__(self) -> None:
-        self._tickets: dict[str, Ticket] = {}
-        self._counter = 0
-
-    def create(self, customer_id: str, subject: str, description: str,
-               category: str = "other", priority: str | None = None,
-               requester_glpi_id: int | None = None) -> Ticket:
-        self._counter += 1
-        ticket_id = f"GLPI-{self._counter:05d}"
-        ticket = Ticket(ticket_id, customer_id, subject, description, status="open",
-                        category=category, priority=priority)
-        self._tickets[ticket_id] = ticket
-        return ticket
-
-    def get(self, ticket_id: str) -> Ticket | None:
-        return self._tickets.get(ticket_id)
-
-    def update(self, ticket_id: str, subject: str | None = None,
-               description: str | None = None, priority: str | None = None,
-               status: str | None = None) -> Ticket | None:
-        ticket = self._tickets.get(ticket_id)
-        if ticket is None:
-            return None
-        if subject is not None:
-            ticket.subject = subject
-        if description is not None:
-            ticket.description = description
-        if priority is not None:
-            ticket.priority = priority
-        if status is not None:
-            ticket.status = status
-        return ticket
-
-    def resolve(self, ticket_id: str, resolution: str) -> Ticket | None:
-        ticket = self._tickets.get(ticket_id)
-        if ticket is None:
-            return None
-        ticket.status = "resolved"
-        ticket.resolution = resolution
-        return ticket
-
-    def close(self, ticket_id: str) -> Ticket | None:
-        ticket = self._tickets.get(ticket_id)
-        if ticket is None:
-            return None
-        ticket.status = "closed"
-        return ticket
-
-    def delete(self, ticket_id: str) -> bool:
-        return self._tickets.pop(ticket_id, None) is not None
-
-    def list_for(self, requester_glpi_id: int | str) -> list[Ticket]:
-        # The mock keys on our customer_id; the live client keys on the GLPI requester id.
-        return [t for t in self._tickets.values() if t.customer_id == str(requester_glpi_id)]
-
-
 class LiveGlpiClient:
-    """Real GLPI REST client. Interface-compatible with MockGlpiClient.
+    """Real GLPI REST client.
 
     Trace context is injected on every outbound call so a ticket operation stays on the same
     distributed trace as the voice turn that triggered it.
@@ -304,39 +246,30 @@ class LiveGlpiClient:
 
 
 class GlpiConfigError(RuntimeError):
-    """CONNECTOR_MODE=live was requested but the GLPI connection is not configured.
+    """The GLPI connection is not configured. Raised at startup rather than degrading to a fake.
 
-    Raised instead of silently degrading to the in-memory mock: a ticketing system with no real
-    GLPI behind it would accept tickets that vanish on restart while looking healthy. Fail loud.
+    There is no mock ticketing backend: a ticketing system with no real GLPI behind it would
+    accept tickets that vanish on restart while looking healthy. Fail loud instead.
     """
 
 
-def get_glpi_client():
-    """Return the GLPI client for the current mode.
+def get_glpi_client() -> "LiveGlpiClient":
+    """Return the live GLPI REST client. Raises GlpiConfigError if GLPI is not configured.
 
-    CONNECTOR_MODE=live (production/staging and any real setup): a LiveGlpiClient bound to a real
-    GLPI REST endpoint. If the credentials are missing, this RAISES rather than falling back to
-    the mock - there must always be a real system behind live mode.
-
-    CONNECTOR_MODE=mock (local dev / CI only): an in-memory GLPI twin with no external dependency.
-    Never reachable unless mock is explicitly selected.
+    The ticketing subsystem is live-only: it always talks to a real GLPI. There is no mock path
+    and no fallback. If the three GLPI settings are not present, this raises at import time so the
+    service refuses to start rather than pretending to store tickets.
     """
-    mode = os.getenv("CONNECTOR_MODE", "mock").lower()
-    if mode == "live":
-        base = os.getenv("GLPI_BASE_URL")
-        app = os.getenv("GLPI_APP_TOKEN")
-        user = os.getenv("GLPI_USER_TOKEN")
-        missing = [name for name, value in
-                   (("GLPI_BASE_URL", base), ("GLPI_APP_TOKEN", app), ("GLPI_USER_TOKEN", user))
-                   if not value]
-        if missing:
-            raise GlpiConfigError(
-                "CONNECTOR_MODE=live but these GLPI settings are missing: "
-                + ", ".join(missing)
-                + ". Set them (or use CONNECTOR_MODE=mock for local dev). Refusing to fall back "
-                "to the in-memory mock, which would silently drop real tickets."
-            )
-        logger.info("ticketing: using LiveGlpiClient at %s", base)
-        return LiveGlpiClient(base, app, user)
-    logger.warning("ticketing: CONNECTOR_MODE=mock - in-memory GLPI twin (local dev only)")
-    return MockGlpiClient()
+    base = os.getenv("GLPI_BASE_URL")
+    app = os.getenv("GLPI_APP_TOKEN")
+    user = os.getenv("GLPI_USER_TOKEN")
+    missing = [name for name, value in
+               (("GLPI_BASE_URL", base), ("GLPI_APP_TOKEN", app), ("GLPI_USER_TOKEN", user))
+               if not value]
+    if missing:
+        raise GlpiConfigError(
+            "GLPI is not configured; these settings are missing: " + ", ".join(missing)
+            + ". The ticketing subsystem is live-only and will not start without a real GLPI."
+        )
+    logger.info("ticketing: using LiveGlpiClient at %s", base)
+    return LiveGlpiClient(base, app, user)
