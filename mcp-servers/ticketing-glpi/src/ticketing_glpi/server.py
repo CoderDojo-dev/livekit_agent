@@ -18,6 +18,7 @@ from ticketing_glpi.tools.glpi_ticket_ops import (
     close_ticket,
     create_ticket,
     delete_ticket,
+    ensure_customer_glpi_user,
     get_ticket_status,
     lookup_tickets,
     resolve_ticket,
@@ -31,7 +32,7 @@ mcp = FastMCP(
 )
 
 for _tool in (create_ticket, get_ticket_status, update_ticket, resolve_ticket,
-              close_ticket, delete_ticket, lookup_tickets):
+              close_ticket, delete_ticket, lookup_tickets, ensure_customer_glpi_user):
     mcp.tool()(_tool)
 
 

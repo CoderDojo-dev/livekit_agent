@@ -62,6 +62,10 @@ async def create_ticket(customer_id: str, subject: str, description: str,
         priority: low / medium / high / urgent (optional).
         requester_glpi_id: The caller's GLPI user id, when mapped (enables live search).
     """
+    # Resolve the caller's GLPI requester id from the stored mapping when not supplied, so the
+    # ticket is filed under a real GLPI user and becomes searchable by requester.
+    if not requester_glpi_id:
+        requester_glpi_id = await asyncio.to_thread(mirror.read_glpi_user_id, customer_id)
     ticket = await asyncio.to_thread(
         _glpi().create, customer_id, subject, description,
         mirror.normalize_category(category), priority or None, requester_glpi_id,
@@ -180,6 +184,8 @@ async def lookup_tickets(customer_id: str, requester_glpi_id: int | None = None)
     if mirrored:
         return mirrored
 
+    if not requester_glpi_id:
+        requester_glpi_id = await asyncio.to_thread(mirror.read_glpi_user_id, customer_id)
     live = await asyncio.to_thread(_glpi().list_for, requester_glpi_id or customer_id)
     for ticket in live:
         await asyncio.to_thread(
@@ -194,3 +200,45 @@ async def lookup_tickets(customer_id: str, requester_glpi_id: int | None = None)
         {"ticket_id": t.ticket_id, "status": t.status, "subject": t.subject}
         for t in live
     ]
+
+
+async def ensure_customer_glpi_user(customer_id: str, login: str, first_name: str = "",
+                                    last_name: str = "", email: str = "") -> dict:
+    """Ensure the customer has a GLPI user and persist the mapping (customer.glpi_user_id).
+
+    Called when a customer is created (and by the backfill for existing customers). Idempotent:
+    if the mapping already exists it is returned unchanged; otherwise the GLPI user is
+    found-or-created and the id is written back to crm.customers.
+    """
+    existing = await asyncio.to_thread(mirror.read_glpi_user_id, customer_id)
+    if existing:
+        return {"customer_id": customer_id, "glpi_user_id": existing, "created": False}
+
+    glpi_user_id = await asyncio.to_thread(
+        _glpi().ensure_user, login or customer_id, first_name, last_name, email,
+    )
+    if glpi_user_id is None:
+        return {"customer_id": customer_id, "glpi_user_id": None, "created": False,
+                "error": "GLPI user could not be created"}
+
+    await asyncio.to_thread(mirror.write_glpi_user_id, customer_id, glpi_user_id)
+    return {"customer_id": customer_id, "glpi_user_id": glpi_user_id, "created": True}
+
+
+def backfill_glpi_users() -> dict:
+    """Create GLPI users for all active customers missing a mapping. Idempotent; run any time.
+
+    Synchronous entrypoint (console script) so operators can map existing customers in one pass.
+    """
+    import asyncio as _asyncio
+
+    pending = mirror.customers_without_glpi_user()
+    mapped = 0
+    for row in pending:
+        result = _asyncio.run(ensure_customer_glpi_user(
+            row["customer_id"], row["login"], row["first_name"], row["last_name"], row["email"],
+        ))
+        if result.get("glpi_user_id"):
+            mapped += 1
+    print(f"GLPI_USER_BACKFILL pending={len(pending)} mapped={mapped}")
+    return {"pending": len(pending), "mapped": mapped}

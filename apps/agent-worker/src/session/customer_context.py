@@ -21,6 +21,7 @@ class CustomerContext:
     is_vip: bool = False
     fraud_suspected: bool = False
     account_age_days: int = 0
+    glpi_user_id: int | None = None
 
     @classmethod
     def from_snapshot(cls, data: dict) -> CustomerContext:
@@ -35,4 +36,5 @@ class CustomerContext:
             is_vip=data.get("is_vip", False),
             fraud_suspected=data.get("fraud_suspected", False),
             account_age_days=data.get("account_age_days", 0),
+            glpi_user_id=data.get("glpi_user_id"),
         )

@@ -124,6 +124,7 @@ async def create_support_ticket(
             "category": category,
             "subscription_id": customer.subscription_id or "",
             "priority": priority or "",
+            "requester_glpi_id": getattr(customer, "glpi_user_id", None),
         })
     except TicketingUnavailable:
         return _unavailable()
@@ -144,7 +145,10 @@ async def check_customer_tickets(context: RunContext) -> dict:
                 "message": "No active line is resolved for this caller."}
 
     try:
-        result = await _mcp_call("lookup_tickets", {"customer_id": customer.customer_id})
+        result = await _mcp_call("lookup_tickets", {
+            "customer_id": customer.customer_id,
+            "requester_glpi_id": getattr(customer, "glpi_user_id", None),
+        })
     except TicketingUnavailable:
         return _unavailable({"tickets": []})
     tickets = result if isinstance(result, list) else []

@@ -15,6 +15,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Integer,
     String,
     Text,
     text,
@@ -48,6 +49,10 @@ class Customer(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     city: Mapped[str | None] = mapped_column(String(100))
     region: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'active'"), index=True)
+    # GLPI user id for this customer (the ticket "requester"). Lets the platform search GLPI
+    # by requester so tickets an admin opens directly in GLPI are discoverable and sync into
+    # the mirror. Nullable: backfilled for existing customers, set at creation for new ones.
+    glpi_user_id: Mapped[int | None] = mapped_column(Integer, unique=True, index=True)
 
     subscriptions: Mapped[list[Subscription]] = relationship(back_populates="customer")
 

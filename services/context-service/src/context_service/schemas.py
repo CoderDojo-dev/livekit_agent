@@ -16,6 +16,7 @@ class Customer360(BaseModel):
     is_vip: bool = False
     fraud_suspected: bool = False
     account_age_days: int = 0
+    glpi_user_id: int | None = None
     open_invoice_count: int = 0
     balance_summary: str | None = None
 

@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 ticketing-glpi = "ticketing_glpi.server:main"
+ticketing-glpi-backfill-users = "ticketing_glpi.tools.glpi_ticket_ops:backfill_glpi_users"
 
 [build-system]
 requires = ["setuptools>=68"]

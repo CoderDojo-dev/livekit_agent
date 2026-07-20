@@ -211,3 +211,75 @@ def read_for_customer(customer_id: str) -> list[dict] | None:
     except Exception as exc:
         logger.warning("ticket mirror list failed (%s): %s", customer_id, exc)
         return None
+
+
+def read_glpi_user_id(customer_id: str) -> int | None:
+    """Return a customer's stored GLPI user id, or None (mirror disabled / no customer / unset)."""
+    if not _enabled():
+        return None
+    from persistence.engine import session_scope
+    from persistence.models.crm import Customer
+    from persistence.util import to_uuid
+
+    cid = to_uuid(customer_id)
+    if cid is None:
+        return None
+    try:
+        with session_scope() as session:
+            customer = session.get(Customer, cid)
+            return customer.glpi_user_id if customer is not None else None
+    except Exception as exc:
+        logger.warning("read glpi_user_id failed (%s): %s", customer_id, exc)
+        return None
+
+
+def write_glpi_user_id(customer_id: str, glpi_user_id: int) -> bool:
+    """Persist a customer's GLPI user id (the permanent customer<->requester mapping)."""
+    if not _enabled():
+        return False
+    from persistence.engine import session_scope
+    from persistence.models.crm import Customer
+    from persistence.util import to_uuid
+
+    cid = to_uuid(customer_id)
+    if cid is None:
+        return False
+    try:
+        with session_scope() as session:
+            customer = session.get(Customer, cid)
+            if customer is None:
+                return False
+            customer.glpi_user_id = glpi_user_id
+            return True
+    except Exception as exc:
+        logger.warning("write glpi_user_id failed (%s): %s", customer_id, exc)
+        return False
+
+
+def customers_without_glpi_user() -> list[dict]:
+    """Return active customers that have no glpi_user_id yet (for backfill). [] when disabled."""
+    if not _enabled():
+        return []
+    from sqlalchemy import select
+    from persistence.engine import session_scope
+    from persistence.models.crm import Customer
+
+    try:
+        with session_scope() as session:
+            rows = session.scalars(
+                select(Customer).where(Customer.glpi_user_id.is_(None),
+                                       Customer.status == "active")
+            )
+            return [
+                {
+                    "customer_id": str(c.id),
+                    "login": c.national_id or str(c.id),
+                    "first_name": c.first_name or "",
+                    "last_name": c.last_name or "",
+                    "email": c.email or "",
+                }
+                for c in rows
+            ]
+    except Exception as exc:
+        logger.warning("customers_without_glpi_user failed: %s", exc)
+        return []

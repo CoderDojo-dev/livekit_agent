@@ -56,6 +56,7 @@ class CrmRepository:
             preferred_language=customer.preferred_language,
             is_vip=customer.vip_flag,
             fraud_suspected=customer.fraud_suspected,
+            glpi_user_id=customer.glpi_user_id,
             account_age_days=mapping.account_age_days(subscription.activation_date),
             open_invoice_count=open_count,
             balance_summary=balance,

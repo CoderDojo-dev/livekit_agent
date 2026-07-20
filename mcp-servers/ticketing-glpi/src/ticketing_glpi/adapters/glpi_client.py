@@ -41,6 +41,8 @@ _LOCAL_TO_GLPI_PRIORITY = {"low": 2, "medium": 3, "high": 4, "urgent": 5}
 _FIELD_ID = 2
 _FIELD_STATUS = 12
 _FIELD_REQUESTER = 4
+# GLPI User search: field 1 = login name.
+_USER_FIELD_NAME = 1
 
 
 def local_status(glpi_status: int | str | None) -> str:
@@ -243,6 +245,48 @@ class LiveGlpiClient:
                 status=local_status(row.get(str(_FIELD_STATUS)) or row.get(_FIELD_STATUS)),
             ))
         return tickets
+
+    def ensure_user(self, login: str, first_name: str = "", last_name: str = "",
+                    email: str = "") -> int | None:
+        """Return the GLPI user id for ``login``, creating the user if it does not exist.
+
+        Idempotent: searches by login first (field 1), creates only on miss. This is how a
+        telecom customer becomes a GLPI "requester" so their tickets are searchable by user.
+        """
+        if not login:
+            return None
+        with httpx.Client(base_url=self._base, timeout=8.0) as client:
+            headers = self._open_session(client)
+            try:
+                found = client.get("/search/User", headers=self._trace_headers(headers), params={
+                    "criteria[0][field]": str(_USER_FIELD_NAME),
+                    "criteria[0][searchtype]": "equals",
+                    "criteria[0][value]": login,
+                    "forcedisplay[0]": str(_FIELD_ID),
+                    "range": "0-1",
+                })
+                if found.status_code == 200:
+                    body = found.json()
+                    rows = body.get("data", []) if isinstance(body, dict) else []
+                    if rows:
+                        gid = rows[0].get(str(_FIELD_ID)) or rows[0].get(_FIELD_ID)
+                        if gid is not None:
+                            return int(gid)
+                payload: dict = {"name": login}
+                if first_name:
+                    payload["firstname"] = first_name
+                if last_name:
+                    payload["realname"] = last_name
+                if email:
+                    payload["_useremails"] = [email]
+                created = client.post("/User", headers=self._trace_headers(headers),
+                                      json={"input": payload})
+                created.raise_for_status()
+                created_body = created.json()
+                new_id = created_body.get("id") if isinstance(created_body, dict) else None
+                return int(new_id) if new_id is not None else None
+            finally:
+                self._kill_session(client, headers)
 
 
 class GlpiConfigError(RuntimeError):
