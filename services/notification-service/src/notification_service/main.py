@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import Depends, FastAPI
 
+from notification_service.channels import channel_status
 from notification_service.schemas import NotifyRequest, NotifyResponse
 from notification_service.service import NotificationService
 from service_auth import require_internal_key
@@ -13,8 +14,10 @@ _service = NotificationService()
 
 @app.get("/health")
 async def health() -> dict:
-    """Liveness probe."""
-    return {"status": "ok"}
+    """Liveness probe with per-channel configuration status."""
+    info = {"status": "ok"}
+    info.update(channel_status())
+    return info
 
 
 @app.post("/notify", response_model=NotifyResponse)

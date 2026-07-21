@@ -12,6 +12,16 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "ar": "سنعاود الاتصال بك {when}. شكرًا لصبرك. اتصالات تونس.",
         "en": "We will call you back {when}. Thank you for your patience. Tunisie Telecom.",
     },
+    "ticket_resolved": {
+        "fr": "Votre ticket {ticket_id} a été résolu. Merci de votre confiance. Tunisie Telecom.",
+        "ar": "تم حل تذكرتك {ticket_id}. شكرا لثقتك. اتصالات تونس.",
+        "en": "Your ticket {ticket_id} has been resolved. Thank you for your trust. Tunisie Telecom.",
+    },
+    "ticket_updated": {
+        "fr": "Votre ticket {ticket_id} a été mis à jour. Consultez votre espace client. Tunisie Telecom.",
+        "ar": "تم تحديث تذكرتك {ticket_id}. تحقق من مساحة العميل الخاصة بك. اتصالات تونس.",
+        "en": "Your ticket {ticket_id} has been updated. Check your customer portal. Tunisie Telecom.",
+    },
 }
 
 

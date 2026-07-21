@@ -32,7 +32,8 @@ def seed() -> None:
         # --- Amine Ben Salah (fr, postpaid, not VIP) ---
         amine = Customer(
             national_id="11224087", first_name="Amine", last_name="Ben Salah",
-            email="amine.bensalah@example.tn", preferred_language="fr",
+            email="choiyebsaad2000@gmail.com", contact_number="+21626078277",
+            preferred_language="fr",
             segment="postpaid_flexi", vip_flag=False, fraud_suspected=False,
             city="Tunis", region="Tunis", status="active",
         )
@@ -56,7 +57,8 @@ def seed() -> None:
         # --- Yousra Trabelsi (ar, prepaid, VIP) ---
         yousra = Customer(
             national_id="33449912", first_name="Yousra", last_name="Trabelsi",
-            email="yousra.trabelsi@example.tn", preferred_language="ar",
+            email="chouaibsaad.contact@gmail.com", contact_number="+21626078277",
+            preferred_language="ar",
             segment="prepaid_trankil", vip_flag=True, fraud_suspected=False,
             city="Sousse", region="Sousse", status="active",
         )
@@ -77,7 +79,8 @@ def seed() -> None:
         # --- Karim Gharbi (en, postpaid fibre, not VIP, overdue) ---
         karim = Customer(
             national_id="55662256", first_name="Karim", last_name="Gharbi",
-            email="karim.gharbi@example.tn", preferred_language="en",
+            email="ws0461646@gmail.com", contact_number="+21626078277",
+            preferred_language="en",
             segment="fiber_home", vip_flag=False, fraud_suspected=False,
             city="Ariana", region="Ariana", status="active",
         )

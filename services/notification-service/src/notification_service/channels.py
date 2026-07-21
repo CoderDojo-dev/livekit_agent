@@ -1,6 +1,7 @@
-"""Channel adapters (report #5): mock by default; real SMS/WhatsApp (Twilio REST) + Email (SMTP)
-when CONNECTOR_MODE=live and the provider is configured. Falls back to mock if a provider's
-credentials are missing, so a half-configured env degrades safely."""
+"""Channel adapters (live-only). Twilio REST SMS/WhatsApp + stdlib SMTP email.
+No mock fallback: unconfigured or failed channels raise ChannelUnavailable.
+Every channel is independent — Twilio can be live while SMTP is not configured, and vice-versa.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -19,35 +20,17 @@ logger = logging.getLogger(__name__)
 _masker = PiiMasker()
 
 
+class ChannelUnavailable(Exception):
+    """Raised when a channel is not configured or its provider rejects the send."""
+
+
 class NotificationChannel(Protocol):
     name: str
+    configured: bool
 
     async def send(self, to: str, body: str) -> str: ...
 
 
-# ---------------- mock ----------------
-class _MockChannel:
-    name = "mock"
-
-    async def send(self, to: str, body: str) -> str:
-        reference = f"{self.name.upper()}-{uuid.uuid4().hex[:10].upper()}"
-        logger.info("[%s] to=%s ref=%s body=%s", self.name, _masker.mask(to or ""), reference, body)
-        return reference
-
-
-class MockSmsChannel(_MockChannel):
-    name = "sms"
-
-
-class MockWhatsAppChannel(_MockChannel):
-    name = "whatsapp"
-
-
-class MockEmailChannel(_MockChannel):
-    name = "email"
-
-
-# ---------------- live ----------------
 class TwilioChannel:
     """SMS/WhatsApp via the Twilio REST API (no SDK dependency)."""
 
@@ -56,6 +39,10 @@ class TwilioChannel:
         self._from = from_number
         self._sid = os.environ["TWILIO_ACCOUNT_SID"]
         self._token = os.environ["TWILIO_AUTH_TOKEN"]
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._sid and self._from)
 
     async def send(self, to: str, body: str) -> str:
         prefix = "whatsapp:" if self.name == "whatsapp" else ""
@@ -81,6 +68,10 @@ class SmtpEmailChannel:
         self._password = os.getenv("SMTP_PASSWORD", "")
         self._from = os.getenv("EMAIL_FROM", self._user)
 
+    @property
+    def configured(self) -> bool:
+        return bool(self._host)
+
     def _send_sync(self, to: str, body: str) -> str:
         message = EmailMessage()
         message["From"] = self._from
@@ -98,30 +89,60 @@ class SmtpEmailChannel:
         return await asyncio.to_thread(self._send_sync, to, body)
 
 
-_MOCKS: dict[str, NotificationChannel] = {
-    "sms": MockSmsChannel(), "whatsapp": MockWhatsAppChannel(), "email": MockEmailChannel(),
-}
+# ---------------- configuration / factory ----------------
+def _twilio_creds() -> bool:
+    return bool(os.getenv("TWILIO_ACCOUNT_SID") and os.getenv("TWILIO_AUTH_TOKEN"))
 
 
-def _live_channel(name: str) -> NotificationChannel | None:
-    """Build a live channel if its provider is configured; else None (→ mock fallback)."""
-    try:
-        if name == "sms" and os.getenv("TWILIO_ACCOUNT_SID"):
-            return TwilioChannel("sms", os.getenv("TWILIO_SMS_FROM", ""))
-        if name == "whatsapp" and os.getenv("TWILIO_ACCOUNT_SID"):
-            return TwilioChannel("whatsapp", os.getenv("TWILIO_WHATSAPP_FROM", ""))
-        if name == "email" and os.getenv("SMTP_HOST"):
-            return SmtpEmailChannel()
-    except Exception as exc:
-        logger.warning("live channel %s unavailable (%s); using mock", name, exc)
-    return None
+def _sms_configured() -> bool:
+    return bool(_twilio_creds() and os.getenv("TWILIO_SMS_FROM"))
+
+
+def _whatsapp_configured() -> bool:
+    return bool(_twilio_creds() and os.getenv("TWILIO_WHATSAPP_FROM"))
+
+
+def _email_configured() -> bool:
+    return bool(os.getenv("SMTP_HOST"))
+
+
+def channel_status() -> dict[str, dict]:
+    """Return the configured status of every channel (does NOT test the provider)."""
+    status: dict[str, dict] = {}
+    for name, label in (("sms", "SMS (Twilio)"), ("whatsapp", "WhatsApp (Twilio)"), ("email", "Email (SMTP)")):
+        try:
+            ch = _build_channel(name)
+            status[name] = {"label": label, "configured": ch.configured, "name": ch.name}
+        except ChannelUnavailable:
+            status[name] = {"label": label, "configured": False}
+    return status
+
+
+def _build_channel(name: str) -> NotificationChannel:
+    """Build (but do NOT test) a live channel or raise ChannelUnavailable."""
+    if name in ("sms", "whatsapp"):
+        sid = os.getenv("TWILIO_ACCOUNT_SID")
+        if not sid:
+            raise ChannelUnavailable("TWILIO_ACCOUNT_SID not set")
+        from_field = "TWILIO_SMS_FROM" if name == "sms" else "TWILIO_WHATSAPP_FROM"
+        from_number = os.getenv(from_field, "")
+        ch = TwilioChannel(name, from_number)
+        if not ch.configured:
+            raise ChannelUnavailable(f"{from_field} not set")
+        return ch
+    if name == "email":
+        host = os.getenv("SMTP_HOST")
+        if not host:
+            raise ChannelUnavailable("SMTP_HOST not set")
+        ch = SmtpEmailChannel()
+        if not ch.configured:
+            raise ChannelUnavailable("SMTP not fully configured")
+        return ch
+    raise ChannelUnavailable(f"unknown channel {name!r}")
 
 
 def get_channel(name: str) -> NotificationChannel:
-    """Return the channel adapter for ``name`` (live when configured, else mock; defaults to SMS)."""
-    name = name if name in _MOCKS else "sms"
-    if os.getenv("CONNECTOR_MODE", "mock").lower() == "live":
-        live = _live_channel(name)
-        if live is not None:
-            return live
-    return _MOCKS[name]
+    """Return a live channel adapter or raise ChannelUnavailable (no mock fallback)."""
+    if name not in ("sms", "whatsapp", "email"):
+        raise ChannelUnavailable(f"unknown channel {name!r}")
+    return _build_channel(name)

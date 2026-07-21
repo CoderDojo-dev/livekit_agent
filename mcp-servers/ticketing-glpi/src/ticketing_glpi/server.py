@@ -38,9 +38,21 @@ for _tool in (create_ticket, get_ticket_status, update_ticket, resolve_ticket,
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health(_request: Request) -> JSONResponse:
-    """Liveness probe. Reports the active GLPI connector mode without touching the network."""
-    mode = "live" if os.getenv("CONNECTOR_MODE", "mock").lower() == "live" else "mock"
-    return JSONResponse({"status": "ok", "service": "ticketing-glpi", "connector_mode": mode})
+    """Liveness probe. Reports whether GLPI is configured, without touching the network.
+
+    Ticketing is live-only: there is no mock. This reports "configured" when the three GLPI
+    settings are present (the client will talk to the real GLPI on first use) and "unconfigured"
+    when they are missing (the first ticket operation will raise GlpiConfigError). It does NOT
+    call GLPI, so it stays fast and never fails the probe on a transient GLPI outage.
+    """
+    configured = all(os.getenv(name) for name in
+                     ("GLPI_BASE_URL", "GLPI_APP_TOKEN", "GLPI_USER_TOKEN"))
+    return JSONResponse({
+        "status": "ok",
+        "service": "ticketing-glpi",
+        "glpi": "configured" if configured else "unconfigured",
+        "glpi_base_url": os.getenv("GLPI_BASE_URL", ""),
+    })
 
 
 def main() -> None:

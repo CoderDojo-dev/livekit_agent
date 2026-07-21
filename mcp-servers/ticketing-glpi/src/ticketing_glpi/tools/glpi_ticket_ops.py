@@ -81,9 +81,10 @@ async def create_ticket(customer_id: str, subject: str, description: str,
             resp = await client.post(
                 f"{NOTIFICATION_SERVICE_URL}/notify",
                 json={
+                    # Centralized resolution: the notification-service maps customer_id -> the
+                    # customer's WhatsApp/phone/email itself. We never pass a contact handle.
                     "customer_id": customer_id,
-                    "to": customer_id,
-                    "channel": "sms",
+                    "channel": "whatsapp",
                     "template": "ticket_created",
                     "language": language,
                     "params": {"ticket_id": ticket.ticket_id},
