@@ -6,14 +6,13 @@ as ordinary tool data and can leave the tool-response speech lifecycle stuck.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
 from livekit.agents import Agent, RunContext, function_tool
 
 from tools.voice_flow import current_chat_ctx
 
 if TYPE_CHECKING:
-    from agents.account_services_agent import AccountServicesAgent
-    from agents.billing_agent import BillingAgent
-    from agents.technical_agent import TechnicalAgent
+    pass
 
 
 def _resolve_language(context: RunContext) -> str:

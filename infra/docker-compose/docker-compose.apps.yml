@@ -82,6 +82,7 @@ services:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
     depends_on:
       postgres: { condition: service_healthy }
+      ocs-billing-sim: { condition: service_started }
     ports: ["8105:8105"]
     restart: unless-stopped
   notification-service:
@@ -133,6 +134,18 @@ services:
       knowledge-service: { condition: service_started }
     ports: ["8201:8201"]
     restart: unless-stopped
+  ocs-billing-sim:
+    build:
+      context: ../..
+      dockerfile: services/ocs-billing-sim/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8109:8107"]
+    restart: unless-stopped
+
   ticketing-glpi:
     build:
       context: ../..

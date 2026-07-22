@@ -126,7 +126,7 @@ def _build_channel(name: str) -> NotificationChannel:
             raise ChannelUnavailable("TWILIO_ACCOUNT_SID not set")
         from_field = "TWILIO_SMS_FROM" if name == "sms" else "TWILIO_WHATSAPP_FROM"
         from_number = os.getenv(from_field, "")
-        ch = TwilioChannel(name, from_number)
+        ch: NotificationChannel = TwilioChannel(name, from_number)  # type: ignore[assignment]
         if not ch.configured:
             raise ChannelUnavailable(f"{from_field} not set")
         return ch
@@ -134,10 +134,10 @@ def _build_channel(name: str) -> NotificationChannel:
         host = os.getenv("SMTP_HOST")
         if not host:
             raise ChannelUnavailable("SMTP_HOST not set")
-        ch = SmtpEmailChannel()
-        if not ch.configured:
+        ch2 = SmtpEmailChannel()
+        if not ch2.configured:
             raise ChannelUnavailable("SMTP not fully configured")
-        return ch
+        return ch2  # type: ignore[return-value]
     raise ChannelUnavailable(f"unknown channel {name!r}")
 
 

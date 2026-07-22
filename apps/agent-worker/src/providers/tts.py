@@ -24,7 +24,7 @@ from __future__ import annotations
 import os
 
 from livekit.agents import tts as tts_module
-from livekit.plugins import azure, cartesia, elevenlabs
+from livekit.plugins import cartesia, elevenlabs  # type: ignore[attr-defined]
 
 from providers._resilience import chaos_model
 

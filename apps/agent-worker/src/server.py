@@ -10,8 +10,8 @@ from agents.triage_agent import TriageAgent
 from clients.context_client import get_context_client
 from config import get_settings
 from conversation.writer import ConversationWriter
-from frontend_events import FrontendEventPublisher
 from dotenv import load_dotenv
+from frontend_events import FrontendEventPublisher
 from livekit import agents
 from livekit.agents import (
     AgentServer,
@@ -22,8 +22,8 @@ from livekit.agents import (
 from livekit.agents.llm import ChatMessage
 from observability.log_masking import install_pii_masking
 from observability.metrics_hook import attach_metrics
-from providers.noise_cancellation import build_noise_cancellation
 from providers._resilience import monitor_room_resilience
+from providers.noise_cancellation import build_noise_cancellation
 from providers.session_factory import build_agent_session
 from session import SessionUserData
 

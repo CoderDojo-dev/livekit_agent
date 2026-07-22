@@ -59,7 +59,7 @@ def run_retention(session: Session, retention_days: int = 90, dry_run: bool = Tr
                 )
             ):
                 with suppress(Exception):
-                    store.delete(url)
+                    store.delete(url)  # type: ignore[arg-type]
         session.execute(update(CallSession).where(CallSession.id.in_(old_ids)).values(audio_record_url=None))
         PgAuditLedger(session).append(
             None, "data_retention",

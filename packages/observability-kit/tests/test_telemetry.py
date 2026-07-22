@@ -34,7 +34,7 @@ def test_trace_helpers_never_raise() -> None:
     extracted = extract_trace_context(headers)
     assert extracted is None or isinstance(extracted, object)
     assert get_tracer() is None or isinstance(get_tracer(), object)
-    with trace_span("test.span", attributes={"key": "val"}, headers=headers) as span:
+    with trace_span("test.span", attributes={"key": "val"}, headers=headers):
         pass
 
 

@@ -16,7 +16,7 @@ from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 
-from agents.base_agent import BaseTelecomAgent, KNOWLEDGE_ABSTENTION_RULE
+from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 

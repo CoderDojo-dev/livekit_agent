@@ -74,9 +74,12 @@ def ensure_collection(client=None, collection: str | None = None) -> dict:
     NAMED vectors: a dense E5 vector + a sparse BM25 vector, so the hybrid retriever can query
     either (or fuse both via RRF).
     """
-    from qdrant_client.models import (
-        Distance, HnswConfigDiff, VectorParams,
-        SparseVectorParams, Modifier,
+    from qdrant_client.models import (  # type: ignore[attr-defined]
+        Distance,
+        HnswConfigDiff,
+        Modifier,
+        SparseVectorParams,
+        VectorParams,
     )
 
     client = client or get_client()
@@ -98,7 +101,7 @@ def ensure_collection(client=None, collection: str | None = None) -> dict:
                 },
                 sparse_vectors_config={
                     # IDF modifier => Qdrant computes BM25 IDF weighting across the collection.
-                    SPARSE_VECTOR_NAME: SparseVectorParams(modifier=Modifier.IDF),
+                    SPARSE_VECTOR_NAME: SparseVectorParams(modifier=Modifier.IDF),  # type: ignore[call-arg]
                 },
                 # m=16 / ef_construct=128 are Qdrant's balanced defaults: good recall at a
                 # small corpus, and the graph stays cheap to build during ingestion.

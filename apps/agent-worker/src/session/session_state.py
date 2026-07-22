@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import datetime
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from session.customer_context import CustomerContext
 

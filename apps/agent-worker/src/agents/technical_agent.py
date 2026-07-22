@@ -21,7 +21,7 @@ from tools.ticket_tools import (
     update_support_ticket,
 )
 
-from agents.base_agent import BaseTelecomAgent, KNOWLEDGE_ABSTENTION_RULE
+from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 

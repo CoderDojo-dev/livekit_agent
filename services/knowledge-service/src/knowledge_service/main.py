@@ -13,7 +13,8 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Response, UploadFile, status
+from fastapi import File as FastAPIFile
 from fastapi.concurrency import run_in_threadpool
 
 from knowledge_service.embeddings import EmbeddingError, get_embedder
@@ -31,6 +32,8 @@ from knowledge_service.schemas import (
 from service_auth import require_internal_key
 
 logger = logging.getLogger(__name__)
+
+_UPLOAD_FILE = FastAPIFile(...)
 
 
 @asynccontextmanager
@@ -72,8 +75,9 @@ async def lifespan(app: FastAPI):
     # Small cross-encoder gate (Phase 8.1, ~118 MB). Degradable: failure is logged,
     # not raised — the dense+sparse path passes through unchanged. Warms in a background
     # thread so a slow HuggingFace download does NOT block the lifespan (and /health).
-    from knowledge_service.ce_gate import CEGateError, ce_gate_enabled, get_ce_gate
     import threading
+
+    from knowledge_service.ce_gate import CEGateError, ce_gate_enabled, get_ce_gate
 
     if ce_gate_enabled():
         def _warm_ce_gate():
@@ -165,7 +169,7 @@ async def search(req: SearchRequest) -> SearchResponse:
         )
     except RetrieverUnavailable as exc:
         # Never fall back to term overlap: a plausible wrong answer is worse than a clear failure.
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     return SearchResponse(
         passages=[
             PassageModel(
@@ -180,7 +184,7 @@ async def search(req: SearchRequest) -> SearchResponse:
 
 @app.post("/knowledge/upload", response_model=UploadResponse)
 async def upload_document(
-    file: UploadFile = File(...),
+    file: UploadFile = _UPLOAD_FILE,
     document_type: str = Form("general"),
     auto_ingest: bool = Form(True),
 ) -> UploadResponse:
@@ -201,10 +205,10 @@ async def upload_document(
             store_and_ingest, raw, file.filename or "", document_type, auto_ingest
         )
     except ValueError as exc:  # rejected input: unsupported format, empty, too large
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:  # storage/pipeline problem: surfaced, never a silent no-op
         logger.exception("upload failed for %s", file.filename)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
     if result["status"] == "failed":
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=result["message"])
@@ -253,10 +257,10 @@ async def purge_knowledge_document(source: str, remove_object: bool = True) -> P
     try:
         result = await run_in_threadpool(_purge)
     except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("purge failed for %s", source)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
     reset_retriever()  # the index shrank; drop any memo (it may now be empty)
     return PurgeResponse(**result)

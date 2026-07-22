@@ -28,10 +28,11 @@ silently accept as garbage.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import threading
-import functools
+from contextlib import suppress
 from enum import StrEnum
 
 logger = logging.getLogger(__name__)
@@ -119,11 +120,11 @@ def ensure_model_registered() -> None:
     """
     try:
         from fastembed import TextEmbedding
-        from fastembed.common.model_description import PoolingType, ModelSource
+        from fastembed.common.model_description import ModelSource, PoolingType
     except ImportError:
         return  # will be caught later by _ensure_model
-    for model_name, config in _CUSTOM_MODELS.items():
-        try:
+    for model_name, _config in _CUSTOM_MODELS.items():
+        with suppress(ValueError):
             TextEmbedding.add_custom_model(
                 model=model_name,
                 pooling=PoolingType.MEAN,
@@ -131,8 +132,6 @@ def ensure_model_registered() -> None:
                 sources=ModelSource(hf=model_name),
                 dim=DEFAULT_DIMENSIONS,
             )
-        except ValueError:
-            pass  # already registered — benign
 
 
 class LocalEmbedder:

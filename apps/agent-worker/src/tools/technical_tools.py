@@ -5,9 +5,9 @@ can replace these later behind the same tool contracts.
 """
 from __future__ import annotations
 
+from clients.context_client import get_context_client
 from livekit.agents import RunContext, function_tool
 
-from clients.context_client import get_context_client
 from tools import outcomes
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified

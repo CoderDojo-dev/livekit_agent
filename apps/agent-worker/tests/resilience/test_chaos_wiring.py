@@ -8,9 +8,15 @@ The full live failover is the manual console demo described in the phase notes.
 from __future__ import annotations
 
 from types import SimpleNamespace
+
 from config.language_presets import LANGUAGE_PRESETS
 from config.settings import Settings
-from providers._resilience import INVALID_MODEL, SessionResilienceMonitor, chaos_model, monitor_room_resilience
+from providers._resilience import (
+    INVALID_MODEL,
+    SessionResilienceMonitor,
+    chaos_model,
+    monitor_room_resilience,
+)
 
 
 def test_chaos_flag_breaks_primary_model() -> None:
@@ -45,16 +51,16 @@ def test_room_resilience_monitor_handlers() -> None:
 
     # Test reconnecting
     listeners["reconnecting"]()
-    assert getattr(user_data, "is_reconnecting") is True
+    assert user_data.is_reconnecting is True
 
     # Test reconnected
     listeners["reconnected"]()
-    assert getattr(user_data, "is_reconnecting") is False
+    assert user_data.is_reconnecting is False
 
     # Test degraded quality
     listeners["connection_quality_changed"]("caller-1", "POOR")
-    assert getattr(user_data, "webrtc_degraded") is True
+    assert user_data.webrtc_degraded is True
 
     # Test token expired disconnect
     listeners["disconnected"](SimpleNamespace(name="TOKEN_EXPIRED"))
-    assert getattr(user_data, "token_expired") is True
+    assert user_data.token_expired is True

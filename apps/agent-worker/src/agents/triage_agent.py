@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 
-from agents.base_agent import BaseTelecomAgent, KNOWLEDGE_ABSTENTION_RULE
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
@@ -13,6 +12,8 @@ from tools.routing_tools import (
     route_to_billing,
     route_to_technical,
 )
+
+from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
 
 logger = logging.getLogger(__name__)
 

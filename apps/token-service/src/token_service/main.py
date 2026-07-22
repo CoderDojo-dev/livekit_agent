@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-import uuid
 from datetime import timedelta
 from typing import Any
 

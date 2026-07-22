@@ -23,9 +23,17 @@ from __future__ import annotations
 import sys
 
 from knowledge_service.embeddings import get_embedder, get_sparse_embedder, hybrid_enabled
-from knowledge_service.qdrant_store import get_client, qdrant_collection, DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
+from knowledge_service.qdrant_store import (
+    DENSE_VECTOR_NAME,
+    SPARSE_VECTOR_NAME,
+    get_client,
+    qdrant_collection,
+)
 from knowledge_service.retriever import (
-    SPARSE_MIN, DEFAULT_SCORE_FLOOR, DEFAULT_LANGUAGE_FILTER, QdrantE5Retriever,
+    DEFAULT_LANGUAGE_FILTER,
+    DEFAULT_SCORE_FLOOR,
+    SPARSE_MIN,
+    QdrantE5Retriever,
 )
 from qdrant_client.models import SparseVector
 
@@ -162,7 +170,7 @@ def main() -> None:
                         ce_scores = ce_gate.scores(query, [p.text for p in fused])
                         if ce_scores:
                             ce_max_kept = round(max(ce_scores), 4)
-            except Exception as exc:
+            except Exception:
                 # Don't crash the probe; report 0 so the row is still printed
                 pass
 

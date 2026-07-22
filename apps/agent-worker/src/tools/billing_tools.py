@@ -119,7 +119,7 @@ async def get_balance_summary(context: RunContext) -> dict:
         "status": latest["status"],
         "due_date": latest["due_date"],
         "message": (
-            f"Your postpaid account is settled; nothing is currently due."
+            "Your postpaid account is settled; nothing is currently due."
             if outstanding <= 0 else
             f"You currently owe {outstanding:.3f} {currency}, due on {latest['due_date']}."
         ),

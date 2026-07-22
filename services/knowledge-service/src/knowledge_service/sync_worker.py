@@ -21,7 +21,12 @@ from sqlalchemy.orm import Session
 
 from knowledge_service.embeddings import get_embedder, get_sparse_embedder, hybrid_enabled
 from knowledge_service.ingestion import qdrant_payload
-from knowledge_service.qdrant_store import get_client, qdrant_collection, DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
+from knowledge_service.qdrant_store import (
+    DENSE_VECTOR_NAME,
+    SPARSE_VECTOR_NAME,
+    get_client,
+    qdrant_collection,
+)
 from persistence.models.knowledge import KnowledgeChunk, KnowledgeDocument, KnowledgeSyncOutbox
 
 logger = logging.getLogger(__name__)

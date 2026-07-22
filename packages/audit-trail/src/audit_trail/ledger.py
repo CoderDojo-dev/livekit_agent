@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
+
 from observability_kit import trace_span
 
 logger = logging.getLogger(__name__)

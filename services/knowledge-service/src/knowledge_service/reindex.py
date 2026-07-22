@@ -82,7 +82,7 @@ def reindex(session: Session, recreate: bool = False) -> dict:
                     vector=vector,
                     payload=qdrant_payload(document, chunk.text_content, chunk.ordinal),
                 )
-                for (chunk, document), vector in zip(usable, vectors)
+                for (chunk, document), vector in zip(usable, vectors, strict=False)
             ],
         )
         counts["indexed"] += len(usable)

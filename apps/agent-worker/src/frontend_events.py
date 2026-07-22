@@ -15,7 +15,6 @@ from typing import Any
 
 from livekit.agents import FunctionToolsExecutedEvent
 
-
 logger = logging.getLogger(__name__)
 
 TOOL_EVENT_TOPIC = "telecom.tool-events"

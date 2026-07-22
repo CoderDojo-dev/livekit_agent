@@ -21,4 +21,4 @@ class PolicyThresholds(BaseSettings):
 @lru_cache
 def get_thresholds() -> PolicyThresholds:
     """Return cached thresholds."""
-    return PolicyThresholds()
+    return PolicyThresholds()  # type: ignore[call-arg]

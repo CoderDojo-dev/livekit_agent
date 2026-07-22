@@ -118,8 +118,8 @@ class BaseTelecomAgent(Agent):
             try:
                 lang = getattr(self, "_lang_name", None)
                 if not lang and user_data is not None:
-                    l = getattr(user_data, "language", "fr")
-                    val = getattr(l, "value", l)
+                    lang_code = getattr(user_data, "language", "fr")
+                    val = getattr(lang_code, "value", lang_code)
                     _MAP = {"fr": "French", "ar": "Arabic", "en": "English"}
                     lang = _MAP.get(str(val).lower().strip()[:2], "French")
                 lang = lang or "French"

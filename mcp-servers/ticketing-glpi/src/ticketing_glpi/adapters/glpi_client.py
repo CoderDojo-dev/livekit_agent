@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import suppress
 from dataclasses import dataclass
 
 import httpx
@@ -101,10 +102,8 @@ class LiveGlpiClient:
         return {"App-Token": self._app, "Session-Token": resp.json()["session_token"]}
 
     def _kill_session(self, client: httpx.Client, headers: dict) -> None:
-        try:
+        with suppress(Exception):
             client.get("/killSession", headers=headers)
-        except Exception:
-            pass
 
     # -- CRUD --------------------------------------------------------------------------------
     def create(self, customer_id: str, subject: str, description: str,
@@ -297,7 +296,7 @@ class GlpiConfigError(RuntimeError):
     """
 
 
-def get_glpi_client() -> "LiveGlpiClient":
+def get_glpi_client() -> LiveGlpiClient:
     """Return the live GLPI REST client. Raises GlpiConfigError if GLPI is not configured.
 
     The ticketing subsystem is live-only: it always talks to a real GLPI. There is no mock path

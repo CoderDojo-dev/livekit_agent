@@ -68,8 +68,9 @@ def _dispatch_live(action_type: str, payload: dict, customer_id: str | None, ide
     except Exception as exc:
         logger.error("live dispatch failed for %s: %s", action_type, exc)
         raise
-    logger.info("no live adapter for %s yet; returning synthesized reference", action_type)
-    return _mock_reference(action_type)
+    # In live mode an unmapped action must fail honestly, not return a synthesized reference that
+    # implies a real operation happened.
+    raise NotImplementedError(f"no live adapter mapped for action {action_type!r}")
 
 
 def target_domain(action_type: str) -> str:

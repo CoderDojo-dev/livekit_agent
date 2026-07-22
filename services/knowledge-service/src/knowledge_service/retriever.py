@@ -188,17 +188,17 @@ class QdrantE5Retriever:
 
         must = [FieldCondition(key="active", match=MatchValue(value=True))]
         filters = filters or {}
-        for field in ("language", "document_type", "region"):
-            value = filters.get(field)
+        for _field in ("language", "document_type", "region"):
+            value = filters.get(_field)
             if value:
-                must.append(FieldCondition(key=field, match=MatchValue(value=str(value))))
-        for field in ("applicable_plans", "product_codes"):
-            values = filters.get(field)
+                must.append(FieldCondition(key=_field, match=MatchValue(value=str(value))))
+        for _field in ("applicable_plans", "product_codes"):
+            values = filters.get(_field)
             if values:
                 must.append(
-                    FieldCondition(key=field, match=MatchAny(any=[str(v) for v in values]))
+                    FieldCondition(key=_field, match=MatchAny(any=[str(v) for v in values]))
                 )
-        return Filter(must=must)
+        return Filter(must=must)  # type: ignore[arg-type]
 
     def search(
         self,
@@ -217,9 +217,10 @@ class QdrantE5Retriever:
         """
         if not query or not query.strip():
             return []
-        from knowledge_service.embeddings import hybrid_enabled, get_sparse_embedder
-        from knowledge_service.qdrant_store import DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
         from qdrant_client.models import SparseVector
+
+        from knowledge_service.embeddings import get_sparse_embedder, hybrid_enabled
+        from knowledge_service.qdrant_store import DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
 
         # French-only by default: cross-lingual noise cannot leak in.
         filters = {**(filters or {})}
@@ -307,7 +308,7 @@ class QdrantE5Retriever:
                 logger.warning("CE gate unavailable, serving dense+lexical result: %s", exc)
                 return fused[:top_k]
             threshold = ce_threshold()
-            ranked = sorted(zip(fused, scores), key=lambda t: t[1], reverse=True)
+            ranked = sorted(zip(fused, scores, strict=False), key=lambda t: t[1], reverse=True)
             kept = [
                 replace(p, metadata={**p.metadata, "ce_score": round(s, 4)})
                 for p, s in ranked
@@ -368,7 +369,7 @@ def rerank_passages(query: str, passages: list[Passage], top_k: int) -> list[Pas
         raise RetrieverUnavailable(f"reranker unavailable: {exc}") from exc
 
     threshold = rerank_threshold()
-    ranked = sorted(zip(passages, scores), key=lambda pair: pair[1], reverse=True)
+    ranked = sorted(zip(passages, scores, strict=False), key=lambda pair: pair[1], reverse=True)
     kept = [
         replace(
             passage,

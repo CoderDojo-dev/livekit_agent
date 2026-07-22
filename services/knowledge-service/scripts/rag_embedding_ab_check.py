@@ -3,8 +3,8 @@
 
 Runs TWO models side-by-side on a fixed multilingual 4-document corpus:
 
-  1. OLD (symmetric) – ``sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2``
-  2. NEW (asymmetric) – ``intfloat/multilingual-e5-small``
+  1. OLD (symmetric) - ``sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2``
+  2. NEW (asymmetric) - ``intfloat/multilingual-e5-small``
 
 Each model embeds 4 documents (fr/ar/en/fr) and a French query, then ranks the
 documents by cosine similarity. The test PASSES only when the NEW model puts
@@ -19,7 +19,7 @@ Exit code:
     1  → E5 failed the gate (probe scored ≤3/4)
 
 Environment:
-    EMBEDDING_CACHE_DIR  – where ONNX weights are stored (default /opt/models)
+    EMBEDDING_CACHE_DIR  - where ONNX weights are stored (default /opt/models)
     All other env vars are optional; the script passes explicit model names.
 """
 from __future__ import annotations
@@ -53,17 +53,17 @@ DOCUMENTS: list[dict] = [
     {
         "text": "لالإلغاء اشتراك الإنترنت، يرجى الاتصال بخدمة العملاء وتقديم رقم الاشتراك.",
         "lang": "ar",
-        "label": "B (ar – correct answer)",
+        "label": "B (ar - correct answer)",
     },
     {
         "text": "To cancel your internet subscription, please contact customer service with your account number.",
         "lang": "en",
-        "label": "C (en – correct, cross-lingual)",
+        "label": "C (en - correct, cross-lingual)",
     },
     {
         "text": "Les pannes fibre optique sont généralement résolues sous 24 heures ouvrées.",
         "lang": "fr",
-        "label": "D (fr – wrong topic)",
+        "label": "D (fr - wrong topic)",
     },
 ]
 EXPECTED_CORRECT_IDS: set[int] = {1, 2}  # Arabic + English docs
@@ -71,7 +71,7 @@ EXPECTED_CORRECT_IDS: set[int] = {1, 2}  # Arabic + English docs
 
 # ----- cosine helpers -----
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(av * bv for av, bv in zip(a, b))
+    dot = sum(av * bv for av, bv in zip(a, b, strict=False))
     na = sum(v * v for v in a) ** 0.5
     nb = sum(v * v for v in b) ** 0.5
     return dot / (na * nb) if na and nb else 0.0
@@ -83,7 +83,7 @@ def run_model(
     query: str,
 ) -> dict:
     """Load model, embed docs + query, rank by cosine. Returns results dict."""
-    from knowledge_service.embeddings import LocalEmbedder, InputType
+    from knowledge_service.embeddings import LocalEmbedder
 
     logger.info("Loading %s …", model_name)
     t0 = time.time()

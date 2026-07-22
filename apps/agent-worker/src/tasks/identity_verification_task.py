@@ -6,6 +6,7 @@ import logging
 import re
 import unicodedata
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 
 from livekit.agents import AgentTask, function_tool
 
@@ -134,10 +135,8 @@ class IdentityVerificationTask(AgentTask[bool]):
             return
 
         logger.info("identity fail-closed (%s)", reason)
-        try:
+        with suppress(Exception):
             await self._speak(_FAILURE)
-        except Exception:
-            pass
         self._finish(False)
 
     def _finish(self, verified: bool) -> None:

@@ -25,6 +25,6 @@ def require_role(minimum: str):
         role = x_role or os.getenv("BUSINESS_API_DEFAULT_ROLE", "administrateur")  # dev default
         if role_rank(role) < minimum_rank:
             raise HTTPException(status_code=403, detail=f"requires role >= {minimum}")
-        return role
+        return role  # type: ignore[return-value]
 
     return _dependency

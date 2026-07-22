@@ -13,7 +13,7 @@ from config import get_settings
 if not hasattr(streamable_http, "streamable_http_client") and hasattr(
     streamable_http, "streamablehttp_client"
 ):
-    streamable_http.streamable_http_client = streamable_http.streamablehttp_client
+    streamable_http.streamable_http_client = streamable_http.streamablehttp_client  # type: ignore[attr-defined]
 
 from livekit.agents import mcp
 

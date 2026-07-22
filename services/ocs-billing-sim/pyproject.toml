@@ -1,0 +1,22 @@
+[project]
+name = "ocs-billing-sim"
+version = "0.1.0"
+description = "Local OCS + Billing simulator: a REAL ledger service implementing the balance/billing adapter contract for development. Swap its URL for the carrier OCS in production."
+requires-python = ">=3.12"
+dependencies = [
+  "service-auth",
+  "persistence",
+  "domain-core",
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.34.0",
+]
+
+[project.scripts]
+ocs-billing-sim = "ocs_billing_sim.main:run"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

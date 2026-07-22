@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import suppress
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def chaos_model(real_model: str, break_primary: bool) -> str:
 class SessionResilienceMonitor:
     """Explicit WebRTC and LiveKit room recovery monitor (tokens, disconnects, packet loss, reconnect)."""
 
-    def __init__(self, room: object, session: object | None = None, user_data: object | None = None) -> None:
+    def __init__(self, room: object, session: object | None = None, user_data: Any = None) -> None:
         self.room = room
         self.session = session
         self.user_data = user_data
@@ -45,7 +46,7 @@ class SessionResilienceMonitor:
         self._reconnecting = True
         if self.user_data is not None:
             with suppress(Exception):
-                setattr(self.user_data, "is_reconnecting", True)
+                self.user_data.is_reconnecting = True
         logger.warning("LiveKit room=%s temporary disconnect; initiating reconnect flow...", getattr(self.room, "name", "unknown"))
         with suppress(Exception):
             from observability_kit import incr_fallback
@@ -55,7 +56,7 @@ class SessionResilienceMonitor:
         self._reconnecting = False
         if self.user_data is not None:
             with suppress(Exception):
-                setattr(self.user_data, "is_reconnecting", False)
+                self.user_data.is_reconnecting = False
         logger.info("LiveKit room=%s successfully reconnected after temporary interruption", getattr(self.room, "name", "unknown"))
         if self.session is not None and hasattr(self.session, "say"):
             with suppress(Exception):
@@ -67,7 +68,7 @@ class SessionResilienceMonitor:
                 }
                 _lang = getattr(self.user_data, "language", "fr")
                 _code = str(getattr(_lang, "value", _lang) or "fr").lower().strip()[:2]
-                asyncio.create_task(self.session.say(_APOLOGY.get(_code, _APOLOGY["fr"])))
+                self._apology_task = asyncio.create_task(self.session.say(_APOLOGY.get(_code, _APOLOGY["fr"])))
 
     def _on_disconnected(self, reason: object | None = None) -> None:
         room_name = getattr(self.room, "name", "unknown")
@@ -76,7 +77,7 @@ class SessionResilienceMonitor:
             logger.error("LiveKit room=%s disconnected due to EXPIRED ACCESS TOKEN: %s. Initiating token recovery / session teardown.", room_name, reason)
             if self.user_data is not None:
                 with suppress(Exception):
-                    setattr(self.user_data, "token_expired", True)
+                    self.user_data.token_expired = True
             with suppress(Exception):
                 from observability_kit import incr_fallback
                 incr_fallback("webrtc_token_expired")
@@ -95,7 +96,7 @@ class SessionResilienceMonitor:
                 incr_fallback("webrtc_degraded")
             if self.user_data is not None:
                 with suppress(Exception):
-                    setattr(self.user_data, "webrtc_degraded", True)
+                    self.user_data.webrtc_degraded = True
 
 
 def monitor_room_resilience(room: object, session: object | None = None, user_data: object | None = None) -> SessionResilienceMonitor:

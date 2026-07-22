@@ -15,7 +15,7 @@ _service = NotificationService()
 @app.get("/health")
 async def health() -> dict:
     """Liveness probe with per-channel configuration status."""
-    info = {"status": "ok"}
+    info: dict[str, object] = {"status": "ok"}
     info.update(channel_status())
     return info
 

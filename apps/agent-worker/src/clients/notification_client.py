@@ -6,8 +6,8 @@ from functools import lru_cache
 
 import httpx
 from config import get_settings
-from observability_kit import inject_trace_context
 
+from observability_kit import inject_trace_context
 from service_auth import internal_headers
 
 logger = logging.getLogger(__name__)

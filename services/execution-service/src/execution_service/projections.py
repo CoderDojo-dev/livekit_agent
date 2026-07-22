@@ -170,10 +170,10 @@ def _payment(session: Session, req, ledger_row) -> None:
     # Apply the money to the live invoice state so the caller's outstanding balance moves.
     new_outstanding, unapplied = settle(amount, [_dec(inv.outstanding_amount) for inv in invoices])
     settled: list[Invoice] = []
-    for invoice, owed in zip(invoices, new_outstanding):
+    for invoice, owed in zip(invoices, new_outstanding, strict=False):
         if _dec(invoice.outstanding_amount) == owed:
             continue  # untouched by this payment
-        invoice.outstanding_amount = owed
+        invoice.outstanding_amount = owed  # type: ignore[assignment]
         invoice.status = "paid" if owed <= 0 else "partial"
         settled.append(invoice)
 
@@ -277,7 +277,7 @@ def _recharge(session: Session, req, ledger_row) -> None:
     if balance is None:
         logger.warning("top-up recorded but no main balance account for subscription %s", sid)
         return
-    balance.balance_value = (_dec(balance.balance_value) + amount).quantize(_BALANCE_Q)
+    balance.balance_value = (_dec(balance.balance_value) + amount).quantize(_BALANCE_Q)  # type: ignore[assignment]
     balance.updated_at = datetime.now(UTC)
 
 

@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 from functools import lru_cache
 
 import httpx
 from config import get_settings
-from observability_kit import inject_trace_context
 from tools import outcomes
 
+from observability_kit import inject_trace_context
 from service_auth import internal_headers
 
 logger = logging.getLogger(__name__)
@@ -51,10 +52,8 @@ class ExecutionClient:
         except httpx.HTTPError as exc:
             reason = str(exc)
             if isinstance(exc, httpx.HTTPStatusError):
-                try:
+                with suppress(Exception):
                     reason = exc.response.json().get("detail", reason)
-                except Exception:
-                    pass
             logger.error("execution failed for %s: %s", action_type, reason)
             return outcomes.failed(
                 reason,

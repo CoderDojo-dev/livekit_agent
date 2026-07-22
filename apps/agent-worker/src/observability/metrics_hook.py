@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metrics
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 def attach_metrics(session):
     """Wire usage collection + TTFA/TTFT logging/export onto ``session``; return a shutdown callback."""
     usage_collector = metrics.UsageCollector()
-    last_eou_metrics: dict[str, object] = {"value": None}
+    last_eou_metrics: dict[str, Any] = {"value": None}
 
     @session.on("metrics_collected")
     def _on_metrics_collected(ev: MetricsCollectedEvent) -> None:

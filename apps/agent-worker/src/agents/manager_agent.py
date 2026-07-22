@@ -5,12 +5,12 @@ escalated issue is tracked and the caller gets a written confirmation.
 """
 from __future__ import annotations
 
+from telephony.sip_transfer import transfer_to_human
 from tools.ticket_tools import (
     check_customer_tickets,
     create_support_ticket,
     get_ticket_state,
 )
-from telephony.sip_transfer import transfer_to_human
 
 from agents.base_agent import BaseTelecomAgent
 
@@ -58,7 +58,7 @@ class ManagerAgent(BaseTelecomAgent):
                 self._language = lang_code.lower().strip()[:2]
                 self._lang_name = _LANG_NAMES[self._language]
 
-        self.session.generate_reply(
+        await self.session.generate_reply(
             instructions=(
                 f"In {self._lang_name} only, call transfer_to_human now. Do not produce spoken text before the tool call."
             ),

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 
+import pytest
 from integration_adapters import get_billing_adapter, get_nms_adapter, get_ticketing_adapter
 
 from domain_core.value_objects import IdempotencyKey, Money
@@ -14,10 +15,13 @@ def test_factory_defaults_to_mock(monkeypatch) -> None:
     assert type(get_billing_adapter()).__name__ == "MockBillingAdapter"
 
 
-def test_live_without_url_falls_back_to_mock(monkeypatch) -> None:
+def test_live_without_url_raises(monkeypatch) -> None:
+    """Live mode must fail loud when a URL is missing — never silently fake a money operation."""
     monkeypatch.setenv("CONNECTOR_MODE", "live")
     monkeypatch.delenv("BILLING_ADAPTER_URL", raising=False)
-    assert type(get_billing_adapter()).__name__ == "MockBillingAdapter"
+    from integration_adapters.factory import AdapterConfigError
+    with pytest.raises(AdapterConfigError, match="CONNECTOR_MODE=live but BILLING_ADAPTER_URL is not set"):
+        get_billing_adapter()
 
 
 def test_mock_billing_charge_and_invoices() -> None:

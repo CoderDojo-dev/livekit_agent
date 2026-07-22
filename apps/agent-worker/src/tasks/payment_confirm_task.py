@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 
 from livekit.agents import AgentTask, function_tool
 
@@ -53,12 +54,10 @@ class PaymentConfirmTask(AgentTask[bool]):
         if self._done:
             return
         logger.info("payment confirm fail-closed -> not paying")
-        try:
+        with suppress(Exception):
             await self.session.say(
                 "Je n'ai pas reçu de confirmation claire, je n'effectue pas le paiement."
             )
-        except Exception:
-            pass
         self._finish(False)
 
     def _finish(self, confirmed: bool) -> None:

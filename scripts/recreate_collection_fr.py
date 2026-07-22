@@ -15,7 +15,6 @@ WARNING: all vectors in Qdrant are deleted. Postgres chunks are the system of re
 from __future__ import annotations
 
 import logging
-import os
 import sys
 
 logging.basicConfig(level=logging.INFO)
@@ -65,9 +64,9 @@ def main() -> None:
         print("  ok")
 
     # 4. Drain the outbox — every ready chunk in Postgres gets re-embedded and upserted
-    from persistence.engine import session_scope
-
     from knowledge_service.sync_worker import drain
+
+    from persistence.engine import session_scope
 
     print("Draining outbox...")
     total = {"upserted": 0, "deleted": 0, "orphan": 0, "inactive": 0, "failed": 0}

@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 from livekit.agents.llm.tool_context import StopResponse
-
 from tools import clarification_tools, escalation_tools, routing_tools
 from tools.voice_flow import say_and_wait
 

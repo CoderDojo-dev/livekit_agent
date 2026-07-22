@@ -7,12 +7,12 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
+from observability_kit import configure_tracer, trace_requests
 from persistence import get_session
 from policy_service.config import get_thresholds
 from policy_service.schemas import EvaluateResponseRequest, PolicyContext, VerdictResponse
 from policy_service.service import PolicyService
 from service_auth import require_internal_key
-from observability_kit import configure_tracer, trace_requests
 
 app = FastAPI(title="policy-service", dependencies=[Depends(require_internal_key)])
 configure_tracer("policy-service")

@@ -261,6 +261,7 @@ def customers_without_glpi_user() -> list[dict]:
     if not _enabled():
         return []
     from sqlalchemy import select
+
     from persistence.engine import session_scope
     from persistence.models.crm import Customer
 

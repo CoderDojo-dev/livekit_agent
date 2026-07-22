@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 
 from clients.notification_client import get_notification_client
 from livekit.agents import AgentTask, function_tool
@@ -54,12 +55,10 @@ class CallbackScheduleTask(AgentTask[bool]):
         if self._done:
             return
         logger.info("callback fail-closed -> no callback scheduled")
-        try:
+        with suppress(Exception):
             await self.session.say(
                 "Je n'ai pas pu programmer de rappel pour le moment. N'hésitez pas à rappeler."
             )
-        except Exception:
-            pass
         self._finish(False)
 
     def _finish(self, scheduled: bool) -> None:

@@ -1,7 +1,9 @@
 """Adapter factory: CONNECTOR_MODE + the adapter URL decide mock vs live (spec section 16.6).
 
-Falls back to mock if live is selected but no URL is configured - so a half-configured environment
-degrades safely rather than crashing.
+Live mode does NOT fall back to mock: if CONNECTOR_MODE=live but an adapter's URL is missing, the
+factory raises. A money operation must never be silently faked - a customer told "payment done,
+ref X" when nothing moved is worse than an honest failure. Mock is reachable only when
+CONNECTOR_MODE=mock is explicitly selected (local dev / CI).
 """
 from __future__ import annotations
 
@@ -20,9 +22,20 @@ from integration_adapters.ocs_adapter import LiveOcsAdapter, MockOcsAdapter
 from integration_adapters.payment_adapter import LivePaymentAdapter, MockPaymentAdapter
 
 
+class AdapterConfigError(RuntimeError):
+    """CONNECTOR_MODE=live but a required adapter URL is not configured. Never silently mocked."""
+
+
 def _pick(name, live_cls, mock_cls):
-    url = adapter_url(name)
-    return live_cls(url) if (is_live() and url) else mock_cls()
+    if is_live():
+        url = adapter_url(name)
+        if not url:
+            raise AdapterConfigError(
+                f"CONNECTOR_MODE=live but {name.upper()}_ADAPTER_URL is not set. Refusing to fall "
+                f"back to the mock {name!r} adapter, which would fake a real operation."
+            )
+        return live_cls(url)
+    return mock_cls()
 
 
 def get_billing_adapter() -> BillingPort:

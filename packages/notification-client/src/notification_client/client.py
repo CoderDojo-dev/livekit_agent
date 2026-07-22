@@ -32,7 +32,7 @@ class ChannelStrategyNotifier(NotificationPort):
             "params": data.get("params", data),
         }
         try:
-            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as client:
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as client:  # type: ignore[arg-type]
                 resp = await client.post("/notify", json=payload)
                 resp.raise_for_status()
         except httpx.HTTPError as exc:

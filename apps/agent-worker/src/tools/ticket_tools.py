@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import os
 
-import httpx
 from livekit.agents import RunContext, function_tool
 
 _TICKETING_HTTP_URL = os.getenv(
@@ -56,8 +55,7 @@ async def _mcp_call(tool: str, arguments: dict) -> dict | list | None:
         pass
 
     try:
-        async with streamablehttp_client(url, headers=headers) as (read, write, _):
-            async with ClientSession(read, write) as session:
+        async with streamablehttp_client(url, headers=headers) as (read, write, _), ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool(tool, arguments)
                 if getattr(result, "isError", False):
@@ -128,7 +126,7 @@ async def create_support_ticket(
         })
     except TicketingUnavailable:
         return _unavailable()
-    return result or _unavailable()
+    return result or _unavailable()  # type: ignore[return-value]
 
 
 @function_tool()
@@ -176,7 +174,7 @@ async def get_ticket_state(context: RunContext, ticket_id: str) -> dict:
         result = await _mcp_call("get_ticket_status", {"ticket_id": ticket_id})
     except TicketingUnavailable:
         return _unavailable()
-    return result or _unavailable()
+    return result or _unavailable()  # type: ignore[return-value]
 
 
 @function_tool()
@@ -191,7 +189,7 @@ async def mark_ticket_resolved(context: RunContext, ticket_id: str, resolution: 
         result = await _mcp_call("resolve_ticket", {"ticket_id": ticket_id, "resolution": resolution})
     except TicketingUnavailable:
         return _unavailable()
-    return result or _unavailable()
+    return result or _unavailable()  # type: ignore[return-value]
 
 
 @function_tool()
@@ -214,4 +212,4 @@ async def update_support_ticket(
         })
     except TicketingUnavailable:
         return _unavailable()
-    return result or _unavailable()
+    return result or _unavailable()  # type: ignore[return-value]

@@ -1,7 +1,7 @@
 """Importing this package registers every table on Base.metadata (used by Alembic)."""
 from persistence.models import (
-    auth,
     audit,
+    auth,
     billing,
     conversation,
     crm,
@@ -17,8 +17,8 @@ from persistence.models import (
 )
 
 __all__ = [
-    "auth",
     "audit",
+    "auth",
     "billing",
     "conversation",
     "crm",

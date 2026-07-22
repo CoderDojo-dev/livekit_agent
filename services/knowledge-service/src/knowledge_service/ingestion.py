@@ -28,11 +28,15 @@ from knowledge_service.embeddings import LocalEmbedder, get_embedder, get_sparse
 from knowledge_service.minio_store import KnowledgeStore, get_knowledge_store
 from knowledge_service.parsers import (
     SUPPORTED_SUFFIXES,
-    ParseError,
     extract_text,
     is_supported,
 )
-from knowledge_service.qdrant_store import get_client, qdrant_collection, DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME
+from knowledge_service.qdrant_store import (
+    DENSE_VECTOR_NAME,
+    SPARSE_VECTOR_NAME,
+    get_client,
+    qdrant_collection,
+)
 from persistence.models.knowledge import (
     KnowledgeChunk,
     KnowledgeDocument,
@@ -344,7 +348,7 @@ def ingest_object(
             sparse_vectors.extend(sparse_embedder.embed_passages(passages[start : start + EMBED_BATCH]))
 
     points: list[tuple[uuid.UUID, list[float], object, dict]] = []
-    for ordinal, (passage, vector) in enumerate(zip(passages, vectors)):
+    for ordinal, (passage, vector) in enumerate(zip(passages, vectors, strict=False)):
         point_id = uuid.uuid4()
         chunk = KnowledgeChunk(
             document_id=document.id,

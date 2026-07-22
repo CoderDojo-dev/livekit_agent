@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 
 from livekit.agents import AgentTask, function_tool
 
@@ -63,12 +64,10 @@ class SimReplacementTaskGroup(AgentTask[dict | None]):
         if self._done:
             return
         logger.info("sim replacement fail-closed (%s) -> no replacement request", reason)
-        try:
+        with suppress(Exception):
             await self.session.say(
                 "Je n'ai pas reçu toutes les informations nécessaires, je ne lance pas le remplacement de SIM."
             )
-        except Exception:
-            pass
         self._finish(None)
 
     def _finish(self, payload: dict | None) -> None:
@@ -117,20 +116,16 @@ class SimReplacementTaskGroup(AgentTask[dict | None]):
             "delivery_confirmed": True,
         }
 
-        try:
+        with suppress(Exception):
             await self.session.say(
                 "Merci, j'ai les informations nécessaires pour lancer la demande de remplacement de SIM."
             )
-        except Exception:
-            pass
 
         self._finish(payload)
 
     @function_tool()
     async def cancel_sim_replacement(self) -> None:
         """Record that the caller does not want to continue the SIM replacement request."""
-        try:
+        with suppress(Exception):
             await self.session.say("D'accord, je ne lance pas de remplacement de SIM.")
-        except Exception:
-            pass
         self._finish(None)

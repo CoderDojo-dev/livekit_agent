@@ -11,9 +11,9 @@ from __future__ import annotations
 import logging
 import os
 
-logger = logging.getLogger(__name__)
-
 from knowledge_service.parsers import SUPPORTED_SUFFIXES  # single source of truth
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_BUCKET = "telecom-knowledge"
 

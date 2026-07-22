@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 
 from livekit.agents import stt as stt_module
-from livekit.plugins import azure, deepgram, gladia
+from livekit.plugins import azure, deepgram, gladia  # type: ignore[attr-defined]
 
 from providers._resilience import chaos_model
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import contextmanager, suppress
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ except Exception:
     _OTEL_AVAILABLE = False
 
 _METRIC_PREFIX = "telecom.agent"
-_instruments: dict[str, object] = {}
+_instruments: dict[str, Any] = {}
 _configured = False
 
 
@@ -125,7 +126,7 @@ def inject_trace_context(headers: dict[str, str] | None = None) -> dict[str, str
     return carrier
 
 
-def extract_trace_context(headers: object) -> object | None:
+def extract_trace_context(headers: Any) -> Any | None:
     """Extract W3C tracecontext from HTTP headers (dict or FastAPI Request.headers). Safe no-op when OTel is absent."""
     if not _OTEL_AVAILABLE or headers is None:
         return None
@@ -136,7 +137,7 @@ def extract_trace_context(headers: object) -> object | None:
 
 
 @contextmanager
-def trace_span(name: str, attributes: dict[str, object] | None = None, headers: object | None = None):
+def trace_span(name: str, attributes: dict[str, Any] | None = None, headers: Any | None = None):
     """Context manager to start a span (and extract remote trace context if `headers` provided). Safe no-op when OTel absent."""
     if not _OTEL_AVAILABLE:
         yield None
@@ -150,13 +151,13 @@ def trace_span(name: str, attributes: dict[str, object] | None = None, headers: 
         yield None
 
 
-def trace_requests(app: object, service_name: str) -> None:
+def trace_requests(app: Any, service_name: str) -> None:
     """FastAPI/Starlette HTTP middleware to extract remote trace context and wrap requests in a span."""
     if not hasattr(app, "middleware"):
         return
 
     @app.middleware("http")
-    async def _otel_trace_middleware(request: object, call_next: object) -> object:
+    async def _otel_trace_middleware(request: Any, call_next: Any) -> Any:
         if not _OTEL_AVAILABLE or not _configured:
             return await call_next(request)
         path = getattr(getattr(request, "url", None), "path", "")

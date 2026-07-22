@@ -40,21 +40,26 @@ for label, query, expect in queries:
     has_result = g_count > 0
 
     if has_result and expect:
-        tpos.append(dense_top); status = "OK"
+        tpos.append(dense_top)
+        status = "OK"
     elif has_result and not expect:
-        fpos.append(dense_top); status = "LEAK"
+        fpos.append(dense_top)
+        status = "LEAK"
     elif not has_result and not expect:
-        tneg += 1; status = "GATED"
+        tneg += 1
+        status = "GATED"
     else:
-        fneg += 1; status = "MISS"
+        fneg += 1
+        status = "MISS"
 
-    print(f"{label:<20} {dense_top:>10.4f}  {str(has_result):>6}  {str(expect):>6}  {status}")
+    print(f"{label:<20} {dense_top:>10.4f}  {has_result!s:>6}  {expect!s:>6}  {status}")
 
 print()
 print("=" * 50)
 print("  CALIBRATION")
 print("=" * 50)
-tpos.sort(); fpos.sort()
+tpos.sort()
+fpos.sort()
 print(f"True positives (lowest): {tpos[0]:.4f}" if tpos else "No TPs")
 print(f"Noise leaks (highest):   {fpos[-1]:.4f}" if fpos else "No leaks")
 print(f"False negatives:         {fneg}")

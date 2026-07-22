@@ -18,9 +18,9 @@ from context_service.schemas import (
     VerifyIdentityRequest,
     VerifyIdentityResponse,
 )
+from observability_kit import configure_tracer, trace_requests
 from persistence import get_session
 from service_auth import require_internal_key
-from observability_kit import configure_tracer, trace_requests
 
 app = FastAPI(
     title="context-service",

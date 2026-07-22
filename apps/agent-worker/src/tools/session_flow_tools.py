@@ -143,7 +143,7 @@ async def switch_spoken_language(context: RunContext, new_language: str) -> dict
         }
 
     if user_data is not None:
-        setattr(user_data, "language", norm)
+        user_data.language = norm
 
     # Hot-swap the LIVE pipeline. session.stt/.tts are READ-ONLY FallbackAdapters
     # in livekit-agents 1.6.3 (assigning to them raises AttributeError), so reach
@@ -157,8 +157,8 @@ async def switch_spoken_language(context: RunContext, new_language: str) -> dict
 
     agent = getattr(session, "current_agent", None)
     if agent is not None:
-        setattr(agent, "_language", norm)
-        setattr(agent, "_lang_name", _MAP[norm])
+        agent._language = norm
+        agent._lang_name = _MAP[norm]
         # Re-point the system instructions via the SUPPORTED async API. The old
         # chat_ctx.messages[0].content mutation was a guaranteed no-op:
         # ChatContext.messages is a read-only computed list and ChatMessage.content

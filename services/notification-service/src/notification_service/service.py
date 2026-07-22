@@ -79,8 +79,7 @@ class NotificationService:
         })
         if os.getenv("DATABASE_URL") and status == "sent":
             try:
-                import asyncio as _asyncio
-                _asyncio.run(self._persist(req, status))
+                self._persist(req, status)
             except Exception as exc:
                 logger.warning("notification log write skipped: %s", exc)
 
