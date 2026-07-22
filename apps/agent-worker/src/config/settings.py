@@ -3,6 +3,7 @@
 This module holds configuration values only. It imports no vendor plugin: provider
 construction (including noise cancellation) lives behind the providers/ boundary.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -34,6 +35,23 @@ class Settings(BaseSettings):
     # --- TTS primary (ElevenLabs Flash v2.5) ---
     tts_model: str = Field("eleven_flash_v2_5", alias="TTS_MODEL")
     eleven_voice_id: str = Field("EXAVITQu4vr4xnSDxMaL", alias="ELEVEN_VOICE_ID")
+
+    # --- TTS : choix dynamique du provider principal ---
+    tts_primary: str = Field("cartesia", alias="TTS_PRIMARY")
+
+    # --- TTS : Inworld (fallback, FR GA, clé Base64) ---
+    inworld_api_key: str = Field("", alias="INWORLD_API_KEY")
+    inworld_tts_model: str = Field("inworld-tts-2", alias="INWORLD_TTS_MODEL")
+    inworld_voice_id: str = Field("alain", alias="INWORLD_VOICE_ID")
+
+    # --- TTS : Smallest.ai (fallback, FR Beta — modèle standard, pas _pro) ---
+    smallest_api_key: str = Field("", alias="SMALLEST_API_KEY")
+    smallest_tts_model: str = Field("lightning_v3.1", alias="SMALLEST_TTS_MODEL")
+    smallest_voice_id: str = Field("juliette", alias="SMALLEST_VOICE_ID")
+
+    # --- TTS : Gemini (placeholder — NON branché, plugin beta streaming=False) ---
+    gemini_tts_model: str = Field("gemini-2.5-flash-preview-tts", alias="GEMINI_TTS_MODEL")
+    gemini_tts_voice: str = Field("Kore", alias="GEMINI_TTS_VOICE")
 
     # --- Deepgram TTS (optional — if livekit-plugins-deepgram adds TTS support) ---
     deepgram_tts_model: str = Field("aura-asteria-en", alias="DEEPGRAM_TTS_MODEL")

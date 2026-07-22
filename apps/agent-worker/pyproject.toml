@@ -8,7 +8,7 @@ dependencies = [
   "service-auth",
   "audit-trail",
   "persistence",
-  "livekit-agents[deepgram,elevenlabs,azure,openai,google,silero,turn-detector,gladia,cartesia]==1.6.5",
+  "livekit-agents[deepgram,elevenlabs,azure,openai,google,silero,turn-detector,gladia,cartesia,inworld,smallestai]==1.6.5",
   "mcp>=1.24,<2",
   "pydantic>=2.11,<3",
   "pydantic-settings==2.7.1",

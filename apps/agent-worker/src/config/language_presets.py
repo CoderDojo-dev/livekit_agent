@@ -10,6 +10,7 @@ Each language entry must supply ALL keys consumed by the STT and TTS builders:
 
 Arabic: Deepgram uses language="ar" (single-language model, never "multi"). See stt.py.
 """
+
 from __future__ import annotations
 
 # Decided in Phase 0 (docs/architecture/phase-0-verification-gate/00-DECISION-RECORD.md).
@@ -27,6 +28,8 @@ LANGUAGE_PRESETS: dict[str, dict[str, str]] = {
         "azure_tts_voice": "fr-FR-DeniseNeural",
         # TTS — Cartesia voice ID (UUID, fr-FR female voice)
         "cartesia_voice_id": "22f1a356-56c2-4428-bc91-2ab2e6d0c215",
+        # TTS — Inworld (BCP-47, requis par inworld.TTS(language=...))
+        "inworld_language": "fr-FR",
     },
     "ar": {
         # STT — Deepgram primary (language="ar", single-language model — never "multi")
@@ -41,6 +44,7 @@ LANGUAGE_PRESETS: dict[str, dict[str, str]] = {
         "azure_tts_voice": "ar-EG-SalmaNeural",
         # TTS — Cartesia voice ID (UUID, Arabic voice)
         "cartesia_voice_id": "79743797-2087-422f-8e74-6d2b03ae5b31",
+        "inworld_language": "ar",
     },
     "en": {
         # STT — Deepgram primary
@@ -55,6 +59,7 @@ LANGUAGE_PRESETS: dict[str, dict[str, str]] = {
         "azure_tts_voice": "en-US-JennyNeural",
         # TTS — Cartesia voice ID (UUID, en-US female voice)
         "cartesia_voice_id": "694f9389-aac1-45b6-b726-9d9369183238",
+        "inworld_language": "en-US",
     },
 }
 
