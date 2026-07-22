@@ -12,6 +12,7 @@ from domain_core.ports.billing import BillingPort
 from domain_core.ports.crm import CrmPort
 from domain_core.ports.nms import NmsPort
 from domain_core.ports.payment import PaymentPort
+from domain_core.ports.provisioning import ProvisioningPort
 from domain_core.ports.ticketing import TicketingPort
 from integration_adapters.billing_adapter import LiveBillingAdapter, MockBillingAdapter
 from integration_adapters.config import adapter_url, is_live
@@ -20,6 +21,10 @@ from integration_adapters.glpi_adapter import LiveGlpiAdapter, MockGlpiAdapter
 from integration_adapters.nms_adapter import LiveNmsAdapter, MockNmsAdapter
 from integration_adapters.ocs_adapter import LiveOcsAdapter, MockOcsAdapter
 from integration_adapters.payment_adapter import LivePaymentAdapter, MockPaymentAdapter
+from integration_adapters.provisioning_adapter import (
+    LiveProvisioningAdapter,
+    MockProvisioningAdapter,
+)
 
 
 class AdapterConfigError(RuntimeError):
@@ -56,6 +61,10 @@ def get_crm_adapter() -> CrmPort:
 
 def get_nms_adapter() -> NmsPort:
     return _pick("nms", LiveNmsAdapter, MockNmsAdapter)
+
+
+def get_provisioning_adapter() -> ProvisioningPort:
+    return _pick("provisioning", LiveProvisioningAdapter, MockProvisioningAdapter)
 
 
 def get_ticketing_adapter() -> TicketingPort:

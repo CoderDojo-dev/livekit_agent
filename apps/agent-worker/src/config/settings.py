@@ -83,6 +83,7 @@ class Settings(BaseSettings):
     knowledge_mcp_url: str = Field("http://localhost:8201/mcp", alias="KNOWLEDGE_MCP_URL")
     ticketing_mcp_url: str = Field("http://localhost:8202/mcp", alias="TICKETING_MCP_URL")
     ticketing_http_url: str = Field("http://localhost:8202", alias="TICKETING_HTTP_URL")
+    nms_service_url: str = Field("http://localhost:8108", alias="NMS_SERVICE_URL")
 
     @property
     def languages(self) -> list[str]:

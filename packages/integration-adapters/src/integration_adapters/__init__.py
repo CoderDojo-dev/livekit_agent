@@ -9,6 +9,7 @@ from integration_adapters.factory import (
     get_crm_adapter,
     get_nms_adapter,
     get_payment_adapter,
+    get_provisioning_adapter,
     get_ticketing_adapter,
 )
 
@@ -18,5 +19,6 @@ __all__ = [
     "get_crm_adapter",
     "get_nms_adapter",
     "get_payment_adapter",
+    "get_provisioning_adapter",
     "get_ticketing_adapter",
 ]

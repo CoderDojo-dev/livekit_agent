@@ -24,7 +24,7 @@ from __future__ import annotations
 import os
 
 from livekit.agents import tts as tts_module
-from livekit.plugins import cartesia, elevenlabs  # type: ignore[attr-defined]
+from livekit.plugins import azure, cartesia, elevenlabs  # type: ignore[attr-defined]
 
 from providers._resilience import chaos_model
 
@@ -61,6 +61,18 @@ def build_tts(preset: dict[str, str], model: str, voice_id: str, break_primary: 
                 language=preset["tts_iso"],
                 api_key=cartesia_key,
             )
+        )
+
+    # --- Final fallback: Azure (skipped if no key) ---
+    azure_key = os.getenv("AZURE_SPEECH_KEY", "")
+    if azure_key:
+        providers.append(azure.TTS(voice=preset["azure_tts_voice"]))
+
+    # --- Fail-fast: ne jamais renvoyer un FallbackAdapter vide (agent muet) ---
+    if not providers:
+        raise RuntimeError(
+            "Aucun provider TTS configuré : définir au moins une clé parmi "
+            "ELEVEN_API_KEY, CARTESIA_API_KEY, AZURE_SPEECH_KEY."
         )
 
     return tts_module.FallbackAdapter(providers)

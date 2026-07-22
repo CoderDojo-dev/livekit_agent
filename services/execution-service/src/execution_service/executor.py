@@ -51,7 +51,11 @@ def dispatch(action_type: str, payload: dict, *, customer_id: str | None = None,
 def _dispatch_live(action_type: str, payload: dict, customer_id: str | None, idempotency_key: str | None) -> str:
     import asyncio
 
-    from integration_adapters import get_balance_adapter, get_billing_adapter
+    from integration_adapters import (
+        get_balance_adapter,
+        get_billing_adapter,
+        get_provisioning_adapter,
+    )
 
     from domain_core.value_objects import IdempotencyKey, Money
 
@@ -65,6 +69,24 @@ def _dispatch_live(action_type: str, payload: dict, customer_id: str | None, ide
             return f"DEF-{key.value[:10].upper()}"
         if action_type == "TOP_UP":
             return asyncio.run(get_balance_adapter().top_up(customer_id or "", amount, key))
+        if action_type == "CHANGE_PLAN":
+            return asyncio.run(get_provisioning_adapter().change_plan(
+                customer_id or "", str(payload.get("plan_code", "PREPAID_20GB")), key,
+            ))
+        if action_type == "ACTIVATE_ROAMING":
+            return asyncio.run(get_provisioning_adapter().activate_roaming(customer_id or "", key))
+        if action_type == "UNBLOCK_SIM":
+            return asyncio.run(get_provisioning_adapter().activate_sim(
+                customer_id or "", str(payload.get("iccid", "UNKNOWN")), key,
+            ))
+        if action_type == "REPLACE_SIM":
+            return asyncio.run(get_provisioning_adapter().replace_sim(
+                customer_id or "", str(payload.get("new_iccid", "UNKNOWN")), key,
+            ))
+        if action_type == "REACTIVATE_SIM":
+            return asyncio.run(get_provisioning_adapter().activate_sim(
+                customer_id or "", str(payload.get("iccid", "UNKNOWN")), key,
+            ))
     except Exception as exc:
         logger.error("live dispatch failed for %s: %s", action_type, exc)
         raise

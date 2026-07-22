@@ -50,7 +50,17 @@ async def unblock_sim_pin(context: RunContext) -> dict:
 
 @function_tool()
 async def check_network_status(area: str) -> dict:
-    """Read-only known-incident lookup for local/dev. Replace with NMS adapter later."""
+    """Check whether a known network incident affects the caller's area.
+
+    Reads live incident data from the NMS/OSS service. When the service cannot be reached the
+    outcome is "unavailable" - say so honestly rather than telling the caller the network is fine,
+    which we would not actually know.
+
+    Args:
+        area: The caller's city, area, or neighborhood.
+    """
+    from clients.nms_client import get_nms_client
+
     normalized = (area or "").strip()
     if not normalized:
         return {
@@ -58,12 +68,43 @@ async def check_network_status(area: str) -> dict:
             "message": "Ask the caller for their city, area, or neighborhood.",
         }
 
+    status = await get_nms_client().get_network_status(normalized)
+
+    if status.get("status") == "unavailable":
+        return {
+            "outcome": "unavailable",
+            "area": normalized,
+            "message": (
+                "The network supervision system could not be reached, so no incident check was "
+                "possible. Tell the caller honestly that you cannot verify the network right now "
+                "and will follow up; do NOT claim the network is fine."
+            ),
+        }
+
+    outages = status.get("outages") or []
+    if not outages:
+        return {
+            "outcome": "checked",
+            "area": normalized,
+            "incident_found": False,
+            "message": (
+                "No known incident affects this area. If the caller still has trouble, run a "
+                "diagnostic or open a technical ticket."
+            ),
+        }
+
+    first = outages[0]
     return {
         "outcome": "checked",
         "area": normalized,
-        "incident_found": False,
+        "incident_found": True,
+        "severity": first.get("severity"),
+        "affected_services": first.get("affected_services", []),
+        "eta": first.get("eta"),
+        "outages": outages,
         "message": (
-            "No known incident is available in the local pilot data for this area. "
-            "If the caller still has trouble, create a technical ticket."
+            "A known incident affects this area. Tell the caller it is already identified and "
+            "being worked on, mention the affected services and the estimated restoration time "
+            "when one is given, and do not open a duplicate ticket for the same outage."
         ),
     }

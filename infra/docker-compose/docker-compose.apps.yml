@@ -83,6 +83,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       ocs-billing-sim: { condition: service_started }
+      provisioning-sim: { condition: service_started }
     ports: ["8105:8105"]
     restart: unless-stopped
   notification-service:
@@ -145,6 +146,29 @@ services:
       postgres: { condition: service_healthy }
     ports: ["8109:8107"]
     restart: unless-stopped
+  nms-sim:
+    build:
+      context: ../..
+      dockerfile: services/nms-sim/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8110:8108"]
+    restart: unless-stopped
+
+  provisioning-sim:
+    build:
+      context: ../..
+      dockerfile: services/provisioning-sim/Dockerfile
+    env_file: [../../.env]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8111:8109"]
+    restart: unless-stopped
 
   ticketing-glpi:
     build:
@@ -188,6 +212,7 @@ services:
       KNOWLEDGE_MCP_URL: "http://ai-knowledge-rag:8201/mcp"
       TICKETING_MCP_URL: "http://ticketing-glpi:8202/mcp"
       TICKETING_HTTP_URL: "http://ticketing-glpi:8202"
+      NMS_SERVICE_URL: "http://nms-sim:8108"
     depends_on:
       postgres: { condition: service_healthy }
       context-service: { condition: service_started }
@@ -197,6 +222,8 @@ services:
       notification-service: { condition: service_started }
       ai-knowledge-rag: { condition: service_started }
       ticketing-glpi: { condition: service_started }
+      nms-sim: { condition: service_started }
+      provisioning-sim: { condition: service_started }
     restart: unless-stopped
 
 volumes:

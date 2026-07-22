@@ -1,0 +1,21 @@
+[project]
+name = "nms-sim"
+version = "0.1.0"
+description = "Local NMS/OSS simulator: a REAL service projecting oss.outages for the network-status adapter contract. Swap its URL for the carrier NMS/OSS in production."
+requires-python = ">=3.12"
+dependencies = [
+  "service-auth",
+  "persistence",
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.34.0",
+]
+
+[project.scripts]
+nms-sim = "nms_sim.main:run"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
