@@ -1,4 +1,5 @@
 """Deterministic, interruption-safe manager escalation."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,7 @@ import logging
 from agents.manager_agent import ManagerAgent
 from livekit.agents import Agent, RunContext, function_tool
 
-from tools.voice_flow import current_chat_ctx
+from tools.voice_flow import current_chat_ctx, handoff_with_message
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,13 @@ def _resolve_language(context: RunContext) -> str:
     return "fr"
 
 
+_MANAGER_LINES = {
+    "fr": "Je comprends. Je vous transfère à un conseiller qui va poursuivre avec vous.",
+    "ar": "أتفهم ذلك. سأحوّلك إلى مستشار سيتابع معك.",
+    "en": "I understand. I'm transferring you to an advisor who will continue with you.",
+}
+
+
 @function_tool()
 async def escalate_to_manager(context: RunContext) -> Agent:
     """Record the escalation and hand off to the manager on the same session."""
@@ -46,15 +54,9 @@ async def escalate_to_manager(context: RunContext) -> Agent:
                 trigger=_trigger_for(user_data),
                 target="manager_agent",
                 dossier={
-                    "consecutive_negative_turns": getattr(
-                        user_data, "consecutive_negative_turns", 0
-                    ),
-                    "identity_verified": getattr(
-                        user_data, "identity_verified", False
-                    ),
-                    "clarification_attempts": getattr(
-                        user_data, "clarification_attempts", 0
-                    ),
+                    "consecutive_negative_turns": getattr(user_data, "consecutive_negative_turns", 0),
+                    "identity_verified": getattr(user_data, "identity_verified", False),
+                    "clarification_attempts": getattr(user_data, "clarification_attempts", 0),
                 },
                 customer_id=customer.customer_id if customer else None,
             )
@@ -62,4 +64,4 @@ async def escalate_to_manager(context: RunContext) -> Agent:
             # Persistence is off the real-time path and must never block a handoff.
             logger.warning("escalation record skipped: %s", exc)
 
-    return next_agent
+    return await handoff_with_message(context, next_agent, _MANAGER_LINES[_resolve_language(context)])

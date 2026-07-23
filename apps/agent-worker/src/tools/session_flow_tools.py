@@ -63,18 +63,18 @@ def _update_stt_language(session, preset) -> None:
 
 
 def _update_tts_language(session, preset) -> None:
-    """Best-effort: re-point every live TTS provider at the new language + voice."""
+    """Best-effort: re-point every live TTS provider to the new language ONLY.
+
+    On ne réinitialise PAS la voix : chaque agent possède désormais sa voix de
+    persona (build_persona_tts) et les voix Cartesia Sonic sont multilingues (un
+    UUID parle fr/ar/en). Forcer la voix du preset lors d'un switch de langue
+    effacerait la voix de persona en plein appel. Langue seule = persona préservée.
+    """
     for tts in _wrapped_providers(getattr(session, "tts", None), "_tts_instances"):
         upd = getattr(tts, "update_options", None)
-        if not callable(upd):
-            continue
-        try:
-            upd(language=preset["tts_iso"], voice=preset["cartesia_voice_id"])
-        except TypeError:
+        if callable(upd):
             with suppress(Exception):
                 upd(language=preset["tts_iso"])
-        except Exception:
-            pass
 
 
 @function_tool()

@@ -1,9 +1,11 @@
 """Triage agent: consent, greeting, FAQ lookup, routing, and escalation."""
+
 from __future__ import annotations
 
 import logging
 
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
+from providers.tts import build_persona_tts
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
 from tools.escalation_tools import escalate_to_manager
@@ -45,8 +47,7 @@ class TriageAgent(BaseTelecomAgent):
         lang_name = _LANG_NAMES[selected_language]
 
         super().__init__(
-            instructions=_INSTRUCTIONS.format(language=lang_name)
-            + "\n\n" + KNOWLEDGE_ABSTENTION_RULE,
+            instructions=_INSTRUCTIONS.format(language=lang_name) + "\n\n" + KNOWLEDGE_ABSTENTION_RULE,
             tools=[
                 request_clarification,
                 route_to_account_services,
@@ -55,6 +56,7 @@ class TriageAgent(BaseTelecomAgent):
                 escalate_to_manager,
                 build_knowledge_toolset(),
             ],
+            tts=build_persona_tts(selected_language, "triage"),
         )
         self._language = selected_language
         self._lang_name = lang_name
@@ -70,11 +72,27 @@ class TriageAgent(BaseTelecomAgent):
                 chat_ctx=self.chat_ctx.copy(exclude_instructions=True),
             )
             user_data.recording_consent = bool(granted)
+            consent_just_collected = True
+        else:
+            consent_just_collected = False
 
-        # generate_reply with language-locked instructions (no PII disclosure)
-        await self.session.generate_reply(
-            instructions=(
-                f"In {self._lang_name} only, ask how you can help today. "
-                f"One short sentence. Do NOT mention the caller's name or any personal details."
-            ),
-        )
+        # Acknowledge the consent answer AND offer help in ONE short turn (no
+        # duplicate greeting, no lag). Consent stays owned by ConsentTask above.
+        if consent_just_collected and user_data.recording_consent:
+            ack = (
+                f"In {self._lang_name} only: warmly THANK the caller for agreeing, "
+                f"then ask how you can help today. Two short sentences. Do NOT "
+                f"mention the caller's name or any personal details."
+            )
+        elif consent_just_collected and not user_data.recording_consent:
+            ack = (
+                f"In {self._lang_name} only: acknowledge respectfully that you will "
+                f"continue WITHOUT recording, then ask how you can help today. Two "
+                f"short sentences. Do NOT mention the caller's name or any personal details."
+            )
+        else:
+            ack = (
+                f"In {self._lang_name} only, ask how you can help today. One short "
+                f"sentence. Do NOT mention the caller's name or any personal details."
+            )
+        await self.session.generate_reply(instructions=ack)

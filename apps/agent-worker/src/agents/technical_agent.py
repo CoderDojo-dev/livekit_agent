@@ -3,10 +3,12 @@
 Inherits BaseTelecomAgent (sentiment-aware). Can open a follow-up ticket for an unresolved
 issue (the caller then gets a written confirmation) and resolve it if solved during the call.
 """
+
 from __future__ import annotations
 
 from livekit.agents import RunContext, function_tool
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
+from providers.tts import build_persona_tts
 from tasks.sim_replacement_task_group import SimReplacementTaskGroup
 from tools import outcomes
 from tools.escalation_tools import escalate_to_manager
@@ -86,7 +88,8 @@ class TechnicalAgent(BaseTelecomAgent):
                 "NEVER claim an operation succeeded yourself - only the tool result decides. "
                 "If a result is 'refused' or 'failed', communicate its 'message' plainly; "
                 f"if 'escalate', call escalate_to_manager. Always reply in {lang_name}."
-                + "\n\n" + KNOWLEDGE_ABSTENTION_RULE
+                + "\n\n"
+                + KNOWLEDGE_ABSTENTION_RULE
             ),
             chat_ctx=chat_ctx,
             tools=[
@@ -104,6 +107,7 @@ class TechnicalAgent(BaseTelecomAgent):
                 update_support_ticket,
                 build_knowledge_toolset(),
             ],
+            tts=build_persona_tts(selected_language, "technical"),
         )
         self._language = selected_language
         self._lang_name = lang_name
@@ -120,7 +124,12 @@ class TechnicalAgent(BaseTelecomAgent):
 
         await self.session.generate_reply(
             instructions=(
-                f"In {self._lang_name} only, ask the caller how you can help with their "
-                f"technical issue. One short sentence. Never switch language."
+                f"In {self._lang_name} only: greet briefly, then ACKNOWLEDGE the "
+                f"specific technical problem the caller already described earlier in "
+                f"the conversation (e.g. a network or SIM issue) and ask them to give "
+                f"a bit more detail about it. If NO specific problem was mentioned "
+                f"yet, simply ask how you can help with their technical issue. One or "
+                f"two short sentences. Do NOT repeat information already given. Never "
+                f"switch language."
             ),
         )

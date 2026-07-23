@@ -3,8 +3,10 @@
 Inherits BaseTelecomAgent. Reached on the shared session (full context). Can open a ticket so an
 escalated issue is tracked and the caller gets a written confirmation.
 """
+
 from __future__ import annotations
 
+from providers.tts import build_persona_tts
 from telephony.sip_transfer import transfer_to_human
 from tools.ticket_tools import (
     check_customer_tickets,
@@ -44,6 +46,7 @@ class ManagerAgent(BaseTelecomAgent):
                 get_ticket_state,
             ],
             language=selected_language,
+            tts=build_persona_tts(selected_language, "manager"),
         )
         self._language = selected_language
         self._lang_name = lang_name
@@ -60,6 +63,10 @@ class ManagerAgent(BaseTelecomAgent):
 
         await self.session.generate_reply(
             instructions=(
-                f"In {self._lang_name} only, call transfer_to_human now. Do not produce spoken text before the tool call."
+                f"In {self._lang_name} only: briefly introduce yourself as a senior "
+                f"advisor, ACKNOWLEDGE the reason the call was escalated (using the "
+                f"conversation so far), and ask how you can help resolve it. Two short "
+                f"sentences. Be empathetic. Do NOT repeat information already given. "
+                f"Never switch language."
             ),
         )

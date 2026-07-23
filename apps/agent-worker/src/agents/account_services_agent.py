@@ -4,8 +4,10 @@ Inherits BaseTelecomAgent so it gets the shared per-turn sentiment scoring + pro
 de-escalation + conversation logging, like every other persona. All state changes go through the
 guarded action path.
 """
+
 from __future__ import annotations
 
+from providers.tts import build_persona_tts
 from tools.account_tools import change_plan, get_plan_details, toggle_roaming, top_up
 from tools.escalation_tools import escalate_to_manager
 
@@ -31,7 +33,16 @@ class AccountServicesAgent(BaseTelecomAgent):
                 "caller is upset or asks for a human, call escalate_to_manager. Keep replies short."
             ),
             chat_ctx=chat_ctx,
-            tools=[get_plan_details, change_plan, top_up, toggle_roaming, route_to_billing, route_to_technical, escalate_to_manager],
+            tools=[
+                get_plan_details,
+                change_plan,
+                top_up,
+                toggle_roaming,
+                route_to_billing,
+                route_to_technical,
+                escalate_to_manager,
+            ],
+            tts=build_persona_tts(selected_language, "account"),
         )
         self._language = selected_language
         self._lang_name = lang_name
@@ -48,7 +59,11 @@ class AccountServicesAgent(BaseTelecomAgent):
 
         await self.session.generate_reply(
             instructions=(
-                f"In {self._lang_name} only, ask the caller how you can help with plans, "
-                f"recharges, or roaming. One short sentence. Never switch language."
+                f"In {self._lang_name} only: greet briefly, then ACKNOWLEDGE the "
+                f"specific request the caller already mentioned earlier (plan, phone "
+                f"line, recharge, or roaming) and ask them to confirm the detail. If "
+                f"nothing specific was mentioned yet, simply ask how you can help with "
+                f"plans, recharges, or roaming. One or two short sentences. Do NOT "
+                f"repeat information already given. Never switch language."
             ),
         )

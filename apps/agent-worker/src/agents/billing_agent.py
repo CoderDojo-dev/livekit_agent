@@ -4,11 +4,13 @@ Phase 7: make_payment confirms the amount (PaymentConfirmTask) then runs the ful
 Decision -> Policy -> Execution façade; an AUTHORIZED action is dispatched idempotently and the
 caller is given the confirmation reference. Deferral runs the same façade.
 """
+
 from __future__ import annotations
 
 from clients.context_client import get_context_client
 from livekit.agents import RunContext, function_tool
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
+from providers.tts import build_persona_tts
 from tasks.payment_confirm_task import PaymentConfirmTask
 from tools import outcomes
 from tools.billing_tools import get_balance_summary, get_invoice_summary
@@ -52,9 +54,7 @@ async def request_payment_deferral(context: RunContext, requested_days: int) -> 
         # What is still owed after any payments already applied - not the frozen invoice totals,
         # which would over-state the debt (and skew the policy cap) after a partial payment.
         unpaid_amount = sum(
-            inv.get("outstanding", inv["amount"])
-            for inv in invoices
-            if inv.get("status") != "paid"
+            inv.get("outstanding", inv["amount"]) for inv in invoices if inv.get("status") != "paid"
         )
 
     return await execute_guarded_action(
@@ -84,8 +84,7 @@ class BillingAgent(BaseTelecomAgent):
                 "deferral succeeded yourself - only the tool result decides. Communicate the "
                 "tool's 'message' to the caller: on 'executed' give the reference; on 'refused' "
                 "or 'failed' explain plainly; on 'escalate' explain briefly and call "
-                f"escalate_to_manager. Always reply in {lang_name}."
-                + "\n\n" + KNOWLEDGE_ABSTENTION_RULE
+                f"escalate_to_manager. Always reply in {lang_name}." + "\n\n" + KNOWLEDGE_ABSTENTION_RULE
             ),
             chat_ctx=chat_ctx,
             tools=[
@@ -98,6 +97,7 @@ class BillingAgent(BaseTelecomAgent):
                 escalate_to_manager,
                 build_knowledge_toolset(),
             ],
+            tts=build_persona_tts(selected_language, "billing"),
         )
         self._language = selected_language
         self._lang_name = lang_name
@@ -114,7 +114,11 @@ class BillingAgent(BaseTelecomAgent):
 
         await self.session.generate_reply(
             instructions=(
-                f"In {self._lang_name} only, ask the caller how you can help with their "
-                f"billing question. One short sentence. Never switch language."
+                f"In {self._lang_name} only: greet briefly, then ACKNOWLEDGE the "
+                f"specific billing matter the caller already mentioned earlier (e.g. "
+                f"an invoice, balance, or payment) and ask them to confirm the detail. "
+                f"If nothing specific was mentioned yet, simply ask how you can help "
+                f"with their billing question. One or two short sentences. Do NOT "
+                f"repeat information already given. Never switch language."
             ),
         )

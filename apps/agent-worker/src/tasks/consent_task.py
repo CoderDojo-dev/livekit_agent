@@ -1,4 +1,5 @@
 """Recording consent task - LiveKit best-practice pattern adapted for telecom FR/AR/EN."""
+
 from __future__ import annotations
 
 import logging
@@ -37,22 +38,29 @@ class ConsentTask(AgentTask[bool]):
         """Ask the consent question with interruptions disabled so the caller hears it fully."""
         prompts = {
             "fr": (
-                "Greet briefly in French, then ask:\n"
-                "'Cet appel peut être enregistré à des fins de qualité et de sécurité. "
-                "Acceptez-vous l'enregistrement ?'\n"
-                "Keep it to two sentences maximum. Be warm and professional."
+                "Speak ONLY in French, warm and professional. In ONE short turn:\n"
+                "1) Briefly greet and introduce yourself as the customer-support "
+                "virtual assistant, here to help.\n"
+                "2) Ask permission to record the call for quality assurance and "
+                "supervision, and make clear they are FREE TO DECLINE.\n"
+                "3) Invite a clear yes or no.\n"
+                "Three short sentences maximum. You are ASKING permission — never "
+                "state that the call is already being recorded."
             ),
             "ar": (
-                "Greet briefly in Arabic, then ask:\n"
-                "'قد يتم تسجيل هذه المكالمة لأغراض الجودة والأمان. "
-                "هل توافق على التسجيل؟'\n"
-                "Keep it to two sentences maximum. Be warm and professional."
+                "Speak ONLY in Arabic, warm and professional. In ONE short turn: "
+                "briefly greet and introduce yourself as the support assistant; "
+                "ask permission to record the call for quality and supervision, "
+                "making clear they are free to decline; invite a clear yes or no. "
+                "Three short sentences max. You are ASKING — do not say it is already recorded."
             ),
             "en": (
-                "Greet briefly in English, then ask:\n"
-                "'This call may be recorded for quality and security purposes. "
-                "Do you consent to the recording?'\n"
-                "Keep it to two sentences maximum. Be warm and professional."
+                "Speak ONLY in English, warm and professional. In ONE short turn: "
+                "briefly greet and introduce yourself as the support assistant; "
+                "ask permission to record the call for quality assurance and "
+                "supervision, making clear they are free to decline; invite a clear "
+                "yes or no. Three short sentences max. You are ASKING — never state "
+                "the call is already being recorded."
             ),
         }
 
@@ -72,12 +80,8 @@ class ConsentTask(AgentTask[bool]):
             logger.info("caller gave recording consent")
         else:
             logger.info("caller denied recording consent")
-            await self.session.generate_reply(
-                instructions=(
-                    f"In {self._lang_name} only, politely inform the caller that you will "
-                    f"continue without recording. Keep it to one short sentence."
-                ),
-                allow_interruptions=False,
-            )
 
+        # No spoken reply here: keep consent collection cleanly SEPARATED from the
+        # conversation flow. The collecting agent acknowledges the decision
+        # (thank + proceed / proceed-without-recording) once control returns.
         self.complete(consent_given)
