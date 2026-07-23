@@ -94,6 +94,8 @@ class CallbackScheduleTask(AgentTask[bool]):
                 writer.record_callback(
                     customer_id=customer.customer_id if customer else None,
                     subscription_id=getattr(customer, "subscription_id", None) if customer else None,
+                    preferred_window=preferred_time,
+                    reason=getattr(user_data, "escalation_reason", None) or "no_advisor_available",
                 )
             except Exception as exc:
                 logger.debug("callback log skipped: %s", exc)

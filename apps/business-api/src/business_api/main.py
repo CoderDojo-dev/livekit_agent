@@ -13,10 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
+from business_api import advisors as advisor_repo
+from business_api import callbacks as callback_repo
 from business_api.jobs.integrity import run_integrity
 from business_api.jobs.retention import run_retention
 from business_api.repositories import SupervisionRepository
 from business_api.security import require_role
+from pydantic import BaseModel
 from persistence import get_session
 
 app = FastAPI(title="business-api")
@@ -130,6 +133,143 @@ def retention(
 ) -> dict:
     """Run the audited retention/purge job (dry_run=True by default) - spec section 8.3."""
     return run_retention(session, retention_days=retention_days, dry_run=dry_run).__dict__
+
+
+# ---------------- Advisor registry (admin dashboard + agent routing) ----------------
+class AdvisorPayload(BaseModel):
+    """Advisor create/update body. Skills are tags matched against the escalating persona."""
+
+    full_name: str | None = None
+    email: str | None = None
+    phone_e164: str | None = None
+    sip_uri: str | None = None
+    skills: list[str] | None = None
+    language: str | None = None
+    status: str | None = None
+    max_concurrent_calls: int | None = None
+    is_on_call: bool | None = None
+    is_active: bool | None = None
+
+
+@app.get("/api/v1/advisors")
+def list_advisors(session: DbSession, role: SuperviseurRole, include_inactive: bool = False) -> dict:
+    """List advisors (admin dashboard)."""
+    return {"advisors": advisor_repo.list_advisors(session, include_inactive)}
+
+
+@app.post("/api/v1/advisors", status_code=201)
+def create_advisor(payload: AdvisorPayload, session: DbSession, role: AdministrateurRole) -> dict:
+    """Register a new advisor."""
+    if not payload.full_name:
+        raise HTTPException(status_code=400, detail="full_name is required")
+    try:
+        result = advisor_repo.create_advisor(session, payload.model_dump(exclude_none=True))
+        session.commit()
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.patch("/api/v1/advisors/{advisor_id}")
+def update_advisor(advisor_id: str, payload: AdvisorPayload, session: DbSession,
+                   role: AdministrateurRole) -> dict:
+    """Update an advisor (availability, skills, contact details)."""
+    try:
+        updated = advisor_repo.update_advisor(session, advisor_id, payload.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if updated is None:
+        raise HTTPException(status_code=404, detail="advisor not found")
+    session.commit()
+    return updated
+
+
+@app.delete("/api/v1/advisors/{advisor_id}")
+def delete_advisor(advisor_id: str, session: DbSession, role: AdministrateurRole) -> dict:
+    """Remove an advisor from the registry."""
+    if not advisor_repo.delete_advisor(session, advisor_id):
+        raise HTTPException(status_code=404, detail="advisor not found")
+    session.commit()
+    return {"deleted": True, "advisor_id": advisor_id}
+
+
+@app.post("/api/v1/advisors/claim")
+def claim_advisor(session: DbSession, role: ConseillerRole, skill_tag: str = "general") -> dict:
+    """Atomically reserve an available advisor for ``skill_tag`` (used by the voice agent).
+
+    Returns {"advisor": null} when nobody is free - the caller then offers a callback. It never
+    invents a destination.
+    """
+    claimed = advisor_repo.claim_advisor(session, skill_tag)
+    session.commit()
+    return {"advisor": claimed}
+
+
+@app.post("/api/v1/advisors/{advisor_id}/release")
+def release_advisor(advisor_id: str, session: DbSession, role: ConseillerRole) -> dict:
+    """Release a claimed advisor (call ended, or the transfer failed)."""
+    if not advisor_repo.release_advisor(session, advisor_id):
+        raise HTTPException(status_code=404, detail="advisor not found")
+    session.commit()
+    return {"released": True, "advisor_id": advisor_id}
+
+
+@app.get("/api/v1/advisors/on-call")
+def on_call_advisors(session: DbSession, role: ConseillerRole) -> dict:
+    """Advisors who receive the dossier when a callback is scheduled."""
+    return {"advisors": advisor_repo.on_call_advisors(session)}
+
+
+# ---------------- Callback queue (the promise made when no advisor was free) ----------------
+class CallbackOutcome(BaseModel):
+    """Result of an attempted callback."""
+
+    note: str = ""
+    reached: bool = True      # False -> the caller did not answer; return it to the queue
+    advisor_id: str | None = None
+
+
+@app.get("/api/v1/callbacks")
+def list_callbacks(session: DbSession, role: ConseillerRole, status: str = "pending",
+                   overdue_only: bool = False, limit: int = 100) -> dict:
+    """The callback queue, soonest and highest priority first."""
+    return {"callbacks": callback_repo.list_callbacks(session, status, overdue_only, limit)}
+
+
+@app.get("/api/v1/callbacks/stats")
+def callback_stats(session: DbSession, role: SuperviseurRole) -> dict:
+    """Queue health: pending, overdue, completed."""
+    return callback_repo.queue_stats(session)
+
+
+@app.post("/api/v1/callbacks/claim")
+def claim_callback(session: DbSession, role: ConseillerRole, advisor_id: str | None = None) -> dict:
+    """Atomically take the next due callback. {"callback": null} when the queue is empty."""
+    claimed = callback_repo.claim_next(session, advisor_id)
+    session.commit()
+    return {"callback": claimed}
+
+
+@app.post("/api/v1/callbacks/{callback_id}/complete")
+def complete_callback(callback_id: str, outcome: CallbackOutcome, session: DbSession,
+                      role: ConseillerRole) -> dict:
+    """Close a callback with its outcome, or return it to the queue if the caller did not answer."""
+    updated = callback_repo.complete_callback(session, callback_id, outcome.note, outcome.reached)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="callback not found")
+    session.commit()
+    return updated
+
+
+@app.post("/api/v1/callbacks/{callback_id}/cancel")
+def cancel_callback(callback_id: str, outcome: CallbackOutcome, session: DbSession,
+                    role: SuperviseurRole) -> dict:
+    """Cancel a callback that is no longer needed."""
+    updated = callback_repo.cancel_callback(session, callback_id, outcome.note)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="callback not found")
+    session.commit()
+    return updated
 
 
 def run() -> None:

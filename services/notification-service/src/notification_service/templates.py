@@ -2,6 +2,14 @@
 from __future__ import annotations
 
 TEMPLATES: dict[str, dict[str, str]] = {
+    "advisor_callback": {
+        "fr": ("Escalade : {full_name} ({msisdn}) demande un rappel. "
+               "Motif : {reason}. Domaine : {skill_tag}. Tunisie Telecom."),
+        "ar": ("تصعيد: {full_name} ({msisdn}) يطلب معاودة الاتصال. "
+               "السبب: {reason}. المجال: {skill_tag}. اتصالات تونس."),
+        "en": ("Escalation: {full_name} ({msisdn}) requested a callback. "
+               "Reason: {reason}. Area: {skill_tag}. Tunisie Telecom."),
+    },
     "ticket_created": {
         "fr": "Votre demande a bien été enregistrée. Référence du ticket : {ticket_id}. Tunisie Telecom.",
         "ar": "تم تسجيل طلبك. رقم التذكرة: {ticket_id}. اتصالات تونس.",

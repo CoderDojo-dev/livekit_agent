@@ -212,6 +212,7 @@ services:
       KNOWLEDGE_MCP_URL: "http://ai-knowledge-rag:8201/mcp"
       TICKETING_MCP_URL: "http://ticketing-glpi:8202/mcp"
       TICKETING_HTTP_URL: "http://ticketing-glpi:8202"
+      BUSINESS_API_URL: "http://business-api:8108"
       NMS_SERVICE_URL: "http://nms-sim:8108"
     depends_on:
       postgres: { condition: service_healthy }

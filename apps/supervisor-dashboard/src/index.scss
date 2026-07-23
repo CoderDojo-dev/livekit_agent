@@ -223,3 +223,18 @@ $motion-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
   .transcript__turn,
   .live-pulse__dot { animation: none; }
 }
+
+/* Callback queue: stat tiles and inline row actions. */
+.callback-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.callback-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

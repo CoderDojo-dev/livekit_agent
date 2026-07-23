@@ -42,6 +42,30 @@ class NotificationClient:
             logger.warning("notification send failed (%s): %s", template, exc)
             return {"sent": False}
 
+    async def notify_advisor(
+        self, channel: str, to: str, template: str, language: str, params: dict
+    ) -> bool:
+        """Send a message to an ADVISOR (not a customer), addressed explicitly.
+
+        Advisors are not customers, so the notification-service cannot resolve their contact from
+        a customer_id: the handle is passed directly via ``to``, which the service honours as an
+        override. Returns whether it was actually sent - never assumed.
+        """
+        try:
+            resp = await self._client.post(
+                "/notify",
+                json={
+                    "customer_id": "", "to": to, "channel": channel,
+                    "template": template, "language": language, "params": params,
+                },
+                headers=inject_trace_context(),
+            )
+            resp.raise_for_status()
+            return bool(resp.json().get("sent"))
+        except httpx.HTTPError as exc:
+            logger.warning("advisor notification failed (%s -> %s): %s", template, channel, exc)
+            return False
+
     async def aclose(self) -> None:
         await self._client.aclose()
 

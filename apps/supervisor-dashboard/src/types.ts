@@ -139,3 +139,29 @@ export interface Customer360Data {
   open_invoices: CustomerInvoice[];
   tickets: CustomerTicket[];
 }
+
+export interface Callback {
+  id: string;
+  status: "pending" | "completed" | "cancelled";
+  scheduled_time: string | null;
+  /** The caller's own words, e.g. "demain matin" - kept verbatim. */
+  preferred_window: string | null;
+  reason: string | null;
+  priority_level: number;
+  attempts: number;
+  outcome_note: string | null;
+  completed_at: string | null;
+  overdue: boolean;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  assigned_advisor_id: string | null;
+  assigned_advisor_name: string | null;
+  session_id: string | null;
+}
+
+export interface CallbackStats {
+  pending: number;
+  overdue: number;
+  completed: number;
+}

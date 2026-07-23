@@ -1,5 +1,7 @@
 import type {
   Action,
+  Callback,
+  CallbackStats,
   AuditVerifyResponse,
   BusinessRule,
   Customer360Data,
@@ -23,6 +25,18 @@ async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "X-Role": ROLE, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}`);
+  }
+  return (await res.json()) as T;
+}
+
 export const api = {
   kpis: () => get<Kpis>("/api/v1/kpis"),
   escalations: (status = "open") =>
@@ -40,4 +54,13 @@ export const api = {
     get<Customer360Data>(`/api/v1/customers/${encodeURIComponent(customerId)}/360`),
   systemOverview: () => get<SystemOverview>("/api/v1/system/overview"),
   telemetryTimeline: () => get<TelemetryTimeline>("/api/v1/telemetry/timeline"),
+  callbacks: (status = "pending", overdueOnly = false) =>
+    get<{ callbacks: Callback[] }>(
+      `/api/v1/callbacks?status=${encodeURIComponent(status)}&overdue_only=${overdueOnly}`,
+    ),
+  callbackStats: () => get<CallbackStats>("/api/v1/callbacks/stats"),
+  completeCallback: (id: string, note: string, reached: boolean) =>
+    post<Callback>(`/api/v1/callbacks/${encodeURIComponent(id)}/complete`, { note, reached }),
+  cancelCallback: (id: string, note: string) =>
+    post<Callback>(`/api/v1/callbacks/${encodeURIComponent(id)}/cancel`, { note }),
 };

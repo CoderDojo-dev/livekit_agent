@@ -161,8 +161,15 @@ class ConversationWriter:
             "dossier": dossier,
         })
 
-    def record_callback(self, *, customer_id=None, subscription_id=None, scheduled_time=None, priority=1) -> None:
-        """Record a scheduled callback (scheduled_time defaults to +24h until a parser/queue lands)."""
+    def record_callback(self, *, customer_id=None, subscription_id=None, scheduled_time=None,
+                        priority=1, preferred_window=None, reason=None) -> None:
+        """Record a scheduled callback.
+
+        ``preferred_window`` keeps the caller's own words ("demain matin") verbatim, so the advisor
+        who picks the callback up sees what was actually asked for rather than only the fallback
+        timestamp. ``scheduled_time`` still defaults to +24h when nothing could be parsed, which is
+        a due-date for the queue, not a promise made to the caller.
+        """
         if self._session_db_id is None:
             return
         from persistence.util import to_uuid
@@ -173,6 +180,8 @@ class ConversationWriter:
             "subscription_id": to_uuid(subscription_id),
             "scheduled_time": scheduled_time or (datetime.now(UTC) + timedelta(hours=24)),
             "priority_level": priority,
+            "preferred_window": (preferred_window or "")[:120] or None,
+            "reason": (reason or "")[:60] or None,
         })
 
     def record_consent(self, *, granted: bool, language: str | None = None, customer_id=None) -> None:

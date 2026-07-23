@@ -143,6 +143,16 @@ class CallbackSchedule(UUIDPrimaryKey, Base):
     scheduled_time: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     priority_level: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'pending'"))
+    # Lifecycle: who took it, what the caller actually asked for, and how it ended. Without these
+    # a scheduled callback is a promise nobody can prove was kept.
+    assigned_advisor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("routing.advisors.id", ondelete="SET NULL")
+    )
+    preferred_window: Mapped[str | None] = mapped_column(String(120))
+    reason: Mapped[str | None] = mapped_column(String(60))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    outcome_note: Mapped[str | None] = mapped_column(String(500))
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

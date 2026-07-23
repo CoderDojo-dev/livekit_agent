@@ -20,6 +20,7 @@ import {
   Dashboard,
   ListChecked,
   Network_3,
+  PhoneFilled,
   Renew,
   Rule,
   Security,
@@ -30,6 +31,7 @@ import { RefreshProvider, useRefresh } from "./refresh";
 import { ActionLedgerPanel } from "./components/ActionLedgerPanel";
 import { AuditInspector } from "./components/AuditInspector";
 import { BusinessRuleRegistry } from "./components/BusinessRuleRegistry";
+import { CallbackQueue } from "./components/CallbackQueue";
 import { Customer360View } from "./components/Customer360View";
 import { EscalationQueue } from "./components/EscalationQueue";
 import { KpiPanel } from "./components/KpiPanel";
@@ -40,6 +42,7 @@ const NAV = [
   { id: "overview", label: "Telemetry Overview", icon: Dashboard },
   { id: "kpis", label: "Performance KPIs", icon: Analytics },
   { id: "escalations", label: "Escalation Queue", icon: WarningAlt },
+  { id: "callbacks", label: "Callback Queue", icon: PhoneFilled },
   { id: "session", label: "Session Inspector", icon: Chat },
   { id: "customer360", label: "Customer 360", icon: UserProfile },
   { id: "actions", label: "Action Ledger", icon: ListChecked },
@@ -136,6 +139,7 @@ function Shell() {
               {tab === "overview" && <TelemetryOverview onInspectSession={inspectSession} />}
               {tab === "kpis" && <KpiPanel />}
               {tab === "escalations" && <EscalationQueue onInspect={inspectSession} />}
+              {tab === "callbacks" && <CallbackQueue />}
               {tab === "session" && <SessionInspector initialId={sessionId} />}
               {tab === "customer360" && <Customer360View />}
               {tab === "actions" && <ActionLedgerPanel onInspectSession={inspectSession} />}

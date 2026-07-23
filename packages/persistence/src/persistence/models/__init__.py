@@ -12,6 +12,7 @@ from persistence.models import (
     policy,
     provisioning,
     reference,
+    routing,
     sim,
     ticketing,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "policy",
     "provisioning",
     "reference",
+    "routing",
     "sim",
     "ticketing",
 ]

@@ -1,16 +1,25 @@
 """SIP transfer / human escalation (cookbook section 15; Blueprint section 5.12 / ADR 5.4).
 
-Resolves the advisor destination dynamically (never a hardcoded trunk). If none is free, or if
-SIP transfer is unavailable (e.g. console/dev with no trunk), it falls back to scheduling a
-callback. [VERIFY] the SIP transfer call requires SIP REFER on the trunk; it is a cold transfer
-that ends the current session, so it runs only in the telephony path and is guarded defensively.
+Every branch of this flow produces honest speech - the caller is never left in silence, and is
+never told a transfer happened when it did not:
+
+  advisor claimed + transfer succeeds -> the call moves to the advisor (cold transfer)
+  advisor claimed + transfer fails    -> advisor released, caller told plainly, callback offered
+  no advisor available                -> caller told plainly, callback offered
+  callback scheduled                  -> the on-call advisor is notified WITH the dossier, so the
+                                         promise of a call back is backed by a real human
+
+TransferSIPParticipant performs a SIP REFER on the caller's own SIP participant, so it needs the
+identity of the SIP participant in the room (assigned at dispatch, not the phone number) - found
+by filtering remote participants on ParticipantKind.SIP. Passing anything else fails with an
+identity mismatch. It is a cold transfer: the caller's LiveKit session ends once it completes.
 """
 from __future__ import annotations
 
 import logging
 from contextlib import suppress
 
-from clients.routing_client import get_routing_client
+from clients.routing_client import AdvisorDestination, get_routing_client
 from livekit.agents import RunContext, function_tool, get_job_context
 from tasks.callback_schedule_task import CallbackScheduleTask
 from tools.voice_flow import say_and_wait
@@ -23,10 +32,113 @@ _TRANSFER_MESSAGES = {
     "en": "I am connecting you with an advisor. Please hold.",
 }
 
+_NO_ADVISOR_MESSAGES = {
+    "fr": "Aucun conseiller n'est disponible pour le moment.",
+    "ar": "لا يوجد مستشار متاح في الوقت الحالي.",
+    "en": "No advisor is available right now.",
+}
 
-async def _offer_callback(context: RunContext) -> dict:
+
+def _language(user_data) -> str:
+    return getattr(user_data, "language", "fr") or "fr"
+
+
+def _find_sip_caller_identity() -> str | None:
+    """Identity of the caller's SIP participant in the room, or None outside telephony.
+
+    Required by TransferSIPParticipant: the REFER is issued on the caller's SIP leg. In a console
+    or web session there is no SIP participant, so a transfer is genuinely impossible and the
+    caller must be offered a callback instead.
+    """
+    try:
+        from livekit import rtc
+
+        job = get_job_context()
+        for participant in job.room.remote_participants.values():
+            if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                return participant.identity
+    except Exception as exc:
+        logger.warning("could not inspect room participants: %s", exc)
+    return None
+
+
+async def _notify_on_call_advisors(context: RunContext, dossier: dict) -> int:
+    """Send the escalation dossier to every on-call advisor. Returns how many were reached."""
+    from clients.notification_client import get_notification_client
+
+    advisors = await get_routing_client().on_call_advisors()
+    if not advisors:
+        logger.error("callback scheduled but NO on-call advisor is configured to receive it")
+        return 0
+
+    notified = 0
+    client = get_notification_client()
+    for advisor in advisors:
+        for channel, handle in (("whatsapp", advisor.get("phone_e164")),
+                                ("email", advisor.get("email"))):
+            if not handle:
+                continue
+            sent = await client.notify_advisor(
+                channel=channel, to=handle, template="advisor_callback",
+                language=advisor.get("language") or "fr", params=dossier,
+            )
+            if sent:
+                notified += 1
+                break
+    return notified
+
+
+async def _offer_callback(context: RunContext, reason: str) -> dict:
+    """Schedule a callback and make sure a real human is told about it."""
+    user_data = context.session.userdata
     scheduled = await CallbackScheduleTask()
-    return {"outcome": "callback_scheduled" if scheduled else "callback_declined"}
+    if not scheduled:
+        return {"outcome": "callback_declined", "reason": reason}
+
+    customer = getattr(user_data, "customer_context", None)
+    dossier = {
+        "customer_id": getattr(customer, "customer_id", "") or "",
+        "msisdn": getattr(customer, "msisdn", "") or "",
+        "full_name": getattr(customer, "full_name", "") or "",
+        "reason": reason,
+        "skill_tag": getattr(user_data, "current_persona_skill_tag", "general"),
+        "language": _language(user_data),
+    }
+    notified = await _notify_on_call_advisors(context, dossier)
+    return {
+        "outcome": "callback_scheduled",
+        "reason": reason,
+        "advisors_notified": notified,
+        "message": (
+            "A callback is scheduled and an advisor has been notified."
+            if notified
+            else "A callback is recorded but no advisor could be notified; do not promise a "
+                 "specific time, and say the request has been registered."
+        ),
+    }
+
+
+async def _do_transfer(destination: AdvisorDestination) -> tuple[bool, str]:
+    """Issue the SIP REFER. Returns (succeeded, detail)."""
+    caller_identity = _find_sip_caller_identity()
+    if caller_identity is None:
+        return False, "no SIP participant in the room (not a telephony call)"
+
+    try:
+        from livekit import api
+
+        job = get_job_context()
+        await job.api.sip.transfer_sip_participant(
+            api.TransferSIPParticipantRequest(
+                room_name=job.room.name,
+                participant_identity=caller_identity,
+                transfer_to=destination.transfer_uri,
+                play_dialtone=True,
+            )
+        )
+        return True, destination.transfer_uri
+    except Exception as exc:
+        return False, str(exc)
 
 
 @function_tool()
@@ -39,39 +151,45 @@ async def transfer_to_human(context: RunContext) -> dict:
 
     user_data.human_transfer_in_progress = True
     skill_tag = getattr(user_data, "current_persona_skill_tag", "general")
+    language = _language(user_data)
 
     try:
         with suppress(Exception):
             context.disallow_interruptions()
 
-        # One component owns this announcement, and it can only happen once.
+        destination = await get_routing_client().resolve_available_advisor(skill_tag)
+
+        if destination is None:
+            await say_and_wait(
+                context.session,
+                _NO_ADVISOR_MESSAGES.get(language, _NO_ADVISOR_MESSAGES["fr"]),
+                allow_interruptions=False,
+            )
+            return await _offer_callback(context, reason="no_advisor_available")
+
         if not getattr(user_data, "human_transfer_announced", False):
             user_data.human_transfer_announced = True
-            language = getattr(user_data, "language", "fr")
             await say_and_wait(
                 context.session,
                 _TRANSFER_MESSAGES.get(language, _TRANSFER_MESSAGES["fr"]),
                 allow_interruptions=False,
             )
 
-        destination = await get_routing_client().resolve_available_advisor(skill_tag)
-        if destination is None:
-            return await _offer_callback(context)
+        succeeded, detail = await _do_transfer(destination)
+        if succeeded:
+            return {
+                "outcome": "transferred",
+                "advisor": destination.full_name,
+                "destination": detail,
+            }
 
-        try:
-            from livekit import api
-
-            job = get_job_context()
-            await job.api.sip.transfer_sip_participant(
-                api.TransferSIPParticipantRequest(
-                    room_name=job.room.name,
-                    participant_identity=destination.participant_identity,
-                    transfer_to=destination.sip_uri,
-                )
-            )
-            return {"outcome": "transferred", "destination": destination.sip_uri}
-        except Exception as exc:
-            logger.warning("SIP transfer unavailable (%s); offering a callback", exc)
-            return await _offer_callback(context)
+        logger.warning("SIP transfer failed (%s); releasing advisor and offering a callback", detail)
+        await get_routing_client().release_advisor(destination.advisor_id)
+        await say_and_wait(
+            context.session,
+            _NO_ADVISOR_MESSAGES.get(language, _NO_ADVISOR_MESSAGES["fr"]),
+            allow_interruptions=False,
+        )
+        return await _offer_callback(context, reason="transfer_failed")
     finally:
         user_data.human_transfer_in_progress = False
