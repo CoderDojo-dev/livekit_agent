@@ -31,6 +31,7 @@ class SessionUserData:
     consecutive_negative_turns: int = 0
     should_offer_escalation: bool = False
     clarification_attempts: int = 0
+    _clarification_pending: bool = False  # patch #5: streak de deferrals consécutifs
     current_persona_skill_tag: str = "general"
     callback_requested: bool = False
     callback_when: str | None = None

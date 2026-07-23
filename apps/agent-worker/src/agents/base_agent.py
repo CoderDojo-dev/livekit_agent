@@ -97,6 +97,15 @@ class BaseTelecomAgent(Agent):
         if user_data is None:
             return
 
+        # Patch #5 — le compteur de clarifications doit mesurer les deferrals
+        # CONSÉCUTIFS sur le sujet courant, pas le total de l'appel. Si le client
+        # répond à une clarification qu'on vient de poser, on conserve le streak ;
+        # sinon il est passé à un tour normalement traité -> on réinitialise.
+        if getattr(user_data, "_clarification_pending", False):
+            user_data._clarification_pending = False
+        else:
+            user_data.clarification_attempts = 0
+
         transcript = _extract_text(new_message).strip()
         if transcript:
             logger.info("caller_transcript=%s", transcript)

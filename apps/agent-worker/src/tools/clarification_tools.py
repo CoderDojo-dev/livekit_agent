@@ -21,6 +21,7 @@ async def request_clarification(
     """Ask one clarification. Escalate deterministically after the second attempt."""
     user_data = context.session.userdata
     user_data.clarification_attempts += 1
+    user_data._clarification_pending = True  # patch #5: le prochain tour répond à CETTE clarification
 
     if user_data.clarification_attempts >= 2:
         return await escalate_to_manager(context)

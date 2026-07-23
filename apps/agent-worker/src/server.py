@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 
 from agents.triage_agent import TriageAgent
+from clients import aclose_all_clients
 from clients.context_client import get_context_client
 from config import get_settings
 from conversation.writer import ConversationWriter
@@ -117,6 +118,7 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.add_shutdown_callback(_finish_conversation)
     ctx.add_shutdown_callback(frontend_events.aclose)
     ctx.add_shutdown_callback(attach_metrics(session))
+    ctx.add_shutdown_callback(aclose_all_clients)  # release httpx pools (patch #10)
 
     @session.on("conversation_item_added")
     def _on_conversation_item_added(event: ConversationItemAddedEvent):

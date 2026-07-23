@@ -84,7 +84,9 @@ cd apps/supervisor-dashboard && npm run typecheck
 cd apps/client-widget && npm install
 ```
 
+```bash
 cd apps/client-widget && npm run dev
+```
 
 
 ## Individual Services (via honcho)
