@@ -1,121 +1,121 @@
-"""FastAPI application for the SIM / provisioning simulator."""
+"""Provisioning / SIM lifecycle simulator service (dev-only, but a REAL ledger).
+
+Implements the contract LiveProvisioningAdapter calls, so the platform runs in CONNECTOR_MODE=live
+against this service with no code change - and in production the same adapter points at the
+carrier's provisioning system by swapping PROVISIONING_ADAPTER_URL.
+
+Endpoints are declared `def`, not `async def`: the ledger uses the synchronous Postgres session,
+and running blocking DB work inside an async endpoint would occupy the event loop and stall every
+other request. FastAPI runs sync endpoints in a threadpool, so concurrent calls stay concurrent.
+
+  POST /sim/unblock      {customer_id, idempotency_key}                -> {"reference": ...}
+  POST /sim/reactivate   {customer_id, idempotency_key}                -> {"reference": ...}
+  POST /sim/replace      {customer_id, sim_type, idempotency_key}      -> {"reference": ...}
+  POST /sim/change-plan  {customer_id, plan_code, idempotency_key}     -> {"reference": ...}
+  POST /sim/roaming      {customer_id, enable, idempotency_key}        -> {"reference": ...}
+  GET  /subscription/{customer_id}                                     -> line state
+"""
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+import logging
+import os
+
+from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
 
-from provisioning_sim.provisioning import ProvisioningLedger
+from persistence.engine import session_scope
+from provisioning_sim import provisioning
+from service_auth import require_internal_key
 
-app = FastAPI(
-    title="Provisioning SIM Simulator",
-    version="0.1.0",
-    description="In-memory SIM lifecycle / provisioning simulation (CDC section 5.4).",
-)
-
-ledger = ProvisioningLedger()
-
-# ---- request / response models ---
+logger = logging.getLogger(__name__)
+app = FastAPI(title="provisioning-sim", dependencies=[Depends(require_internal_key)])
 
 
-class SimActivateRequest(BaseModel):
-    msisdn: str
-    iccid: str
+class SimOp(BaseModel):
+    customer_id: str
+    idempotency_key: str
 
 
-class SimReplaceRequest(BaseModel):
-    msisdn: str
-    new_iccid: str
+class ReplaceOp(BaseModel):
+    customer_id: str
+    sim_type: str = "physical"
+    idempotency_key: str
 
 
-class ChangePlanRequest(BaseModel):
-    msisdn: str
-    new_plan_code: str
-
-
-class SimOnlyRequest(BaseModel):
-    msisdn: str
-
-
-class SimResponse(BaseModel):
-    reference: str
-    msisdn: str
-    iccid: str
+class PlanOp(BaseModel):
+    customer_id: str
     plan_code: str
-    active: bool
-    roaming_enabled: bool
+    idempotency_key: str
 
 
-# ---- endpoints ---
+class RoamingOp(BaseModel):
+    customer_id: str
+    enable: bool = True
+    idempotency_key: str
 
 
-@app.post("/sim/activate")
-async def activate_sim(body: SimActivateRequest) -> dict:
-    ref = ledger.activate_sim(body.msisdn, body.iccid)
-    return _sim_response(body.msisdn, ref)
+def _run(operation, *args) -> dict:
+    """Execute a ledger operation, mapping refusals to honest HTTP errors.
 
-
-@app.post("/sim/deactivate")
-async def deactivate_sim(body: SimOnlyRequest) -> dict:
+    A ProvisioningError is a business refusal (wrong line state, unknown plan, unknown customer),
+    so it becomes a 404/409 the agent can explain - never a synthesized success.
+    """
     try:
-        ref = ledger.deactivate_sim(body.msisdn)
-    except ValueError as exc:
-        raise HTTPException(404, str(exc))
-    return _sim_response(body.msisdn, ref)
+        with session_scope() as session:
+            return {"reference": operation(session, *args)}
+    except provisioning.ProvisioningError as exc:
+        message = str(exc)
+        code = (status.HTTP_404_NOT_FOUND
+                if "no subscription" in message or "not a valid" in message
+                else status.HTTP_409_CONFLICT)
+        raise HTTPException(code, message)
+
+
+@app.get("/health")
+async def health() -> dict:
+    """Liveness probe. Backed by the real subscription/SIM tables; no in-memory fallback."""
+    return {"status": "ok", "service": "provisioning-sim", "backing": "postgres-provisioning"}
+
+
+@app.get("/subscription/{customer_id}")
+def subscription_state(customer_id: str) -> dict:
+    try:
+        with session_scope() as session:
+            return provisioning.get_subscription_state(session, customer_id)
+    except provisioning.ProvisioningError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+
+
+@app.post("/sim/unblock")
+def sim_unblock(op: SimOp) -> dict:
+    return _run(provisioning.unblock_sim, op.customer_id, op.idempotency_key)
+
+
+@app.post("/sim/reactivate")
+def sim_reactivate(op: SimOp) -> dict:
+    return _run(provisioning.reactivate_sim, op.customer_id, op.idempotency_key)
 
 
 @app.post("/sim/replace")
-async def replace_sim(body: SimReplaceRequest) -> dict:
-    try:
-        ref = ledger.replace_sim(body.msisdn, body.new_iccid)
-    except ValueError as exc:
-        raise HTTPException(404, str(exc))
-    return _sim_response(body.msisdn, ref)
+def sim_replace(op: ReplaceOp) -> dict:
+    return _run(provisioning.replace_sim, op.customer_id, op.sim_type, op.idempotency_key)
 
 
 @app.post("/sim/change-plan")
-async def change_plan(body: ChangePlanRequest) -> dict:
-    try:
-        ref = ledger.change_plan(body.msisdn, body.new_plan_code)
-    except ValueError as exc:
-        raise HTTPException(404, str(exc))
-    return _sim_response(body.msisdn, ref)
+def plan_change(op: PlanOp) -> dict:
+    return _run(provisioning.change_plan, op.customer_id, op.plan_code, op.idempotency_key)
 
 
-@app.post("/sim/activate-roaming")
-async def activate_roaming(body: SimOnlyRequest) -> dict:
-    try:
-        ref = ledger.activate_roaming(body.msisdn)
-    except ValueError as exc:
-        raise HTTPException(404, str(exc))
-    return _sim_response(body.msisdn, ref)
+@app.post("/sim/roaming")
+def roaming(op: RoamingOp) -> dict:
+    return _run(provisioning.set_roaming, op.customer_id, op.enable, op.idempotency_key)
 
 
-@app.get("/sim/{msisdn}")
-async def get_sim(msisdn: str) -> dict:
-    sim = ledger.get_sim(msisdn)
-    if sim is None:
-        raise HTTPException(404, f"msisdn {msisdn} not found")
-    return SimResponse(
-        reference="",
-        msisdn=sim.msisdn,
-        iccid=sim.iccid,
-        plan_code=sim.plan_code,
-        active=sim.active,
-        roaming_enabled=sim.roaming_enabled,
-    ).model_dump()
+def run() -> None:
+    import uvicorn
+
+    uvicorn.run(app, host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", "8109")))
 
 
-# ---- helpers ---
-
-
-def _sim_response(msisdn: str, ref: str) -> dict:
-    sim = ledger.get_sim(msisdn)
-    assert sim is not None
-    return SimResponse(
-        reference=ref,
-        msisdn=sim.msisdn,
-        iccid=sim.iccid,
-        plan_code=sim.plan_code,
-        active=sim.active,
-        roaming_enabled=sim.roaming_enabled,
-    ).model_dump()
+if __name__ == "__main__":
+    run()

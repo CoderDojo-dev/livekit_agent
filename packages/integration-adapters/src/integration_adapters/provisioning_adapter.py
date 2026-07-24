@@ -1,61 +1,67 @@
-"""Provisioning adapter: mock (default) / live (CONNECTOR_MODE=live + PROVISIONING_ADAPTER_URL).
+"""Provisioning / SIM lifecycle adapter implementing ProvisioningPort.
 
-Implements the ProvisioningPort protocol.
+Live mode talks to the provisioning system over REST (in dev, the provisioning-sim service, which
+mutates the real subscription/SIM tables). Every request carries the idempotency key, so a retry
+provisions once - the previous implementation accepted the key and dropped it, which meant a
+retried SIM order could be executed twice.
+
+Mock is reachable only when CONNECTOR_MODE=mock, for offline unit tests.
 """
 from __future__ import annotations
 
-import uuid
-
+from domain_core.ports.provisioning import ProvisioningPort
 from domain_core.value_objects import IdempotencyKey
 from integration_adapters._http import post_json
 
 
-class MockProvisioningAdapter:
-    """Deterministic mock that returns prefixed references without side effects."""
+class MockProvisioningAdapter(ProvisioningPort):
+    async def unblock_sim(self, customer_id: str, key: IdempotencyKey) -> str:
+        return f"MOCK-SIM-UNB-{key.value[:10].upper()}"
 
-    @staticmethod
-    async def activate_sim(msisdn: str, sim_iccid: str, key: IdempotencyKey) -> str:
-        return f"MOCK-SIM-ACT-{msisdn}-{key.value[:10].upper()}"
+    async def reactivate_sim(self, customer_id: str, key: IdempotencyKey) -> str:
+        return f"MOCK-SIM-REA-{key.value[:10].upper()}"
 
-    @staticmethod
-    async def deactivate_sim(msisdn: str, key: IdempotencyKey) -> str:
-        return f"MOCK-SIM-DEA-{msisdn}-{key.value[:10].upper()}"
+    async def replace_sim(self, customer_id: str, sim_type: str, key: IdempotencyKey) -> str:
+        return f"MOCK-SIM-REP-{key.value[:10].upper()}"
 
-    @staticmethod
-    async def replace_sim(msisdn: str, new_sim_iccid: str, key: IdempotencyKey) -> str:
-        return f"MOCK-SIM-REP-{msisdn}-{key.value[:10].upper()}"
+    async def change_plan(self, customer_id: str, plan_code: str, key: IdempotencyKey) -> str:
+        return f"MOCK-PLN-{key.value[:10].upper()}"
 
-    @staticmethod
-    async def change_plan(msisdn: str, new_plan_code: str, key: IdempotencyKey) -> str:
-        return f"MOCK-PLN-{msisdn}-{key.value[:10].upper()}"
-
-    @staticmethod
-    async def activate_roaming(msisdn: str, key: IdempotencyKey) -> str:
-        return f"MOCK-ROM-{msisdn}-{key.value[:10].upper()}"
+    async def set_roaming(self, customer_id: str, enable: bool, key: IdempotencyKey) -> str:
+        return f"MOCK-ROM-{key.value[:10].upper()}"
 
 
-class LiveProvisioningAdapter:
-    """Live HTTP adapter that talks to the carrier's provisioning system (or our simulator)."""
-
+class LiveProvisioningAdapter(ProvisioningPort):
     def __init__(self, base_url: str) -> None:
-        self._base_url = base_url.rstrip("/")
+        self._base_url = base_url
 
-    async def activate_sim(self, msisdn: str, sim_iccid: str, key: IdempotencyKey) -> str:
-        resp = await post_json(self._base_url, "/sim/activate", {"msisdn": msisdn, "iccid": sim_iccid})
-        return resp["reference"]
+    async def unblock_sim(self, customer_id: str, key: IdempotencyKey) -> str:
+        resp = await post_json(self._base_url, "/sim/unblock", {
+            "customer_id": customer_id, "idempotency_key": key.value,
+        })
+        return resp.get("reference", "")
 
-    async def deactivate_sim(self, msisdn: str, key: IdempotencyKey) -> str:
-        resp = await post_json(self._base_url, "/sim/deactivate", {"msisdn": msisdn})
-        return resp["reference"]
+    async def reactivate_sim(self, customer_id: str, key: IdempotencyKey) -> str:
+        resp = await post_json(self._base_url, "/sim/reactivate", {
+            "customer_id": customer_id, "idempotency_key": key.value,
+        })
+        return resp.get("reference", "")
 
-    async def replace_sim(self, msisdn: str, new_sim_iccid: str, key: IdempotencyKey) -> str:
-        resp = await post_json(self._base_url, "/sim/replace", {"msisdn": msisdn, "new_iccid": new_sim_iccid})
-        return resp["reference"]
+    async def replace_sim(self, customer_id: str, sim_type: str, key: IdempotencyKey) -> str:
+        resp = await post_json(self._base_url, "/sim/replace", {
+            "customer_id": customer_id, "sim_type": sim_type or "physical",
+            "idempotency_key": key.value,
+        })
+        return resp.get("reference", "")
 
-    async def change_plan(self, msisdn: str, new_plan_code: str, key: IdempotencyKey) -> str:
-        resp = await post_json(self._base_url, "/sim/change-plan", {"msisdn": msisdn, "new_plan_code": new_plan_code})
-        return resp["reference"]
+    async def change_plan(self, customer_id: str, plan_code: str, key: IdempotencyKey) -> str:
+        resp = await post_json(self._base_url, "/sim/change-plan", {
+            "customer_id": customer_id, "plan_code": plan_code, "idempotency_key": key.value,
+        })
+        return resp.get("reference", "")
 
-    async def activate_roaming(self, msisdn: str, key: IdempotencyKey) -> str:
-        resp = await post_json(self._base_url, "/sim/activate-roaming", {"msisdn": msisdn})
-        return resp["reference"]
+    async def set_roaming(self, customer_id: str, enable: bool, key: IdempotencyKey) -> str:
+        resp = await post_json(self._base_url, "/sim/roaming", {
+            "customer_id": customer_id, "enable": bool(enable), "idempotency_key": key.value,
+        })
+        return resp.get("reference", "")

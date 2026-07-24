@@ -165,6 +165,7 @@ async def transfer_to_human(context: RunContext) -> dict:
                 _NO_ADVISOR_MESSAGES.get(language, _NO_ADVISOR_MESSAGES["fr"]),
                 allow_interruptions=False,
             )
+            user_data.escalation_reason = "no_advisor_available"
             return await _offer_callback(context, reason="no_advisor_available")
 
         if not getattr(user_data, "human_transfer_announced", False):
@@ -190,6 +191,7 @@ async def transfer_to_human(context: RunContext) -> dict:
             _NO_ADVISOR_MESSAGES.get(language, _NO_ADVISOR_MESSAGES["fr"]),
             allow_interruptions=False,
         )
+        user_data.escalation_reason = "transfer_failed"
         return await _offer_callback(context, reason="transfer_failed")
     finally:
         user_data.human_transfer_in_progress = False

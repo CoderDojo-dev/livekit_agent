@@ -30,7 +30,7 @@ async def health() -> dict:
 
 
 @app.get("/network-status")
-async def network_status(area: str = "") -> dict:
+def network_status(area: str = "") -> dict:
     """Known active incidents for an area. Empty list means genuinely operational."""
     with session_scope() as session:
         return incidents.get_network_status(session, area)

@@ -1,4 +1,17 @@
-"""Provisioning / SIM lifecycle port — activates, blocks, replaces SIMs and changes plans."""
+"""Port to the provisioning / SIM lifecycle system (Blueprint section 8).
+
+Keyed on ``customer_id``, not on an MSISDN: every identifier that flows through the platform
+(policy verdicts, execution ledger, audit) is the customer UUID, and the provisioning system is
+the component that knows which line that customer holds. Passing an MSISDN here would force every
+caller to resolve one first, and getting that wrong silently provisions the wrong line.
+
+Unblock and reactivate are separate operations even though both end with an active line: they
+start from different states (BLOCKED vs SUSPENDED) and a system of record must reject the wrong
+transition rather than force it.
+
+Every write carries an IdempotencyKey, because a retried call on a voice line must never
+provision twice.
+"""
 from __future__ import annotations
 
 from typing import Protocol
@@ -7,24 +20,24 @@ from domain_core.value_objects import IdempotencyKey
 
 
 class ProvisioningPort(Protocol):
-    """One interface for all provisioning operations (Blueprint ADR 3.4, CDC 5.4)."""
+    """SIM lifecycle and subscription changes."""
 
-    async def activate_sim(self, msisdn: str, sim_iccid: str, key: IdempotencyKey) -> str:
-        """Activate a fresh SIM for an MSISDN. Returns a provisioning reference."""
+    async def unblock_sim(self, customer_id: str, key: IdempotencyKey) -> str:
+        """Unblock a BLOCKED line. Returns a reference."""
         ...
 
-    async def deactivate_sim(self, msisdn: str, key: IdempotencyKey) -> str:
-        """Deactivate (lock) the SIM associated with an MSISDN. Returns a reference."""
+    async def reactivate_sim(self, customer_id: str, key: IdempotencyKey) -> str:
+        """Reactivate a SUSPENDED line. Returns a reference."""
         ...
 
-    async def replace_sim(self, msisdn: str, new_sim_iccid: str, key: IdempotencyKey) -> str:
-        """Replace the SIM on an MSISDN. Returns a reference."""
+    async def replace_sim(self, customer_id: str, sim_type: str, key: IdempotencyKey) -> str:
+        """Order a replacement SIM (physical/esim). Returns a reference."""
         ...
 
-    async def change_plan(self, msisdn: str, new_plan_code: str, key: IdempotencyKey) -> str:
-        """Change the active plan for an MSISDN. Returns a reference."""
+    async def change_plan(self, customer_id: str, plan_code: str, key: IdempotencyKey) -> str:
+        """Move the subscription to ``plan_code``. Returns a reference."""
         ...
 
-    async def activate_roaming(self, msisdn: str, key: IdempotencyKey) -> str:
-        """Enable roaming on an MSISDN. Returns a reference."""
+    async def set_roaming(self, customer_id: str, enable: bool, key: IdempotencyKey) -> str:
+        """Enable or disable roaming. Returns a reference."""
         ...

@@ -2,7 +2,7 @@
 from domain_core.ports.audit import AuditPort
 from domain_core.ports.balance import BalancePort
 from domain_core.ports.billing import BillingPort
-from domain_core.ports.crm import CrmPort
+from domain_core.ports.crm import ContactInfo, Customer360, CrmPort, CrmUnavailable, SubscriptionLine
 from domain_core.ports.decision import DecisionPort
 from domain_core.ports.execution import ExecutionPort
 from domain_core.ports.knowledge import KnowledgePort
@@ -16,7 +16,11 @@ __all__ = [
     "AuditPort",
     "BalancePort",
     "BillingPort",
+    "ContactInfo",
+    "Customer360",
     "CrmPort",
+    "CrmUnavailable",
+    "SubscriptionLine",
     "DecisionPort",
     "ExecutionPort",
     "KnowledgePort",

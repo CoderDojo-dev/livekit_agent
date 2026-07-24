@@ -71,21 +71,21 @@ def _dispatch_live(action_type: str, payload: dict, customer_id: str | None, ide
             return asyncio.run(get_balance_adapter().top_up(customer_id or "", amount, key))
         if action_type == "CHANGE_PLAN":
             return asyncio.run(get_provisioning_adapter().change_plan(
-                customer_id or "", str(payload.get("plan_code", "PREPAID_20GB")), key,
+                customer_id or "", str(payload.get("plan_code", "")), key,
             ))
         if action_type == "ACTIVATE_ROAMING":
-            return asyncio.run(get_provisioning_adapter().activate_roaming(customer_id or "", key))
-        if action_type == "UNBLOCK_SIM":
-            return asyncio.run(get_provisioning_adapter().activate_sim(
-                customer_id or "", str(payload.get("iccid", "UNKNOWN")), key,
+            return asyncio.run(get_provisioning_adapter().set_roaming(
+                customer_id or "", bool(payload.get("enable", True)), key,
             ))
+        # UNBLOCK and REACTIVATE are distinct transitions (BLOCKED vs SUSPENDED); the provisioning
+        # system validates the starting state rather than forcing the line active.
+        if action_type == "UNBLOCK_SIM":
+            return asyncio.run(get_provisioning_adapter().unblock_sim(customer_id or "", key))
+        if action_type == "REACTIVATE_SIM":
+            return asyncio.run(get_provisioning_adapter().reactivate_sim(customer_id or "", key))
         if action_type == "REPLACE_SIM":
             return asyncio.run(get_provisioning_adapter().replace_sim(
-                customer_id or "", str(payload.get("new_iccid", "UNKNOWN")), key,
-            ))
-        if action_type == "REACTIVATE_SIM":
-            return asyncio.run(get_provisioning_adapter().activate_sim(
-                customer_id or "", str(payload.get("iccid", "UNKNOWN")), key,
+                customer_id or "", str(payload.get("sim_type", "physical")), key,
             ))
     except Exception as exc:
         logger.error("live dispatch failed for %s: %s", action_type, exc)

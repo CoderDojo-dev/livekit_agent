@@ -28,6 +28,7 @@ async def aclose_all_clients() -> None:
     from clients.nms_client import get_nms_client
     from clients.notification_client import get_notification_client
     from clients.policy_client import get_policy_client
+    from clients.routing_client import get_routing_client
 
     getters = (
         get_context_client,
@@ -36,6 +37,7 @@ async def aclose_all_clients() -> None:
         get_nms_client,
         get_notification_client,
         get_policy_client,
+        get_routing_client,
     )
 
     async def _close(getter: Any) -> None:

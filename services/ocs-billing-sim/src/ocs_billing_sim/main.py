@@ -68,7 +68,7 @@ async def health() -> dict:
 
 # ---------------- OCS ----------------
 @app.get("/balance/{customer_id}")
-async def balance(customer_id: str) -> dict:
+def balance(customer_id: str) -> dict:
     try:
         with session_scope() as session:
             return ledger.get_balance(session, customer_id)
@@ -77,7 +77,7 @@ async def balance(customer_id: str) -> dict:
 
 
 @app.post("/topup")
-async def topup(op: MoneyOp) -> dict:
+def topup(op: MoneyOp) -> dict:
     try:
         with session_scope() as session:
             reference = ledger.top_up(session, op.customer_id, _amount(op.amount),
@@ -88,7 +88,7 @@ async def topup(op: MoneyOp) -> dict:
 
 
 @app.post("/addon")
-async def addon(op: AddonOp) -> dict:
+def addon(op: AddonOp) -> dict:
     try:
         with session_scope() as session:
             ledger.apply_data_addon(session, op.customer_id, op.addon_id, op.idempotency_key)
@@ -99,7 +99,7 @@ async def addon(op: AddonOp) -> dict:
 
 # ---------------- Billing ----------------
 @app.get("/invoices/{customer_id}")
-async def invoices(customer_id: str) -> dict:
+def invoices(customer_id: str) -> dict:
     try:
         with session_scope() as session:
             return {"invoices": ledger.get_invoices(session, customer_id)}
@@ -108,7 +108,7 @@ async def invoices(customer_id: str) -> dict:
 
 
 @app.post("/charge")
-async def charge(op: MoneyOp) -> dict:
+def charge(op: MoneyOp) -> dict:
     try:
         with session_scope() as session:
             reference = ledger.charge(session, op.customer_id, _amount(op.amount),
@@ -119,7 +119,7 @@ async def charge(op: MoneyOp) -> dict:
 
 
 @app.post("/deferral")
-async def deferral(op: DeferralOp) -> dict:
+def deferral(op: DeferralOp) -> dict:
     try:
         with session_scope() as session:
             ledger.grant_deferral(session, op.customer_id, op.days, op.idempotency_key)
