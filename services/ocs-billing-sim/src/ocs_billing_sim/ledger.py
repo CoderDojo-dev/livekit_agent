@@ -73,9 +73,52 @@ def _to_mb(account: BalanceAccount) -> int:
     return 0
 
 
+def _resolve_denomination(session: Session, amount: Decimal) -> tuple[Decimal, Decimal, str]:
+    """Validate a top-up against reference.recharge_catalog and return (amount, bonus, code).
+
+    Prepaid recharges are sold in denominations, and each denomination carries a promotional bonus
+    the customer is entitled to. Accepting an arbitrary amount breaks both halves of that: an
+    unlisted amount is not a product the operator sells, and a bonus cannot be derived for it - so
+    the customer silently loses the credit they were promised.
+
+    An unmatched amount is refused with the denominations that do exist, rather than credited.
+    """
+    from persistence.models.reference import RechargeCatalog
+
+    rows = list(session.scalars(select(RechargeCatalog)))
+    if not rows:
+        raise LedgerError("the recharge catalog is empty; cannot validate a top-up")
+
+    for row in rows:
+        if Decimal(str(row.amount)) == amount:
+            return amount, Decimal(str(row.bonus_amount or 0)), row.code
+
+    def _plain(value) -> str:
+        """Render 5.00 as '5' and 10.00 as '10' - the agent reads this string to the caller.
+
+        Trailing zeros are only stripped after a decimal point; stripping them unconditionally
+        would turn '10' into '1'.
+        """
+        text = f"{Decimal(str(value)):f}"
+        return text.rstrip("0").rstrip(".") if "." in text else text
+
+    available = ", ".join(
+        _plain(r.amount)
+        + (f" (+{_plain(r.bonus_amount)} bonus)" if Decimal(str(r.bonus_amount or 0)) > 0 else "")
+        for r in sorted(rows, key=lambda r: Decimal(str(r.amount)))
+    )
+    raise LedgerError(
+        f"{amount:g} is not a recharge denomination; available amounts: {available}"
+    )
+
+
 def top_up(session: Session, customer_id: str, amount: Decimal, currency: str,
            idempotency_key: str) -> str:
-    """Recharge the customer's main balance idempotently. Returns the recharge reference."""
+    """Recharge the customer's main balance idempotently. Returns the recharge reference.
+
+    The amount must be a denomination from reference.recharge_catalog, and its promotional bonus is
+    credited with it - the catalog is the operator's product list, not decoration.
+    """
     cid = _cust(customer_id)
 
     # Idempotent replay: same key -> original reference, no second credit.
@@ -90,17 +133,23 @@ def top_up(session: Session, customer_id: str, amount: Decimal, currency: str,
     if main is None:
         raise LedgerError(f"customer {customer_id} has no main balance account")
 
+    # Refuse an amount the operator does not sell, and pick up its bonus.
+    amount, bonus, code = _resolve_denomination(session, amount)
+    credited = amount + bonus
+
     subscription_id = main.subscription_id
     reference = f"TOP-{uuid.uuid4().hex[:10].upper()}"
     session.add(Recharge(
         subscription_id=subscription_id, customer_id=cid,
+        # The recharge row records what the customer PAID; the bonus shows up in the balance.
         amount=amount, channel="agent", idempotency_key=idempotency_key,
         transaction_reference=reference, status="completed",
     ))
-    # Real credit: the balance actually increases.
-    main.balance_value = Decimal(str(main.balance_value)) + amount  # type: ignore[assignment]
+    # Real credit: the balance increases by the denomination plus its bonus.
+    main.balance_value = Decimal(str(main.balance_value)) + credited  # type: ignore[assignment]
     main.updated_at = datetime.now(UTC)
-    logger.info("top_up %s +%s %s -> %s", customer_id, amount, currency, reference)
+    logger.info("top_up %s [%s] +%s (+%s bonus) %s -> %s",
+                customer_id, code, amount, bonus, currency, reference)
     return reference
 
 

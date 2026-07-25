@@ -52,7 +52,16 @@ async def change_plan(context: RunContext, new_plan_code: str) -> dict:
 
 @function_tool()
 async def top_up(context: RunContext, amount: float) -> dict:
-    """Top up the caller's prepaid balance by ``amount`` TND. Identity-gated + verdict-checked."""
+    """Top up the caller's prepaid balance by ``amount`` TND. Identity-gated + verdict-checked.
+
+    Recharges are sold in fixed denominations: 5, 10, 20 and 50 TND (10, 20 and 50 carry a bonus).
+    Any other amount is refused by the charging system, so confirm one of these with the caller
+    before calling this - do not invent an amount, and do not promise a bonus you were not told
+    about. If the refusal lists the available amounts, offer those.
+
+    Args:
+        amount: One of the catalog denominations, in TND.
+    """
     if not await ensure_identity_verified(context):
         return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
     return await execute_guarded_action(context, "TOP_UP", {"amount": amount})
