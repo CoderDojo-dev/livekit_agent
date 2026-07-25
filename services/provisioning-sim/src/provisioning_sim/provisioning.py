@@ -135,8 +135,10 @@ def _resolve_plan(session: Session, plan_code: str) -> str:
     not). Matching accepts either the product_code ("FLEXI") or the display name ("Postpaid
     Flexi"), case-insensitively, because the caller says the name while the system stores a code.
 
-    The value written to crm.subscriptions.plan_code is whatever the existing rows already use for
-    that product, so this never introduces a second vocabulary into the same column.
+    The canonical value written to crm.subscriptions.plan_code is the catalog product_code: the
+    column is a code, and codes stay stable if a plan is rebranded. The display name is resolved
+    from the same catalog at read time (context-service), so one vocabulary lives in the column and
+    the caller still hears the friendly name.
     """
     from persistence.models.reference import Product
 
@@ -151,9 +153,8 @@ def _resolve_plan(session: Session, plan_code: str) -> str:
     needle = wanted.casefold()
     for product in products:
         if needle in ((product.product_code or "").casefold(), (product.name or "").casefold()):
-            # Subscriptions in this deployment store the product NAME in plan_code; follow whatever
-            # the catalog row calls it so both stay in one vocabulary.
-            return product.name or product.product_code
+            # Canonical code goes into the column; the display name is a catalog read at snapshot time.
+            return product.product_code or product.name
 
     available = ", ".join(sorted(f"{p.name} ({p.product_code})" for p in products))
     raise ProvisioningError(f"unknown plan {plan_code!r}; available plans: {available}")
@@ -169,10 +170,18 @@ def change_plan(session: Session, customer_id: str, plan_code: str, key: str) ->
     subscription = _subscription(session, customer_id)
     if subscription.status == TERMINATED:
         raise ProvisioningError("cannot change the plan of a terminated line")
-    if subscription.plan_code == wanted:
+    # Compare canonical codes so a legacy name-valued row ("Postpaid Flexi") is still recognized as
+    # already on FLEXI. If the stored value is not in the catalog, fall through and let the change
+    # normalize it to a code.
+    try:
+        current = _resolve_plan(session, subscription.plan_code) if subscription.plan_code else None
+    except ProvisioningError:
+        current = subscription.plan_code
+    if current == wanted:
         raise ProvisioningError(f"the line is already on {wanted}")
 
-    previous = subscription.plan_code
+    # Record the code we resolved, not the raw stored value, so history speaks one vocabulary.
+    previous = current or subscription.plan_code
     session.add(PlanChangeHistory(
         subscription_id=subscription.id, from_plan=previous, to_plan=wanted,
         changed_by="agent", effective_date=date.today(),

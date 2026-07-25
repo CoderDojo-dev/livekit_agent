@@ -22,8 +22,18 @@ const HEADERS = [
   { key: "domain", header: "Domain" },
   { key: "version", header: "Version" },
   { key: "active", header: "Status" },
+  { key: "thresholds", header: "Thresholds (enforced)" },
   { key: "description", header: "Description" },
 ];
+
+function formatThresholds(rule: { definition?: Record<string, unknown>; enforced?: boolean }): string {
+  const def = rule.definition;
+  if (rule.enforced && def) {
+    const pairs = Object.entries(def).map(([k, v]) => `${k}: ${v}`);
+    return pairs.length ? pairs.join(" · ") : "—";
+  }
+  return "—";
+}
 export function BusinessRuleRegistry() {
   const [search, setSearch] = useState("");
   const { data, error, loading } = usePoll(api.businessRules);
@@ -43,6 +53,7 @@ export function BusinessRuleRegistry() {
         domain: r.domain,
         version: `v${r.version}`,
         active: r.active ? "active" : "inactive",
+        thresholds: formatThresholds(r),
         description: r.description,
       }));
   }, [data, search]);
@@ -61,7 +72,7 @@ export function BusinessRuleRegistry() {
           title="Policy rules"
           subtitle="Versioned deterministic rules (SENSITIVE_ACTIONS, MANDATORY_ESCALATION, OUTBOUND_GUARDRAILS) evaluated before every action"
         />
-        <DataTableSkeleton columnCount={5} rowCount={8} showHeader={false} showToolbar />
+        <DataTableSkeleton columnCount={6} rowCount={8} showHeader={false} showToolbar />
       </>
     );
   }
@@ -108,6 +119,10 @@ export function BusinessRuleRegistry() {
                           <StatusTag status={String(cell.value)} />
                         ) : cell.info.header === "version" ? (
                           <span className="mono">{cell.value}</span>
+                        ) : cell.info.header === "thresholds" ? (
+                          <span className="mono" title="Live values read from the policy engine (POLICY_* env)">
+                            {cell.value}
+                          </span>
                         ) : (
                           cell.value
                         )}

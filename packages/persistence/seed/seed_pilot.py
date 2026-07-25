@@ -39,7 +39,7 @@ def seed() -> None:
         )
         amine_sub = Subscription(
             customer=amine, msisdn="+21620155320", plan_type="POSTPAID",
-            plan_code="Postpaid Flexi", status="ACTIVE", roaming_enabled=False,
+            plan_code="FLEXI", status="ACTIVE", roaming_enabled=False,
             activation_date=_activation(1420),
         )
         amine_acct = Account(
@@ -64,7 +64,7 @@ def seed() -> None:
         )
         yousra_sub = Subscription(
             customer=yousra, msisdn="+21629744108", plan_type="PREPAID",
-            plan_code="Prepaid Mobile", status="ACTIVE", roaming_enabled=False,
+            plan_code="TRANKIL", status="ACTIVE", roaming_enabled=False,
             activation_date=_activation(305),
         )
         yousra_main = BalanceAccount(
@@ -86,7 +86,7 @@ def seed() -> None:
         )
         karim_sub = Subscription(
             customer=karim, msisdn="+21652310977", plan_type="POSTPAID",
-            plan_code="Fibre Fixe", status="ACTIVE", roaming_enabled=False,
+            plan_code="FIBER", status="ACTIVE", roaming_enabled=False,
             activation_date=_activation(88),
         )
         karim_acct = Account(

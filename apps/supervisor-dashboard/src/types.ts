@@ -61,6 +61,9 @@ export interface BusinessRule {
   active: boolean;
   description: string;
   definition?: Record<string, unknown>;
+  enforced?: boolean;
+  governed_by?: string[];
+  source?: string;
 }
 
 export interface AuditVerifyResponse {

@@ -10,12 +10,16 @@ from persistence.models.reference import BusinessRule, ErrorCatalog, Product, Re
 
 # The deterministic engine still executes these rules in code; this table is the versioned,
 # auditable registry the business-api exposes (governance), mirroring the engine's rule_ids.
+# The numeric thresholds are NOT stored here as literals - they would drift from what the engine
+# enforces. The engine reads them from POLICY_* env; the business-api overlays the live values onto
+# these rows (see business_api.policy_view). Each governed rule records which env var governs it.
 RULES = [
     ("RULE_BILLING_CAP", "billing", "Agent may not authorize a payment above the per-call cap.",
-     {"max_payment_tnd": 200}),
+     {"governed_by": ["POLICY_PAYMENT_CAP_TND"]}),
     ("RULE_DEFERRAL_ELIGIBILITY", "billing",
      "Deferral requires verified identity, minimum account age, and within the yearly cap.",
-     {"min_account_age_days": 180, "max_deferrals_per_year": 2}),
+     {"governed_by": ["POLICY_DEFERRAL_MIN_AGE_DAYS", "POLICY_DEFERRAL_MAX_PER_YEAR",
+                      "POLICY_DEFERRAL_UNPAID_THRESHOLD_TND"]}),
     ("RULE_IDENTITY_REQUIRED", "identity", "Sensitive actions require step-up identity verification.", {}),
     ("RULE_FRAUD_BLOCK", "fraud", "Fraud-suspected accounts cannot perform sensitive actions; escalate.", {}),
     ("RULE_VIP_ESCALATION", "escalation", "VIP callers escalate to a manager for sensitive actions.", {}),

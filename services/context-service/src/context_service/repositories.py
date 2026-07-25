@@ -5,7 +5,7 @@ verify) is unchanged; identity is now resolved msisdn -> (customer_id, subscript
 """
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from context_service import mapping
@@ -13,6 +13,7 @@ from context_service.schemas import Balance, Customer360, Invoice
 from persistence.models.billing import Invoice as InvoiceRow
 from persistence.models.crm import Customer, Subscription
 from persistence.models.ocs import BalanceAccount
+from persistence.models.reference import Product
 
 
 class CrmRepository:
@@ -35,6 +36,27 @@ class CrmRepository:
     def _customer(self, customer_id: str) -> Customer | None:
         return self._session.get(Customer, customer_id)
 
+    def _plan_display(self, plan_code: str | None, plan_type: str | None) -> str | None:
+        """Human-readable plan name for the caller, resolved from the reference.products catalog.
+
+        subscriptions.plan_code stores the catalog product_code ("FLEXI"); the caller must hear the
+        display name ("Postpaid Flexi"). The catalog is the single source for that name, so a
+        rebrand there reaches the agent without touching customer rows. Matching on product_code OR
+        name keeps this correct whether the column holds a code (normalized) or a legacy name (not
+        yet repaired); an unknown value falls back to the raw code, then to plan_type.
+        """
+        if plan_code:
+            needle = plan_code.strip().casefold()
+            product = self._session.scalar(
+                select(Product).where(
+                    or_(func.lower(Product.product_code) == needle, func.lower(Product.name) == needle)
+                )
+            )
+            if product is not None:
+                return product.name or product.product_code
+            return plan_code
+        return plan_type
+
     # --- Customer-360 ---
     def build_customer360(self, msisdn: str) -> Customer360 | None:
         """Build the snapshot for the caller owning ``msisdn`` (None if unknown)."""
@@ -52,7 +74,7 @@ class CrmRepository:
             subscription_id=str(subscription.id),
             full_name=f"{customer.first_name} {customer.last_name}",
             msisdn=subscription.msisdn,
-            subscription_type=subscription.plan_code or subscription.plan_type,
+            subscription_type=self._plan_display(subscription.plan_code, subscription.plan_type),
             preferred_language=customer.preferred_language,
             is_vip=customer.vip_flag,
             fraud_suspected=customer.fraud_suspected,

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from audit_trail import PgAuditLedger
 from business_api import advisors as advisor_repo
 from business_api import callbacks as callback_repo
+from business_api import policy_view
 from business_api.jobs.integrity import run_integrity
 from business_api.jobs.retention import run_retention
 from business_api.repositories import SupervisionRepository
@@ -110,8 +111,13 @@ def audit_verify(
 
 @app.get("/api/v1/reference/business-rules")
 def business_rules(session: DbSession, role: AdministrateurRole) -> dict:
-    """List the versioned Policy rule registry."""
-    return {"rules": SupervisionRepository(session).business_rules()}
+    """List the versioned Policy rule registry with the LIVE enforced thresholds.
+
+    The DB row supplies governance metadata; the numeric thresholds are overlaid from the same
+    POLICY_* env the policy engine enforces, so the registry can never drift from what is applied.
+    """
+    rows = SupervisionRepository(session).business_rules()
+    return {"rules": policy_view.overlay(rows)}
 
 
 @app.get("/api/v1/jobs/integrity")
