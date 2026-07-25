@@ -1,36 +1,32 @@
-# Telecom AI Voice Agent Platform
+# Version 54 — Prepaid Recharge Denominations & Promotional Bonus Enforcement
 
-Self-hosted, open-source **LiveKit** platform that autonomously handles frequent telecom
-customer requests over real-time **voice and text** in **French (primary), Arabic, English**,
-applies **deterministic business rules** before any sensitive action, executes real actions
-(payment, SIM unblock, ticket creation), and escalates to a human with a full dossier when
-needed. AI inference (STT/LLM/TTS) is cloud; everything touching PII, audit and business
-systems is self-hosted.
+This branch ensures prepaid recharges match the operator's actual product catalog: only fixed
+denominations (5, 10, 20, 50 TND) are accepted, and the promotional bonus from the catalog
+row is credited alongside the denomination.
 
-## Layout (Blueprint section 11)
-- `apps/` — independently deployable apps (agent-worker, business-api, token-service, dashboards, widget)
-- `services/` — domain microservices (context, knowledge, decision, policy, execution, notification)
-- `mcp-servers/` — internal MCP server (knowledge + GLPI, low-risk reads)
-- `packages/` — shared libraries (domain-core, integration-adapters, audit-trail, pii-shield, notification-client, observability-kit)
-- `infra/` — docker-compose, helm, livekit config, ci-cd
-- `docs/` — architecture blueprint, ADRs, decision records
+## What's new in v54
 
-## Architecture rules (non-negotiable)
-1. Clean/Hexagonal + DDD + SOLID. Business rules never import LiveKit/vendor SDKs — they sit behind ports in `packages/domain-core`.
-2. `apps/agent-worker/src/server.py` is a **composition root only** (wiring; zero business logic).
-3. The real-time layer holds no business logic — tools are thin facades calling domain services via typed clients.
-4. Deterministic Policy returns `AUTHORIZED / REFUSED / ESCALATE` + rule-id + justification before every action, never bypassable, written to the hash-chained audit ledger.
-5. No sensitive-action path skips Decision -> Policy -> Execution. Sensitive actions are idempotent.
-6. Direct LiveKit provider plugins + `FallbackAdapter` (never LiveKit Inference). FR/AR/EN only.
+### OCS billing-sim ledger
+- **`_resolve_denomination()`** validates the top-up amount against `reference.recharge_catalog`:
+  - Matches amount to a catalog row, returns `(amount, bonus, code)`
+  - **Refuses unlisted amounts** with available denominations listed in the error message
+  - Amounts rendered cleanly (5.00 → "5", 10.00 → "10") with bonus shown when present
+- **`top_up()`** credits `amount + bonus` to the balance (was: arbitrary amount, no bonus)
+- Empty catalog raises `LedgerError` rather than crediting silently
 
-## Quick start (infra only; agent feature wiring lands in later phases)
-```bash
-cp .env.example .env
-make up        # bring up livekit-server, redis, postgres, qdrant, minio, otel-collector
-make down
-```
+### Agent-worker `top_up` tool
+- Docstring instructs the agent to:
+  - Confirm a valid denomination (5, 10, 20, 50 TND) with the caller
+  - Note that 10, 20, and 50 carry a promotional bonus
+  - Refuse invented amounts and offer the catalog list on refusal
 
-## Roadmap status
-- Phase 0 — Verification & Decision Gate: DONE (`docs/architecture/phase-0-verification-gate/`)
-- Phase 2 — Modular Scaffolding: THIS TREE
-- Phase 1/3+ — pipeline, context, knowledge, policy, execution, escalation, frontend, observability: next
+### Fixes applied
+| Before | After |
+|--------|-------|
+| Any amount accepted; caller lost bonus | Only catalog denominations; bonus credited |
+| Unlisted amount silently credited | Refused with available amounts listed |
+| No bonus derived | Bonus picked from `reference.recharge_catalog` row |
+| Empty catalog not handled | Raises `LedgerError` |
+
+**Containers:** None
+**SDK:** No bump
