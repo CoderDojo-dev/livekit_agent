@@ -6,6 +6,7 @@ import logging
 from contextlib import suppress
 
 from livekit.agents import AgentTask, function_tool
+from tools.voice_flow import persona_tts
 
 logger = logging.getLogger(__name__)
 
@@ -15,13 +16,14 @@ CONFIRM_DEADLINE_S = 25.0  # no clear yes/no within this -> do NOT pay
 class PaymentConfirmTask(AgentTask[bool]):
     """Confirms the exact amount, then returns the boolean. Never hangs; fails closed."""
 
-    def __init__(self, amount: float, currency: str = "TND", chat_ctx=None) -> None:
+    def __init__(self, amount: float, currency: str = "TND", chat_ctx=None, tts=None) -> None:
         super().__init__(
             instructions=(
                 f"Confirm with the caller that they want to pay {amount:.3f} {currency}. "
                 "Ask for an explicit yes or no, in their language. Do not proceed without a clear answer."
             ),
             chat_ctx=chat_ctx,
+            tts=persona_tts(tts),
         )
         self._amount = amount
         self._currency = currency

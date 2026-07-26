@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from livekit.agents.types import NotGivenOr
+
 from livekit.agents import RunContext
 from livekit.agents.llm.tool_context import StopResponse
 
@@ -91,3 +93,24 @@ async def handoff_with_message(
         timeout_s=timeout_s,
     )
     return next_agent
+
+
+def persona_tts(tts: NotGivenOr[object] | None) -> object | None:
+    """Normalise a NotGivenOr TTS value so callers can pass it to AgentTask safely."""
+    if tts is None or isinstance(tts, NotGivenOr):
+        return None
+    return tts
+
+
+def active_persona_tts(context: RunContext | None) -> object | None:
+    """Borrow the currently active persona's TTS identity for a bounded sub-flow.
+
+    When the BillingAgent runs IdentityVerificationTask, for example, the CIN
+    prompt should be spoken in the *billing* voice, not the session default
+    TTS.  Returns None when no agent is active (safe fallback to session voice).
+    """
+    if context is None:
+        return None
+    current = getattr(context.session, "current_agent", None)
+    tts = getattr(current, "tts", None)
+    return persona_tts(tts)

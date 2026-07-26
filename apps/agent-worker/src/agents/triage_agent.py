@@ -8,6 +8,7 @@ from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from providers.tts import build_persona_tts
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
+from tools.voice_flow import active_persona_tts
 from tools.escalation_tools import escalate_to_manager
 from tools.routing_tools import (
     route_to_account_services,
@@ -15,7 +16,7 @@ from tools.routing_tools import (
     route_to_technical,
 )
 
-from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
+from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent, merge_instructions
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,9 @@ class TriageAgent(BaseTelecomAgent):
         lang_name = _LANG_NAMES[selected_language]
 
         super().__init__(
-            instructions=_INSTRUCTIONS.format(language=lang_name) + "\n\n" + KNOWLEDGE_ABSTENTION_RULE,
+            instructions=merge_instructions(
+                _INSTRUCTIONS.format(language=lang_name) + "\n\n" + KNOWLEDGE_ABSTENTION_RULE,
+            ),
             tools=[
                 request_clarification,
                 route_to_account_services,
@@ -70,6 +73,7 @@ class TriageAgent(BaseTelecomAgent):
             granted = await ConsentTask(
                 language=self._language,
                 chat_ctx=self.chat_ctx.copy(exclude_instructions=True),
+                tts=active_persona_tts(None),
             )
             user_data.recording_consent = bool(granted)
             consent_just_collected = True

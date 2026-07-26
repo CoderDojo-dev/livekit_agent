@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   useAgent,
   useSession,
@@ -10,7 +10,15 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { TRANSITION_BASE } from "@/lib/motion";
 
-import { AgentAudioVisualizerAura } from "@/components/agents-ui/agent-audio-visualizer-aura";
+import { cn } from "@/lib/utils";
+import { AgentAudioVisualizerAuraVariants } from "@/components/agents-ui/agent-audio-visualizer-aura";
+
+const AgentAudioVisualizerAura = lazy(() =>
+  import("@/components/agents-ui/agent-audio-visualizer-aura").then(
+    (m) => ({ default: m.AgentAudioVisualizerAura }),
+  ),
+);
+
 import { AgentControlBar } from "@/components/agents-ui/agent-control-bar";
 import { AgentSessionProvider } from "@/components/agents-ui/agent-session-provider";
 import { StartAudioButton } from "@/components/agents-ui/start-audio-button";
@@ -229,16 +237,27 @@ function VoiceExperience() {
         <section className="voice-stage flex flex-1 flex-col items-center justify-center text-center">
           <div className="voice-orb-frame relative grid w-full place-items-center">
             <div className="absolute size-56 rounded-full bg-primary opacity-10 blur-3xl sm:size-72" />
-            <AgentAudioVisualizerAura
-              size="xl"
-              state={agent.state}
-              color="#27d3f2"
-              colorShift={0.12}
-              themeMode="dark"
-              audioTrack={agent.microphoneTrack}
-              className="voice-aura relative z-10"
-              aria-label={`Assistant state: ${copy.label}`}
-            />
+            <Suspense
+              fallback={
+                <div
+                  className={cn(
+                    AgentAudioVisualizerAuraVariants({ size: "xl" }),
+                    "voice-aura relative z-10",
+                  )}
+                />
+              }
+            >
+              <AgentAudioVisualizerAura
+                size="xl"
+                state={agent.state}
+                color="#27d3f2"
+                colorShift={0.12}
+                themeMode="dark"
+                audioTrack={agent.microphoneTrack}
+                className="voice-aura relative z-10"
+                aria-label={`Assistant state: ${copy.label}`}
+              />
+            </Suspense>
           </div>
 
           <div

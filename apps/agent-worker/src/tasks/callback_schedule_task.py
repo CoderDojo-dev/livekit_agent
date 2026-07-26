@@ -7,6 +7,7 @@ from contextlib import suppress
 
 from clients.notification_client import get_notification_client
 from livekit.agents import AgentTask, function_tool
+from tools.voice_flow import persona_tts
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ CALLBACK_DEADLINE_S = 25.0  # no clear answer within this -> no callback schedul
 class CallbackScheduleTask(AgentTask[bool]):
     """Offers a callback, records the preferred time, texts a confirmation. Never hangs."""
 
-    def __init__(self, chat_ctx=None) -> None:
+    def __init__(self, chat_ctx=None, tts=None) -> None:
         super().__init__(
             instructions=(
                 "No advisor is available right now. Apologize briefly, offer the caller a "
@@ -24,6 +25,7 @@ class CallbackScheduleTask(AgentTask[bool]):
                 "decline. Always speak in the caller's language."
             ),
             chat_ctx=chat_ctx,
+            tts=persona_tts(tts),
         )
         self._done = False
         self._watchdog: asyncio.Task | None = None

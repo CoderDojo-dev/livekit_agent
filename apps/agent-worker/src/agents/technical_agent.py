@@ -23,7 +23,7 @@ from tools.ticket_tools import (
     update_support_ticket,
 )
 
-from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
+from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent, merge_instructions
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 
@@ -61,7 +61,7 @@ class TechnicalAgent(BaseTelecomAgent):
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
-            instructions=(
+            instructions=merge_instructions(
                 f"You handle technical issues: SIM problems, network and connectivity. "
                 f"You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
                 "To unblock a SIM, use unblock_sim. To request a SIM replacement, use replace_sim. "

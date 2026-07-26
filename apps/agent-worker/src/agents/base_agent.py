@@ -10,6 +10,7 @@ import logging
 
 from conversation.writer import sentiment_label
 from livekit.agents import Agent
+from livekit.agents.types import NotGivenOr
 from sentiment.sentiment_scorer import get_sentiment_scorer
 from tools.session_flow_tools import end_conversation, switch_spoken_language
 
@@ -41,14 +42,52 @@ LANGUAGE_SWITCH_POLICY = (
     "switch_spoken_language with that language code, then continue in it."
 )
 
+NO_DEAD_END_MANDATE = (
+    "\n\nRouting mandate (you MUST follow this):\n"
+    "- If the caller asks about their BALANCE, INVOICE, PAYMENT, or DEFERRAL, "
+    "call route_to_billing immediately.\n"
+    "- If the caller asks about their PLAN, RECHARGE, ROAMING, or PHONE LINE, "
+    "call route_to_account_services immediately.\n"
+    "- If the caller has a SIM, NETWORK, or CONNECTIVITY problem, "
+    "call route_to_technical immediately.\n"
+    "- If the request is ambiguous, call request_clarification.\n"
+    "- NEVER tell the caller to call a different department or number yourself. "
+    "Use the route_* tool. If none of the above fits, call escalate_to_manager.\n"
+    "- The route_* tools transfer the caller to the right specialist; after calling "
+    "one you will NOT speak again, so do not also say goodbye yourself."
+)
+
+
+def merge_instructions(persona_core: str, tts_provided: bool = True) -> str:
+    """Assemble the full instruction block for a persona agent.
+
+    Every agent gets: its own core instructions, the shared NO_DEAD_END_MANDATE,
+    CLOSING_PROTOCOL, and LANGUAGE_SWITCH_POLICY — in that order, deduplicated.
+    tts_provided controls whether the 'speak only in X' language lock is added
+    below NO_DEAD_END_MANDATE.
+    """
+    parts = [persona_core, NO_DEAD_END_MANDATE, CLOSING_PROTOCOL, LANGUAGE_SWITCH_POLICY]
+    # A TTS-locked persona gets a second reminder not to switch
+    if tts_provided:
+        parts.append("\n\nIMPORTANT: You MUST speak ONLY in the language already specified above. Never switch.")
+    return "\n".join(parts)
+
 # Phase 8.1: knowledge-answer abstention rule. Appended ONLY to the personas that call
 # knowledge_search (triage, billing, technical). Forces the agent to ground in retrieved
 # passages and say "Je n'ai pas cette information." when they don't directly answer, so a
 # residual retrieval leak (see Phase 8 report §6) cannot become a hallucinated answer.
 KNOWLEDGE_ABSTENTION_RULE = (
-    "When you use the knowledge_search tool: answer ONLY from the returned passages and cite the "
-    "source. If the passages do not directly answer the question, reply in French: "
-    "\"Je n'ai pas cette information.\" Do not guess or fill gaps from general knowledge."
+    "When you use the knowledge_search tool, GROUND your answer strictly in the returned passages: "
+    "never guess or add facts they do not contain, and if they do not directly answer the question, "
+    "reply in French: \"Je n'ai pas cette information.\"\n"
+    "But you are TALKING on a phone call, not reading a document. Never read a passage aloud "
+    "verbatim, and never use numbered or bulleted lists (no \"1- 2- 3-\"), headings, or long "
+    "paragraphs. Instead, answer the way a real advisor speaks out loud: ONE or two short, natural "
+    "sentences carrying only the essential point the caller needs, in their language. Do not say "
+    "source codes, file names, or URLs aloud. Then, in the same breath, briefly offer more if they "
+    "want it (e.g. whether they'd like the exact steps or more detail). ONLY if the caller asks for "
+    "more do you give further detail or the concrete steps - and even then keep it spoken: short, "
+    "one point at a time, conversational, never a read-out list or a wall of text."
 )
 
 
@@ -81,7 +120,7 @@ class BaseTelecomAgent(Agent):
             merged_tools.append(switch_spoken_language)
         language = kwargs.pop("language", None)
         super().__init__(
-            instructions=instructions + CLOSING_PROTOCOL + LANGUAGE_SWITCH_POLICY,
+            instructions=instructions,
             tools=merged_tools,
             **kwargs,
         )

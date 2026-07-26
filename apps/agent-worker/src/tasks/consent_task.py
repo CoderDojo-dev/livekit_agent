@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from livekit.agents import AgentTask, RunContext, function_tool
+from tools.voice_flow import persona_tts
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 class ConsentTask(AgentTask[bool]):
     """Collect explicit recording consent before proceeding with the call."""
 
-    def __init__(self, language: str = "fr", chat_ctx=None) -> None:
+    def __init__(self, language: str = "fr", chat_ctx=None, tts=None) -> None:
         lang = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[lang]
 
@@ -30,6 +31,7 @@ class ConsentTask(AgentTask[bool]):
                 f"Do NOT mention function names or tools in your speech."
             ),
             chat_ctx=chat_ctx,
+            tts=persona_tts(tts),
         )
         self._language = lang
         self._lang_name = lang_name

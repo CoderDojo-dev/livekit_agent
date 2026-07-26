@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
 from livekit.agents import AgentTask, function_tool
+from tools.voice_flow import persona_tts
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ class IdentityVerificationTask(AgentTask[bool]):
         customer_id: str,
         verify_fn: Callable[[str, str], Awaitable[bool]],
         chat_ctx=None,
+        tts=None,
     ) -> None:
         super().__init__(
             instructions=(
@@ -90,6 +92,7 @@ class IdentityVerificationTask(AgentTask[bool]):
                 "Call verify_with_known_element with only four ASCII digits."
             ),
             chat_ctx=chat_ctx,
+            tts=persona_tts(tts),
         )
         self._customer_id = customer_id
         self._verify_fn = verify_fn

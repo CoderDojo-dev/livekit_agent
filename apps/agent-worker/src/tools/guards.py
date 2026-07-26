@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from clients.context_client import get_context_client
 from livekit.agents import RunContext
 from tasks.identity_verification_task import IdentityVerificationTask
+from tools.voice_flow import active_persona_tts
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ async def ensure_identity_verified(context: RunContext) -> bool:
             IdentityVerificationTask(
                 customer_id=customer.customer_id,
                 verify_fn=verify,
+                tts=active_persona_tts(context),
             ),
             timeout=GATE_TIMEOUT_S,
         )

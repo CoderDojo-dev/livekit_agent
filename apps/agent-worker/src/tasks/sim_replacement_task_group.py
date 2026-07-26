@@ -11,6 +11,7 @@ import logging
 from contextlib import suppress
 
 from livekit.agents import AgentTask, function_tool
+from tools.voice_flow import persona_tts
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ SIM_REPLACEMENT_DEADLINE_S = 45.0
 class SimReplacementTaskGroup(AgentTask[dict | None]):
     """Collect replacement reason + delivery/contact details. Never hangs."""
 
-    def __init__(self, chat_ctx=None) -> None:
+    def __init__(self, chat_ctx=None, tts=None) -> None:
         super().__init__(
             instructions=(
                 "Collect the information needed for a SIM replacement. Ask for: "
@@ -30,6 +31,7 @@ class SimReplacementTaskGroup(AgentTask[dict | None]):
                 "Once you have the details, call record_sim_replacement_details."
             ),
             chat_ctx=chat_ctx,
+            tts=persona_tts(tts),
         )
         self._done = False
         self._watchdog: asyncio.Task | None = None

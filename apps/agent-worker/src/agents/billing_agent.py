@@ -18,7 +18,7 @@ from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 
-from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
+from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent, merge_instructions
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 
@@ -73,7 +73,7 @@ class BillingAgent(BaseTelecomAgent):
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
-            instructions=(
+            instructions=merge_instructions(
                 f"You handle billing: invoice/balance consultation, payment, and payment-deferral. "
                 f"You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
                 "For the caller's own invoice or balance, use get_invoice_summary / "

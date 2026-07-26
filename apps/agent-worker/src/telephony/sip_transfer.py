@@ -22,7 +22,7 @@ from contextlib import suppress
 from clients.routing_client import AdvisorDestination, get_routing_client
 from livekit.agents import RunContext, function_tool, get_job_context
 from tasks.callback_schedule_task import CallbackScheduleTask
-from tools.voice_flow import say_and_wait
+from tools.voice_flow import active_persona_tts, say_and_wait
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ async def _notify_on_call_advisors(context: RunContext, dossier: dict) -> int:
 async def _offer_callback(context: RunContext, reason: str) -> dict:
     """Schedule a callback and make sure a real human is told about it."""
     user_data = context.session.userdata
-    scheduled = await CallbackScheduleTask()
+    scheduled = await CallbackScheduleTask(tts=active_persona_tts(context))
     if not scheduled:
         return {"outcome": "callback_declined", "reason": reason}
 
