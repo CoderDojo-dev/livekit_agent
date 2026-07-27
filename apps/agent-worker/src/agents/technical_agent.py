@@ -14,6 +14,7 @@ from tools import outcomes
 from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
+from tools.voice_flow import active_persona_tts
 from tools.technical_tools import check_network_status, diagnose_data_issue
 from tools.ticket_tools import (
     check_customer_tickets,
@@ -42,7 +43,7 @@ async def replace_sim(context: RunContext) -> dict:
     if not await ensure_identity_verified(context):
         return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
 
-    details = await SimReplacementTaskGroup()
+    details = await SimReplacementTaskGroup(tts=active_persona_tts(context))
     if not details:
         return outcomes.escalate(
             "SIM_REPLACEMENT_INCOMPLETE",

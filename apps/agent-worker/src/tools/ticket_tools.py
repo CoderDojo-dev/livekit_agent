@@ -12,6 +12,7 @@ a persona see a caller's open tickets and tell them where their problem stands, 
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 
@@ -33,6 +34,36 @@ def _customer(context: RunContext):
 
 class TicketingUnavailable(RuntimeError):
     """The ticketing service could not be reached or errored. Surfaced as an honest failure."""
+
+
+def _extract_result(result: object, tool: str) -> dict | list | None:
+    """Pull a tool's return value out of an MCP CallToolResult.
+
+    Prefers ``structuredContent`` (MCP 2025-06+), but falls back to the JSON text carried in
+    ``content`` - which is what our FastMCP server actually populates (``structuredContent`` comes
+    back ``None``). Reading only ``structuredContent`` was the ticketing bug: every call returned
+    ``None`` and the wrappers reported "unavailable" even though GLPI had created the ticket.
+
+    FastMCP wraps list/scalar returns under ``{"result": ...}``; we unwrap that consistently in both
+    paths, so a dict return (e.g. ``{"ticket_id": ...}``) passes through untouched while a list
+    return (``lookup_tickets``) comes back as a list whether or not it was wrapped.
+    """
+    structured = getattr(result, "structuredContent", None)
+    if structured is not None:
+        return structured.get("result", structured) if isinstance(structured, dict) else structured
+
+    for block in getattr(result, "content", None) or []:
+        text = getattr(block, "text", None)
+        if not text:
+            continue
+        try:
+            parsed = json.loads(text)
+        except (ValueError, TypeError):
+            logger.warning("ticketing tool %s returned non-JSON content: %.200s", tool, text)
+            return None
+        return parsed.get("result", parsed) if isinstance(parsed, dict) else parsed
+
+    return None
 
 
 async def _mcp_call(tool: str, arguments: dict) -> dict | list | None:
@@ -60,11 +91,7 @@ async def _mcp_call(tool: str, arguments: dict) -> dict | list | None:
                 result = await session.call_tool(tool, arguments)
                 if getattr(result, "isError", False):
                     raise TicketingUnavailable(f"ticketing tool {tool!r} returned an error")
-                if result.structuredContent is not None:
-                    content = result.structuredContent
-                    # FastMCP wraps list/scalar returns under {"result": ...}.
-                    return content.get("result", content) if isinstance(content, dict) else content
-                return None
+                return _extract_result(result, tool)
     except TicketingUnavailable:
         raise
     except Exception as exc:  # connection refused, timeout, protocol error

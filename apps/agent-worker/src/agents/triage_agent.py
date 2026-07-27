@@ -8,7 +8,7 @@ from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from providers.tts import build_persona_tts
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
-from tools.voice_flow import active_persona_tts
+from tools.voice_flow import persona_tts
 from tools.escalation_tools import escalate_to_manager
 from tools.routing_tools import (
     route_to_account_services,
@@ -73,7 +73,7 @@ class TriageAgent(BaseTelecomAgent):
             granted = await ConsentTask(
                 language=self._language,
                 chat_ctx=self.chat_ctx.copy(exclude_instructions=True),
-                tts=active_persona_tts(None),
+                tts=persona_tts(self.tts),
             )
             user_data.recording_consent = bool(granted)
             consent_just_collected = True

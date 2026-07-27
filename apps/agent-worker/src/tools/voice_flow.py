@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from livekit.agents.types import NotGivenOr
+from livekit.agents.types import NOT_GIVEN, NotGiven, NotGivenOr
 
 from livekit.agents import RunContext
 from livekit.agents.llm.tool_context import StopResponse
@@ -95,22 +95,31 @@ async def handoff_with_message(
     return next_agent
 
 
-def persona_tts(tts: NotGivenOr[object] | None) -> object | None:
-    """Normalise a NotGivenOr TTS value so callers can pass it to AgentTask safely."""
-    if tts is None or isinstance(tts, NotGivenOr):
-        return None
+def persona_tts(tts: NotGivenOr[object] | None) -> object:
+    """Normalise a persona TTS value so a bounded sub-flow can inherit it safely.
+
+    Returns a real TTS when one is set, otherwise NOT_GIVEN. It must NEVER return
+    ``None``: LiveKit resolves an activity's TTS as
+    ``agent.tts if is_given(agent.tts) else session.tts`` and ``is_given(None)`` is
+    True, so ``tts=None`` means "this agent has NO TTS" and raises
+    "tts_node called but no TTS node is available". ``NOT_GIVEN`` is the sentinel
+    meaning "unspecified -> use the session TTS". We test the ``NotGiven`` *class*
+    (isinstance-safe); ``NotGivenOr`` is a Union alias and ``isinstance`` on it raises.
+    """
+    if tts is None or isinstance(tts, NotGiven):
+        return NOT_GIVEN
     return tts
 
 
-def active_persona_tts(context: RunContext | None) -> object | None:
-    """Borrow the currently active persona's TTS identity for a bounded sub-flow.
+def active_persona_tts(context: RunContext | None) -> object:
+    """Borrow the currently active persona's TTS for a bounded sub-flow.
 
     When the BillingAgent runs IdentityVerificationTask, for example, the CIN
-    prompt should be spoken in the *billing* voice, not the session default
-    TTS.  Returns None when no agent is active (safe fallback to session voice).
+    prompt is spoken in the *billing* voice, not the session default. Returns
+    ``NOT_GIVEN`` (never ``None``) when no agent/context is available, so the
+    sub-flow falls back to the session voice instead of being muted.
     """
     if context is None:
-        return None
+        return NOT_GIVEN
     current = getattr(context.session, "current_agent", None)
-    tts = getattr(current, "tts", None)
-    return persona_tts(tts)
+    return persona_tts(getattr(current, "tts", NOT_GIVEN))

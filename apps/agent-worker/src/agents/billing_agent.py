@@ -17,6 +17,7 @@ from tools.billing_tools import get_balance_summary, get_invoice_summary
 from tools.escalation_tools import escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
+from tools.voice_flow import active_persona_tts
 
 from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent, merge_instructions
 
@@ -32,7 +33,7 @@ async def make_payment(context: RunContext, amount: float) -> dict:
     """
     if not await ensure_identity_verified(context):
         return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
-    confirmed = await PaymentConfirmTask(amount=amount)
+    confirmed = await PaymentConfirmTask(amount=amount, tts=active_persona_tts(context))
     return await execute_guarded_action(
         context, "EXECUTE_PAYMENT", {"amount": amount, "payment_confirmed": bool(confirmed)}
     )
