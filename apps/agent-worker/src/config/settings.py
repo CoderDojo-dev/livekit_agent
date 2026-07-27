@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     # --- VAD / turn detection / latency ---
     vad_min_silence: float = Field(0.25, alias="VAD_MIN_SILENCE")
     preemptive_generation: bool = Field(True, alias="PREEMPTIVE_GENERATION")
+
+    # Consentement d'enregistrement. Mettre a false en developpement pour
+    # economiser un tour TTS/LLM par appel. DOIT rester true en production.
+    recording_consent_enabled: bool = Field(True, alias="RECORDING_CONSENT_ENABLED")
+
     noise_cancellation: bool = Field(False, alias="NOISE_CANCELLATION")
 
     # --- Decision -> Policy façade ---

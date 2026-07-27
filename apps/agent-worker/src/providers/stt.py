@@ -38,13 +38,19 @@ def build_stt(preset: dict[str, str], model: str = "nova-3", break_primary: bool
         "language": preset["deepgram_language"],
     }
     if keyterms:
-        # Le parametre s'appelle "keyterms" dans le plugin Deepgram. Si la version
-        # installee ne le connait pas, on n'envoie rien plutot que de casser l'appel.
-        if "keyterms" in inspect.signature(deepgram.STT.__init__).parameters:
-            primary_kwargs["keyterms"] = list(keyterms)
+        _params = inspect.signature(deepgram.STT.__init__).parameters
+        for _name in ("keyterm", "keyterms"):   # nom actuel d'abord, ancien en secours
+            if _name in _params:
+                primary_kwargs[_name] = keyterms
+                logger.info(
+                    "deepgram keyterm prompting actif via '%s' : %d noms de lieux",
+                    _name,
+                    len(keyterms),
+                )
+                break
         else:
             logger.warning(
-                "livekit-plugins-deepgram sans parametre 'keyterms' : "
+                "livekit-plugins-deepgram sans parametre keyterm/keyterms : "
                 "%d noms de lieux non transmis",
                 len(keyterms),
             )

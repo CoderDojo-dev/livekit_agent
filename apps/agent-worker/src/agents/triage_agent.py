@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from config.settings import get_settings
 from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from providers.tts import build_persona_tts
 from tasks.consent_task import ConsentTask
@@ -69,7 +70,14 @@ class TriageAgent(BaseTelecomAgent):
         logger.info("triage agent entered language=%s", self._language)
         user_data = self.session.userdata
 
-        if user_data.recording_consent is None:
+        if not get_settings().recording_consent_enabled:
+            # Interrupteur de developpement : la collecte est sautee, mais toute
+            # la logique de consentement (ConsentTask) reste en place et intacte.
+            if user_data.recording_consent is None:
+                user_data.recording_consent = False
+            consent_just_collected = False
+            logger.info("consent flow desactive (RECORDING_CONSENT_ENABLED=false)")
+        elif user_data.recording_consent is None:
             granted = await ConsentTask(
                 language=self._language,
                 chat_ctx=self.chat_ctx.copy(exclude_instructions=True),
