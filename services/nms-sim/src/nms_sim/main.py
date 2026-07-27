@@ -15,7 +15,7 @@ import os
 
 from fastapi import Depends, FastAPI
 
-from nms_sim import incidents
+from nms_sim import geo_resolver, incidents
 from persistence.engine import session_scope
 from service_auth import require_internal_key
 
@@ -30,10 +30,30 @@ async def health() -> dict:
 
 
 @app.get("/network-status")
-def network_status(area: str = "") -> dict:
-    """Known active incidents for an area. Empty list means genuinely operational."""
+def network_status(area: str = "", lang: str = "fr") -> dict:
+    """Incidents actifs connus pour une zone.
+
+    Voir incidents.get_network_status pour les quatre états possibles. Une liste vide
+    n'implique PLUS « tout va bien » : seul status="operational" avec verified=true
+    autorise cette conclusion.
+    """
     with session_scope() as session:
-        return incidents.get_network_status(session, area)
+        return incidents.get_network_status(session, area, lang)
+
+
+@app.get("/geo-keyterms")
+def geo_keyterms(lang: str = "fr", limit: int = 100) -> dict:
+    """Noms de lieux attendus par la transcription vocale (source : base)."""
+    scope = [
+        code.strip()
+        for code in os.getenv("STT_KEYTERM_SCOPE", "").split(",")
+        if code.strip()
+    ]
+    with session_scope() as session:
+        return {
+            "language": lang,
+            "keyterms": geo_resolver.keyterms(session, lang, limit, scope or None),
+        }
 
 
 def run() -> None:

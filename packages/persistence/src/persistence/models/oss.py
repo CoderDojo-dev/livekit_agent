@@ -57,6 +57,11 @@ class Outage(UUIDPrimaryKey, Timestamps, Base):
     __tablename__ = "outages"
     __table_args__ = (
         CheckConstraint("severity IN ('critical','major','minor')", name="severity"),
+        CheckConstraint(
+            "cause IS NULL OR cause IN ('fiber_cut','power_failure','equipment_failure',"
+            "'planned_maintenance','congestion','weather','third_party_damage')",
+            name="cause",
+        ),
         {"schema": "oss"},
     )
 
@@ -69,3 +74,15 @@ class Outage(UUIDPrimaryKey, Timestamps, Base):
     )
     end_time: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+    # --- Patch v59 -------------------------------------------------------
+    # Rattachement canonique (problème #3). Nullable pour ne pas casser les
+    # lignes existantes ; la migration 0015 backfill par résolution du texte libre.
+    area_code: Mapped[str | None] = mapped_column(
+        String(40), ForeignKey("reference.geo_areas.area_code"), index=True
+    )
+    # Ce qui se passe réellement, pour que l'agent puisse l'expliquer (problème #2).
+    cause: Mapped[str | None] = mapped_column(String(60))
+    description_fr: Mapped[str | None] = mapped_column(Text)
+    description_ar: Mapped[str | None] = mapped_column(Text)
+    description_en: Mapped[str | None] = mapped_column(Text)

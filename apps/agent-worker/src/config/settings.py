@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -101,8 +101,40 @@ class Settings(BaseSettings):
     knowledge_mcp_url: str = Field("http://localhost:8201/mcp", alias="KNOWLEDGE_MCP_URL")
     ticketing_mcp_url: str = Field("http://localhost:8202/mcp", alias="TICKETING_MCP_URL")
     ticketing_http_url: str = Field("http://localhost:8202", alias="TICKETING_HTTP_URL")
-    business_api_url: str = Field("http://localhost:8108", alias="BUSINESS_API_URL")
+    business_api_url: str = Field("http://localhost:8107", alias="BUSINESS_API_URL")
     nms_service_url: str = Field("http://localhost:8108", alias="NMS_SERVICE_URL")
+
+    _SERVICE_URL_FIELDS = (
+        "context_service_url", "decision_service_url", "policy_service_url",
+        "execution_service_url", "notification_service_url", "business_api_url",
+        "nms_service_url", "ticketing_http_url", "knowledge_mcp_url",
+        "ticketing_mcp_url",
+    )
+
+    @model_validator(mode="after")
+    def _distinct_service_urls(self) -> "Settings":
+        """Deux services ne peuvent pas partager la meme adresse.
+
+        Sinon l'agent interroge le mauvais service et recoit une reponse valide
+        mais fausse - exactement le genre d'erreur qu'aucun test ne rattrape.
+        """
+        seen: dict[str, str] = {}
+        clashes: list[str] = []
+        for field in self._SERVICE_URL_FIELDS:
+            url = (getattr(self, field) or "").strip().rstrip("/")
+            if not url:
+                continue
+            if url in seen:
+                clashes.append(f"{seen[url]} and {field} both point to {url}")
+            else:
+                seen[url] = field
+        if clashes:
+            raise ValueError(
+                "Service URL collision: " + "; ".join(clashes)
+                + ". Each service must have its own address, otherwise the agent "
+                  "queries the wrong service."
+            )
+        return self
 
     @property
     def languages(self) -> list[str]:

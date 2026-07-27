@@ -5,17 +5,17 @@ consumed by the NmsAdapter). An operator/supervisor populates outages; the voice
 in real time to tell a caller "yes, there's a known incident in your area, ETA ...". A resolved or
 expired outage is not reported, so the agent never claims an incident that is over.
 
-Matching is area-first then region, case-insensitive substring, because a caller says "Ariana" or
-"downtown Tunis" while the record may hold "Ariana Ville" or region "Tunis".
+Patch v59: zone resolver + honest states (area_unknown / operational / incident / unavailable).
 """
 from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
+from nms_sim import geo_resolver
 from persistence.models.oss import Outage
 
 logger = logging.getLogger(__name__)
@@ -38,43 +38,118 @@ def _active(outage: Outage, now: datetime) -> bool:
     return True
 
 
-def get_network_status(session: Session, area: str) -> dict:
-    """Return known active incidents affecting ``area`` (or its region) with an ETA.
+_ANCESTORS_SQL = text("""
+    WITH RECURSIVE chain AS (
+        SELECT area_code, parent_code FROM reference.geo_areas
+        WHERE area_code = :code
+        UNION ALL
+        SELECT g.area_code, g.parent_code
+        FROM reference.geo_areas g JOIN chain c ON g.area_code = c.parent_code
+    )
+    SELECT area_code FROM chain
+""")
 
-    The shape matches what LiveNmsAdapter.get_network_status returns to the agent: a status plus a
-    list of outages. An empty list means 'operational' - honestly, because it reflects the real
-    table, not a hardcoded optimistic default.
+_DESCENDANTS_SQL = text("""
+    WITH RECURSIVE tree AS (
+        SELECT area_code FROM reference.geo_areas WHERE area_code = :code
+        UNION ALL
+        SELECT g.area_code
+        FROM reference.geo_areas g JOIN tree t ON g.parent_code = t.area_code
+    )
+    SELECT area_code FROM tree
+""")
+
+_DESCRIPTIONS = {"fr": "description_fr", "ar": "description_ar", "en": "description_en"}
+
+
+def _describe(outage: Outage, language: str) -> str | None:
+    """Message client dans sa langue, avec repli FR. Jamais de texte inventé."""
+    column = _DESCRIPTIONS.get(language, "description_fr")
+    return getattr(outage, column, None) or outage.description_fr
+
+
+def get_network_status(session: Session, area: str, language: str = "fr") -> dict:
+    """Incidents actifs connus pour ``area``.
+
+    Quatre états mutuellement exclusifs, jamais confondus (problème #4) :
+      - "area_unknown" : zone non résolue -> RIEN n'a pu être vérifié ;
+      - "incident"     : zone résolue, incident(s) actif(s) ;
+      - "operational"  : zone résolue, aucun incident actif - affirmation prouvée ;
+      - "unavailable"  : produit par le client en cas de panne de transport.
     """
-    needle = (area or "").strip().lower()
-    if not needle:
-        return {"area": area, "status": "unknown", "outages": [],
-                "message": "no area provided"}
+    if not (area or "").strip():
+        return {
+            "area": area,
+            "status": "area_unknown",
+            "verified": False,
+            "reason": "no_area_provided",
+            "outages": [],
+            "suggestions": [],
+        }
+
+    resolved = geo_resolver.resolve(session, area)
+    if resolved is None:
+        return {
+            "area": area,
+            "status": "area_unknown",
+            "verified": False,
+            "reason": "area_not_in_referential",
+            "outages": [],
+            "suggestions": geo_resolver.suggest(session, area),
+        }
+
+    # Ascendants : une panne déclarée sur le gouvernorat concerne la délégation
+    # du client. Descendants : une panne déclarée sur une délégation interdit
+    # d'affirmer que tout va bien sur le gouvernorat entier.
+    ancestors = {
+        r.area_code
+        for r in session.execute(_ANCESTORS_SQL, {"code": resolved.area_code}).all()
+    }
+    descendants = {
+        r.area_code
+        for r in session.execute(
+            _DESCENDANTS_SQL, {"code": resolved.area_code}
+        ).all()
+    }
+    scope = sorted(ancestors | descendants)
 
     now = datetime.now(UTC)
-    candidates = session.scalars(
-        select(Outage).where(Outage.resolved.is_(False)).order_by(Outage.start_time.desc())
-    )
-    matched = []
-    for outage in candidates:
-        if not _active(outage, now):
-            continue
-        hay = f"{outage.area or ''} {outage.region or ''}".lower()
-        if needle in hay or (outage.area or "").lower() in needle or (outage.region or "").lower() in needle:
-            matched.append(outage)
+    rows = session.scalars(
+        select(Outage)
+        .where(
+            Outage.resolved.is_(False),
+            Outage.area_code.in_(scope),
+            or_(Outage.end_time.is_(None), Outage.end_time >= now),
+        )
+        .order_by(Outage.severity.asc(), Outage.start_time.desc())
+    ).all()
 
-    outages = [
-        {
-            "area": o.area,
-            "region": o.region,
-            "affected_services": (o.affected_services or "").split(",") if o.affected_services else [],
-            "severity": o.severity,
-            "start_time": _aware(o.start_time).isoformat() if o.start_time else None,
-            "eta": _aware(o.end_time).isoformat() if o.end_time else None,
-        }
-        for o in matched
-    ]
+    payload, confirmed = [], False
+    for outage in rows:
+        covering = outage.area_code in ancestors
+        confirmed = confirmed or covering
+        payload.append({
+            "area": outage.area,
+            "region": outage.region,
+            "area_code": outage.area_code,
+            "scope": "covering" if covering else "partial",
+            "affected_services": [
+                s for s in (outage.affected_services or "").split(",") if s
+            ],
+            "severity": outage.severity,
+            "cause": outage.cause,
+            "description": _describe(outage, language),
+            "start_time": (_aware(outage.start_time) or outage.start_time).isoformat() if outage.start_time else None,
+            "eta": (_aware(outage.end_time) or outage.end_time).isoformat() if outage.end_time else None,
+        })
+
     return {
         "area": area,
-        "status": "incident" if outages else "operational",
-        "outages": outages,
+        "verified_area": resolved.name_fr,
+        "area_code": resolved.area_code,
+        "match": "exact" if resolved.exact else "approximate",
+        "status": "incident" if payload else "operational",
+        "coverage": ("confirmed" if confirmed else "partial") if payload else None,
+        "verified": True,
+        "outages": payload,
     }

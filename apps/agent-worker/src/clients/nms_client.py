@@ -19,6 +19,9 @@ from service_auth import internal_headers
 logger = logging.getLogger(__name__)
 
 
+_KEYTERMS_CACHE: dict[str, list[str]] = {}
+
+
 class NmsClient:
     """Read known network incidents for an area."""
 
@@ -27,21 +30,56 @@ class NmsClient:
             base_url=base_url, timeout=timeout, headers=internal_headers()
         )
 
-    async def get_network_status(self, area: str) -> dict:
-        """Return {area, status, outages[]}.
+    async def get_network_status(self, area: str, language: str = "fr") -> dict:
+        """Return {area, status, verified, outages[], ...}.
 
-        On transport failure returns status="unavailable" - never a fabricated "operational",
-        which would tell a caller the network is fine when we never reached the NMS.
+        On transport failure returns status="unavailable" with verified=False - never a
+        fabricated "operational", which would tell a caller the network is fine when we
+        never reached the NMS.
         """
         try:
             resp = await self._client.get(
-                "/network-status", params={"area": area}, headers=inject_trace_context()
+                "/network-status",
+                params={"area": area, "lang": language},
+                headers=inject_trace_context(),
             )
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPError as exc:
             logger.error("network status lookup failed for %r: %s", area, exc)
-            return {"area": area, "status": "unavailable", "outages": [], "error": str(exc)}
+            return {
+                "area": area,
+                "status": "unavailable",
+                "verified": False,
+                "outages": [],
+                "error": str(exc),
+            }
+
+    async def get_geo_keyterms(self, language: str = "fr") -> list[str]:
+        """Noms de lieux a annoncer a la transcription. Un seul appel par processus.
+
+        En cas d'echec on renvoie une liste vide : la transcription demarre sans
+        indication, ce qui est degrade mais jamais bloquant.
+        """
+        if language in _KEYTERMS_CACHE:
+            return _KEYTERMS_CACHE[language]
+        try:
+            response = await self._client.get(
+                "/geo-keyterms",
+                params={"lang": language},
+                headers=internal_headers(),
+            )
+            response.raise_for_status()
+            terms = response.json().get("keyterms") or []
+        except Exception as exc:
+            logger.warning(
+                "geo keyterms indisponibles (%s) ; la transcription demarre "
+                "sans noms de lieux",
+                exc,
+            )
+            terms = []
+        _KEYTERMS_CACHE[language] = terms
+        return terms
 
     async def aclose(self) -> None:
         await self._client.aclose()

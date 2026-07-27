@@ -9,6 +9,7 @@ import logging
 from agents.triage_agent import TriageAgent
 from clients import aclose_all_clients
 from clients.context_client import get_context_client
+from clients.nms_client import get_nms_client
 from config import get_settings
 from conversation.writer import ConversationWriter
 from dotenv import load_dotenv
@@ -101,7 +102,8 @@ async def entrypoint(ctx: JobContext) -> None:
 
     user_data = await _prefetch_user_data(language, participant)
     language = user_data.language
-    session = build_agent_session(settings, language)
+    keyterms = await get_nms_client().get_geo_keyterms(language)
+    session = build_agent_session(settings, language, keyterms)
     session.userdata = user_data
 
     frontend_events = FrontendEventPublisher(ctx.room)

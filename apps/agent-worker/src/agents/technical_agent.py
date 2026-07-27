@@ -68,6 +68,10 @@ class TechnicalAgent(BaseTelecomAgent):
                 "To unblock a SIM, use unblock_sim. To request a SIM replacement, use replace_sim. "
                 "To diagnose a data/connectivity complaint, use diagnose_data_issue. "
                 "To check known incidents for an area, use check_network_status. "
+                "Place names are often mis-transcribed: if check_network_status "
+                "returns 'needs_area_confirmation', do NOT conclude anything - ask "
+                "the caller to confirm the candidate area by name, or to repeat or "
+                "spell it, offering the suggestions as a question. "
                 "For how-to/known-issue questions, call knowledge_search with a concise "
                 f"ENGLISH query and answer in {lang_name}, citing the source. "
                 "Ticketing is not something you bring up on every call - use it only when it "
@@ -89,6 +93,11 @@ class TechnicalAgent(BaseTelecomAgent):
                 "NEVER claim an operation succeeded yourself - only the tool result decides. "
                 "If a result is 'refused' or 'failed', communicate its 'message' plainly; "
                 f"if 'escalate', call escalate_to_manager. Always reply in {lang_name}."
+                "\n"
+                "Network status: you may state that the network is normal ONLY when check_network_status "
+                "returned did_verify true AND incident_found false. If the result is 'unavailable' or "
+                "'area_unknown', you have verified NOTHING: say so plainly and ask for the exact area or "
+                "offer a follow-up. Never reassure a caller about a network you did not check. "
                 + "\n\n"
                 + KNOWLEDGE_ABSTENTION_RULE
             ),
