@@ -9,6 +9,7 @@ from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from providers.tts import build_persona_tts
 from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
+from tools.ticket_tools import check_customer_tickets, get_ticket_state
 from tools.voice_flow import persona_tts
 from tools.escalation_tools import escalate_to_manager
 from tools.routing_tools import (
@@ -35,6 +36,11 @@ _INSTRUCTIONS = (
     "call route_to_account_services.\n"
     "For a human advisor, call escalate_to_manager.\n"
     "For an ambiguous request, call request_clarification.\n"
+    "If the caller asks about an existing ticket or its progress, call "
+    "check_customer_tickets (or get_ticket_state with their reference) and tell them "
+    "where it stands.\n"
+    "If the caller says a problem is solved, or wants a ticket resolved, updated or "
+    "withdrawn, call route_to_technical: only that service can change a ticket.\n"
     "Keep replies short. Never invent data.\n"
     "Do not reveal a customer's name or personal details before identity "
     "verification succeeds."
@@ -54,6 +60,8 @@ class TriageAgent(BaseTelecomAgent):
             ),
             tools=[
                 request_clarification,
+                check_customer_tickets,
+                get_ticket_state,
                 route_to_account_services,
                 route_to_billing,
                 route_to_technical,

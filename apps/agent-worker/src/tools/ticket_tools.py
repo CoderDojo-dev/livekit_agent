@@ -115,6 +115,82 @@ def _unavailable(extra: dict | None = None) -> dict:
     return payload
 
 
+# --- v61 : vocabulaire d'etats et bornes partagees -------------------------------
+_OPEN_STATES = {"open", "in_progress", "pending"}
+_CLOSED_STATES = {"resolved", "closed"}
+_MAX_LISTED = 10
+
+_STOP_WORDS = {
+    "le", "la", "les", "de", "des", "du", "un", "une", "mon", "ma", "mes",
+    "pour", "avec", "depuis", "est", "sur", "dans", "pas", "plus", "tres",
+    "cette", "cet", "chez", "mais", "donc", "vous", "nous",
+}
+
+
+def _norm(text: str) -> str:
+    return " ".join((text or "").lower().split())
+
+
+def _keywords(text: str) -> set[str]:
+    """Mots signifiants d'un sujet de ticket (sans regex, sans dependance)."""
+    cleaned = _norm(text)
+    for ch in ",.;:!?'()[]-":
+        cleaned = cleaned.replace(ch, " ")
+    return {w for w in cleaned.split() if len(w) > 3 and w not in _STOP_WORDS}
+
+
+def _same_problem(subject: str, category: str, ticket: dict) -> bool:
+    """Vrai quand un ticket existant couvre plausiblement le meme probleme.
+
+    Deux signaux volontairement simples et explicables : meme categorie, ou au moins deux
+    mots signifiants communs dans le sujet. Aucun seuil flou, aucun modele : un humain peut
+    rejouer la decision a la main.
+    """
+    if category and ticket.get("category") and category == ticket.get("category"):
+        return True
+    new_words = _keywords(subject)
+    old_words = _keywords(ticket.get("subject") or "")
+    return bool(new_words and old_words and len(new_words & old_words) >= 2)
+
+
+async def _list_tickets(context: RunContext) -> tuple[list[dict], dict | None]:
+    """(tickets, echec). `echec` non None quand la ligne ou le ticketing est indisponible.
+
+    Point d'entree unique de toute lecture : garantit que chaque outil voit exactement le
+    meme perimetre, celui du client de la session.
+    """
+    customer = _customer(context)
+    if customer is None:
+        return [], {"outcome": "unavailable", "tickets": [],
+                    "message": "No active line is resolved for this caller."}
+    try:
+        result = await _mcp_call("lookup_tickets", {
+            "customer_id": customer.customer_id,
+            "requester_glpi_id": getattr(customer, "glpi_user_id", None),
+        })
+    except TicketingUnavailable:
+        return [], _unavailable({"tickets": []})
+    return (result if isinstance(result, list) else []), None
+
+
+async def _owned(context: RunContext, ticket_id: str) -> bool | None:
+    """True/False quand la propriete est determinable, None quand le ticketing est injoignable."""
+    tickets, failure = await _list_tickets(context)
+    if failure is not None:
+        return None
+    return any(t.get("ticket_id") == ticket_id for t in tickets)
+
+
+def _refused_foreign() -> dict:
+    return {
+        "outcome": "refused",
+        "message": (
+            "That ticket reference does not belong to this caller. Do NOT disclose anything "
+            "about it and do NOT modify it: ask the caller to confirm their own reference."
+        ),
+    }
+
+
 @function_tool()
 async def create_support_ticket(
     context: RunContext,
@@ -122,6 +198,7 @@ async def create_support_ticket(
     description: str,
     category: str = "other",
     priority: str = "",
+    confirm_new: bool = False,
 ) -> dict:
     """Open a support ticket for an issue that could not be solved on the call.
 
@@ -133,11 +210,37 @@ async def create_support_ticket(
         description: What needs follow-up.
         category: network_complaint / formal_complaint / technical / billing / other.
         priority: low / medium / high / urgent (optional; leave empty if unsure).
+        confirm_new: Leave false. Set true ONLY after the caller explicitly asked for a
+            SECOND ticket while an open one already covers the same problem.
     """
     customer = _customer(context)
     if customer is None:
         return {"outcome": "unavailable",
                 "message": "No active line is resolved for this caller; cannot open a ticket."}
+
+    # Garde anti-doublon : la verification que le modele "pourrait" faire est faite ICI, donc
+    # elle a toujours lieu. Si la lecture echoue, on cree quand meme : jamais de regression
+    # sur le chemin qui fonctionne aujourd'hui.
+    if not confirm_new:
+        existing, failure = await _list_tickets(context)
+        if failure is None:
+            duplicates = [t for t in existing
+                          if t.get("status") in _OPEN_STATES
+                          and _same_problem(subject, category, t)]
+            if duplicates:
+                logger.info("ticket duplicate guard: %d open ticket(s) already cover %r",
+                            len(duplicates), subject)
+                return {
+                    "outcome": "duplicate_candidate",
+                    "tickets": duplicates[:3],
+                    "message": (
+                        "An OPEN ticket already covers this problem. Tell the caller its "
+                        "reference and current status, then ask whether they want you to keep "
+                        "following the existing ticket (do nothing further) or open a separate "
+                        "one. ONLY if they ask for a new one, call create_support_ticket again "
+                        "with confirm_new set to true. Never create a duplicate on your own."
+                    ),
+                }
 
     language = getattr(customer, "preferred_language", "fr") or "fr"
     try:
@@ -164,32 +267,23 @@ async def check_customer_tickets(context: RunContext) -> dict:
     reassure them it is being handled; if one is resolved, tell them the good news. Identity is
     taken from the verified session context.
     """
-    customer = _customer(context)
-    if customer is None:
-        return {"outcome": "unavailable", "tickets": [],
-                "message": "No active line is resolved for this caller."}
+    tickets, failure = await _list_tickets(context)
+    if failure is not None:
+        return failure
 
-    try:
-        result = await _mcp_call("lookup_tickets", {
-            "customer_id": customer.customer_id,
-            "requester_glpi_id": getattr(customer, "glpi_user_id", None),
-        })
-    except TicketingUnavailable:
-        return _unavailable({"tickets": []})
-    tickets = result if isinstance(result, list) else []
-    open_states = {"open", "in_progress", "pending"}
-    open_tickets = [t for t in tickets if t.get("status") in open_states]
-    resolved = [t for t in tickets if t.get("status") in {"resolved", "closed"}]
+    open_tickets = [t for t in tickets if t.get("status") in _OPEN_STATES]
+    resolved = [t for t in tickets if t.get("status") in _CLOSED_STATES]
     return {
         "outcome": "listed",
         "total": len(tickets),
         "open_count": len(open_tickets),
         "resolved_count": len(resolved),
-        "tickets": tickets,
+        "tickets": tickets[:_MAX_LISTED],
         "message": (
             "Summarize for the caller in their language: if an open ticket matches their "
-            "problem, tell them it is registered and being handled; if a matching ticket is "
-            "resolved, tell them the good news. Never invent a ticket that is not in this list."
+            "problem, give its reference and tell them it is being handled; if a matching "
+            "ticket is resolved, tell them the good news. Never invent a ticket that is not "
+            "in this list."
         ),
     }
 
@@ -197,6 +291,12 @@ async def check_customer_tickets(context: RunContext) -> dict:
 @function_tool()
 async def get_ticket_state(context: RunContext, ticket_id: str) -> dict:
     """Check the current status of one ticket by its reference (e.g. 'GLPI-42')."""
+    owned = await _owned(context, ticket_id)
+    if owned is None:
+        return _unavailable()
+    if owned is False:
+        return _refused_foreign()
+
     try:
         result = await _mcp_call("get_ticket_status", {"ticket_id": ticket_id})
     except TicketingUnavailable:
@@ -205,15 +305,53 @@ async def get_ticket_state(context: RunContext, ticket_id: str) -> dict:
 
 
 @function_tool()
-async def mark_ticket_resolved(context: RunContext, ticket_id: str, resolution: str) -> dict:
+async def mark_ticket_resolved(
+    context: RunContext,
+    resolution: str,
+    ticket_id: str = "",
+) -> dict:
     """Resolve a ticket when the caller's issue was solved during the call.
 
     Args:
-        ticket_id: The ticket reference (e.g. 'GLPI-42').
         resolution: A short note on how it was solved.
+        ticket_id: The ticket reference (e.g. 'GLPI-42'). LEAVE EMPTY when the caller simply
+            says their problem is solved without giving a reference: the caller's single open
+            ticket is then resolved, and if several are open you are asked which one.
     """
+    if not ticket_id:
+        tickets, failure = await _list_tickets(context)
+        if failure is not None:
+            return failure
+        open_tickets = [t for t in tickets if t.get("status") in _OPEN_STATES]
+        if not open_tickets:
+            return {
+                "outcome": "nothing_to_resolve",
+                "message": (
+                    "This caller has no open ticket. Say so plainly and warmly acknowledge "
+                    "that their problem is solved. Do NOT invent a ticket or a reference."
+                ),
+            }
+        if len(open_tickets) > 1:
+            return {
+                "outcome": "needs_selection",
+                "tickets": open_tickets[:5],
+                "message": (
+                    "Several open tickets could match. Read their subjects to the caller, ask "
+                    "which one is solved, then call mark_ticket_resolved again with that "
+                    "ticket_id. Resolve NOTHING before they answer."
+                ),
+            }
+        ticket_id = open_tickets[0]["ticket_id"]
+    else:
+        owned = await _owned(context, ticket_id)
+        if owned is None:
+            return _unavailable()
+        if owned is False:
+            return _refused_foreign()
+
     try:
-        result = await _mcp_call("resolve_ticket", {"ticket_id": ticket_id, "resolution": resolution})
+        result = await _mcp_call("resolve_ticket",
+                                 {"ticket_id": ticket_id, "resolution": resolution})
     except TicketingUnavailable:
         return _unavailable()
     return result or _unavailable()  # type: ignore[return-value]
@@ -229,6 +367,12 @@ async def update_support_ticket(
     category: str = "",
 ) -> dict:
     """Update an existing ticket's subject, description, priority, or category."""
+    owned = await _owned(context, ticket_id)
+    if owned is None:
+        return _unavailable()
+    if owned is False:
+        return _refused_foreign()
+
     try:
         result = await _mcp_call("update_ticket", {
             "ticket_id": ticket_id,
@@ -240,3 +384,47 @@ async def update_support_ticket(
     except TicketingUnavailable:
         return _unavailable()
     return result or _unavailable()  # type: ignore[return-value]
+
+
+@function_tool()
+async def delete_support_ticket(context: RunContext, ticket_id: str, reason: str = "") -> dict:
+    """Withdraw a ticket that was opened by mistake (caller's own, still-open tickets only).
+
+    A resolved or closed ticket is part of the customer's history and is never deleted.
+
+    Args:
+        ticket_id: The ticket reference to withdraw (e.g. 'GLPI-42').
+        reason: Why the caller wants it withdrawn.
+    """
+    owned = await _owned(context, ticket_id)
+    if owned is None:
+        return _unavailable()
+    if owned is False:
+        return _refused_foreign()
+
+    try:
+        state = await _mcp_call("get_ticket_status", {"ticket_id": ticket_id})
+    except TicketingUnavailable:
+        return _unavailable()
+    status = (state or {}).get("status")
+    if status not in _OPEN_STATES:
+        return {
+            "outcome": "refused",
+            "ticket_id": ticket_id,
+            "status": status,
+            "message": (
+                "Only an OPEN ticket can be withdrawn. Explain to the caller that a ticket "
+                "already resolved or closed stays in their history."
+            ),
+        }
+
+    try:
+        result = await _mcp_call("delete_ticket", {"ticket_id": ticket_id})
+    except TicketingUnavailable:
+        return _unavailable()
+    if not (result or {}).get("deleted"):
+        return {"outcome": "failed",
+                "message": "The ticket could not be withdrawn. Tell the caller honestly."}
+    logger.info("ticket %s withdrawn (reason=%r)", ticket_id, reason)
+    return {"outcome": "deleted", "ticket_id": ticket_id,
+            "message": "Confirm to the caller that the ticket was withdrawn."}

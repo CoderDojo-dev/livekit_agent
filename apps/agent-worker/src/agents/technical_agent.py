@@ -19,6 +19,7 @@ from tools.technical_tools import check_network_status, diagnose_data_issue
 from tools.ticket_tools import (
     check_customer_tickets,
     create_support_ticket,
+    delete_support_ticket,
     get_ticket_state,
     mark_ticket_resolved,
     update_support_ticket,
@@ -74,25 +75,28 @@ class TechnicalAgent(BaseTelecomAgent):
                 "spell it, offering the suggestions as a question. "
                 "For how-to/known-issue questions, call knowledge_search with a concise "
                 f"ENGLISH query and answer in {lang_name}, citing the source. "
-                "Ticketing is not something you bring up on every call - use it only when it "
-                "actually helps this caller:\n"
-                "- When the caller reports a concrete unresolved problem, you MAY call "
-                "check_customer_tickets to see if one already covers it; if so, tell them "
-                "where it stands (open = being handled; resolved = good news). If they have "
-                "no relevant ticket, do not mention ticketing at all.\n"
-                "- When the caller explicitly asks about a ticket or its status, use "
-                "check_customer_tickets or get_ticket_state.\n"
-                "- Only when a problem cannot be solved on the call, call "
-                "create_support_ticket (subject + short description) and give the reference. "
-                "Do not open a ticket for a question you already answered.\n"
-                "- If the issue IS solved live, call mark_ticket_resolved; to amend a ticket "
-                "use update_support_ticket.\n"
-                "Never invent a ticket, a reference, or a status. If a ticket tool result is "
-                "'unavailable', tell the caller honestly you cannot reach the ticketing system "
-                "right now and will try later - never pretend it worked. Keep replies short. "
-                "NEVER claim an operation succeeded yourself - only the tool result decides. "
-                "If a result is 'refused' or 'failed', communicate its 'message' plainly; "
-                f"if 'escalate', call escalate_to_manager. Always reply in {lang_name}."
+                "Ticketing is not small talk - never bring it up spontaneously. But when it is "
+                "relevant, it is MANDATORY, not optional:\n"
+                "- The FIRST time the caller reports a concrete problem that is not solved on "
+                "this call, you MUST call check_customer_tickets BEFORE anything else about "
+                "tickets. If an open ticket covers it, give its reference and tell them it is "
+                "being handled. If nothing matches, offer to open one.\n"
+                "- When the caller says a problem is SOLVED, or asks to close/cancel a ticket, "
+                "you MUST call mark_ticket_resolved with resolution filled and ticket_id LEFT "
+                "EMPTY. The tool finds their open ticket itself. If it answers "
+                "'needs_selection', read the subjects and ask which one. If it answers "
+                "'nothing_to_resolve', simply say they have no open ticket.\n"
+                "- When the caller asks about a ticket or its progress, use "
+                "check_customer_tickets, or get_ticket_state when they give a reference.\n"
+                "- Call create_support_ticket only for a problem that cannot be solved now. If "
+                "it answers 'duplicate_candidate', do NOT create anything: give the existing "
+                "reference and ask whether they want a separate ticket; only if they say yes, "
+                "call it again with confirm_new true.\n"
+                "- To correct a ticket use update_support_ticket. To withdraw one opened by "
+                "mistake use delete_support_ticket; if it answers 'refused' because the ticket "
+                "is resolved or closed, explain it stays in their history.\n"
+                "- If any ticket tool answers 'refused', never argue and never reveal details: "
+                "ask the caller to confirm their own reference.\n"
                 "\n"
                 "Network status: you may state that the network is normal ONLY when check_network_status "
                 "returned did_verify true AND incident_found false. If the result is 'unavailable' or "
@@ -115,6 +119,7 @@ class TechnicalAgent(BaseTelecomAgent):
                 get_ticket_state,
                 mark_ticket_resolved,
                 update_support_ticket,
+                delete_support_ticket,
                 build_knowledge_toolset(),
             ],
             tts=build_persona_tts(selected_language, "technical"),
