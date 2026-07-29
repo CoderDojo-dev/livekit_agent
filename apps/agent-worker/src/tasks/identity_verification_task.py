@@ -65,6 +65,14 @@ def normalize_spoken_digits(value: str) -> str | None:
     """Extract exactly four digits from numeric or spoken FR/AR/EN input."""
     normalized = unicodedata.normalize("NFKC", value or "").lower()
     tokens = re.findall(r"[0-9]+|[^\W\d_]+", normalized, flags=re.UNICODE)
+
+    # Numeric speech wins over spelled-out words. A caller echoing the question
+    # ("les QUATRE derniers, c'est 1234") would otherwise inject a fifth digit
+    # via _WORD_DIGITS and be asked again for an answer that was already right.
+    numeric = [d for token in tokens if token.isdigit() for d in token]
+    if len(numeric) == 4:
+        return "".join(numeric)
+
     digits: list[str] = []
 
     for token in tokens:
