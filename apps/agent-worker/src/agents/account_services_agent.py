@@ -13,7 +13,7 @@ from tools.account_tools import change_plan, get_plan_details, toggle_roaming, t
 from tools.billing_tools import get_balance_summary, get_invoice_summary
 from tools.escalation_tools import escalate_to_manager
 
-from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
+from agents.base_agent import BaseTelecomAgent
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 
@@ -22,11 +22,12 @@ _CORE = (
     "and roaming. You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
     "For the current plan call get_plan_details. To change a plan use "
     "change_plan. For a recharge use top_up. For roaming use toggle_roaming. "
-    "For balance or invoice queries use get_balance_summary / get_invoice_summary "
-    "(read-only; payments and deferrals still need route_to_billing). If the "
+    "For a READ-ONLY balance or invoice question, this instruction OVERRIDES the "
+    "routing mandate below: answer directly with get_balance_summary / "
+    "get_invoice_summary and do NOT transfer the caller. Only a PAYMENT or a "
+    "DEFERRAL requires route_to_billing. If the "
     "caller is upset or asks for a human, call escalate_to_manager. "
-    "Keep replies short.\n\n"
-    + KNOWLEDGE_ABSTENTION_RULE
+    "Keep replies short."
 )
 
 
