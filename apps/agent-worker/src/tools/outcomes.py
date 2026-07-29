@@ -19,7 +19,12 @@ def refused(rule_id: str, reason: str) -> dict:
         "outcome": REFUSED,
         "rule_id": rule_id,
         "reason": reason,
-        "message": f"This request cannot be completed because: {reason}. Offer an alternative if one exists.",
+        "message": (
+            f"This request cannot be completed because: {reason}. Tell the caller warmly, "
+            "in plain spoken words, the way a human advisor would — never read rule "
+            "identifiers, internal codes, or technical wording aloud. Offer an alternative "
+            "if one exists."
+        ),
     }
 
 
@@ -29,7 +34,12 @@ def escalate(rule_id: str, reason: str) -> dict:
         "outcome": ESCALATE,
         "rule_id": rule_id,
         "reason": reason,
-        "message": f"This needs a human specialist ({reason}). Explain briefly, then call escalate_to_manager.",
+        "message": (
+            f"This needs a human specialist ({reason}). Say it briefly and warmly in plain "
+            "spoken words — no codes, no technical wording. If the caller was ALREADY told "
+            "this out loud a moment ago, do NOT repeat it: simply acknowledge and move on. "
+            "Then call escalate_to_manager."
+        ),
     }
 
 
@@ -49,5 +59,8 @@ def failed(reason: str, message: str | None = None) -> dict:
     return {
         "outcome": FAILED,
         "reason": reason,
-        "message": message or "The action could not be completed right now. Apologize briefly and offer to escalate.",
+        "message": message or (
+            "The action could not be completed right now. Apologize sincerely and naturally, "
+            "the way a human advisor would, without technical wording, and offer to escalate."
+        ),
     }

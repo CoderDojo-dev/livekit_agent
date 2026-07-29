@@ -39,11 +39,33 @@ _MANAGER_LINES = {
     "en": "I understand. I'm transferring you to an advisor who will continue with you.",
 }
 
+# Advisor skill required for a human transfer, derived from the persona that escalates.
+# session_state.current_persona_skill_tag defaults to "general" and was never assigned
+# anywhere, so every escalation used to claim a generalist advisor whatever the domain.
+_SKILL_TAGS = {
+    "BillingAgent": "billing",
+    "TechnicalAgent": "technical",
+    "AccountServicesAgent": "account",
+}
+
+
+def _skill_tag_for(context: RunContext) -> str:
+    """Skill tag of the persona currently escalating ("general" for triage/unknown)."""
+    current = getattr(context.session, "current_agent", None)
+    return _SKILL_TAGS.get(type(current).__name__, "general")
+
 
 @function_tool()
 async def escalate_to_manager(context: RunContext) -> Agent:
     """Record the escalation and hand off to the manager on the same session."""
     user_data = context.session.userdata
+
+    # The human transfer needs the skill of the persona we are leaving, and the
+    # handoff line below IS the transition announcement - so tell transfer_to_human
+    # not to speak a second one.
+    user_data.current_persona_skill_tag = _skill_tag_for(context)
+    user_data.human_transfer_announced = True
+
     next_agent = ManagerAgent(chat_ctx=current_chat_ctx(context), language=_resolve_language(context))
 
     writer = getattr(user_data, "conversation_writer", None)

@@ -1,11 +1,17 @@
-"""ManagerAgent: escalation target — transfer or callback, and open a follow-up ticket (Phase 9).
+"""ManagerAgent: escalation target - transfer or callback, and open a follow-up ticket (Phase 9).
 
 Inherits BaseTelecomAgent. Reached on the shared session (full context). Can open a ticket so an
 escalated issue is tracked and the caller gets a written confirmation.
+
+on_enter runs the transfer ITSELF instead of asking the LLM to speak: the escalating tool has
+already announced the transfer, so a generated turn here could only duplicate or contradict it.
 """
 
 from __future__ import annotations
 
+import logging
+
+from livekit.agents.llm.tool_context import StopResponse
 from providers.tts import build_persona_tts
 from telephony.sip_transfer import transfer_to_human
 from tools.ticket_tools import (
@@ -20,7 +26,28 @@ from agents.base_agent import (
     BaseTelecomAgent,
 )
 
+logger = logging.getLogger(__name__)
+
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
+
+
+class _TransferContext:
+    """Minimal RunContext stand-in so on_enter can run the transfer with no LLM turn.
+
+    transfer_to_human only ever reads ``context.session`` and optionally calls
+    ``context.disallow_interruptions()`` (already exception-guarded on its side).
+    Nothing else of RunContext is used, so a two-attribute shim is sufficient and
+    keeps the tool itself unchanged for the LLM path.
+    """
+
+    __slots__ = ("session",)
+
+    def __init__(self, session) -> None:
+        self.session = session
+
+    def disallow_interruptions(self) -> None:
+        """No-op: outside a tool turn there is no generated speech to protect."""
+        return None
 
 
 class ManagerAgent(BaseTelecomAgent):
@@ -34,8 +61,13 @@ class ManagerAgent(BaseTelecomAgent):
                 (
                     f"You are a senior support manager handling an escalated call. You MUST speak ONLY in {lang_name}. Never switch language.\n"
                     "Call transfer_to_human immediately and do not speak before calling it. "
-                    "The transfer tool owns the single transition announcement and will schedule a callback "
-                    "if none is free). Ticketing is optional and only when it helps: if the caller "
+                    "The transfer tool owns the single transition announcement and will schedule "
+                    "a callback if no advisor is free. "
+                    "PRIORITY ORDER: the transfer comes FIRST. Only once the transfer tool has "
+                    "answered with a callback outcome do the ticketing and closing rules below "
+                    "apply. Never open a ticket and never end the call before the transfer tool "
+                    "has answered. "
+                    "Ticketing is optional and only when it helps: if the caller "
                     "asks about a ticket, or the issue needs tracking, you MAY call "
                     "check_customer_tickets to see existing ones, and create_support_ticket only "
                     "if none covers the issue - then give them the reference. Never invent a "
@@ -73,12 +105,30 @@ class ManagerAgent(BaseTelecomAgent):
                 self._language = lang_code.lower().strip()[:2]
                 self._lang_name = _LANG_NAMES[self._language]
 
+        try:
+            result = await transfer_to_human(_TransferContext(self.session))
+        except StopResponse:
+            # Transfer succeeded: the caller's leg has been REFERred away. Saying
+            # anything now would be speech into an empty room.
+            return
+        except Exception as exc:
+            logger.warning("manager transfer attempt failed: %s", exc)
+            result = {"outcome": "failed"}
+
+        outcome = (result or {}).get("outcome")
+        logger.info("manager transfer outcome=%s", outcome)
+        if outcome == "transferred":
+            return
+
+        # Callback scheduled / declined / failed: the tool already spoke the facts.
+        # ONE short wrap-up turn, driven by the tool's own message - never invented.
+        guidance = (result or {}).get("message") or (
+            "Say plainly that the transfer could not be completed and that they may call back."
+        )
         await self.session.generate_reply(
             instructions=(
-                f"In {self._lang_name} only: briefly introduce yourself as a senior "
-                f"advisor, ACKNOWLEDGE the reason the call was escalated (using the "
-                f"conversation so far), and ask how you can help resolve it. Two short "
-                f"sentences. Be empathetic. Do NOT repeat information already given. "
-                f"Never switch language."
+                f"In {self._lang_name} only, in at most two short sentences: {guidance} "
+                "Then ask whether there is anything else you can help with. Do not promise "
+                "a transfer again and do not invent any detail. Never switch language."
             ),
         )

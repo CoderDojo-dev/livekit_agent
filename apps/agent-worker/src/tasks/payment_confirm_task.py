@@ -12,6 +12,15 @@ logger = logging.getLogger(__name__)
 
 CONFIRM_DEADLINE_S = 25.0  # no clear yes/no within this -> do NOT pay
 
+# Repli parlé, déterministe et localisé. Le littéral était codé en dur en
+# français : un appelant AR/EN l'entendait en français, en pleine voix de
+# persona. Même forme que IdentityVerificationTask (dict + _language()).
+_NO_CONFIRMATION = {
+    "fr": "Je n'ai pas eu de confirmation claire, alors je préfère ne rien débiter. On pourra reprendre dès que vous voulez.",
+    "ar": "لم أحصل على تأكيد واضح، لذلك أفضّل ألا أنفّذ الدفع. يمكننا المحاولة مجددًا وقتما تشاء.",
+    "en": "I didn't get a clear confirmation, so I'd rather not take the payment. We can go through it again whenever you're ready.",
+}
+
 
 class PaymentConfirmTask(AgentTask[bool]):
     """Confirms the exact amount, then returns the boolean. Never hangs; fails closed."""
@@ -52,14 +61,16 @@ class PaymentConfirmTask(AgentTask[bool]):
             return
         await self._fail_closed()
 
+    def _language(self) -> str:
+        language = getattr(self.session.userdata, "language", "fr")
+        return language if language in _NO_CONFIRMATION else "fr"
+
     async def _fail_closed(self) -> None:
         if self._done:
             return
         logger.info("payment confirm fail-closed -> not paying")
         with suppress(Exception):
-            await self.session.say(
-                "Je n'ai pas reçu de confirmation claire, je n'effectue pas le paiement."
-            )
+            await self.session.say(_NO_CONFIRMATION[self._language()])
         self._finish(False)
 
     def _finish(self, confirmed: bool) -> None:

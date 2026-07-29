@@ -18,33 +18,33 @@ TASK_DEADLINE_S = 30.0
 VERIFY_CALL_TIMEOUT_S = 5.0
 
 _PROMPTS = {
-    "fr": "Pour vérifier votre identité, dites uniquement les quatre derniers chiffres de votre CIN.",
-    "ar": "للتحقق من هويتك، اذكر فقط آخر أربعة أرقام من بطاقة هويتك.",
-    "en": "To verify your identity, say only the last four digits of your national ID.",
+    "fr": "Avant d'aller plus loin, j'ai juste besoin de m'assurer que c'est bien vous : pouvez-vous me donner les quatre derniers chiffres de votre CIN ?",
+    "ar": "قبل أن نكمل، أحتاج فقط للتأكد من أنه أنت: من فضلك أعطني آخر أربعة أرقام من بطاقة هويتك.",
+    "en": "Before we go ahead, I just need to make sure it's really you — could you give me the last four digits of your national ID?",
 }
 
 _RETRY = {
-    "fr": "Les chiffres ne correspondent pas. Répétez uniquement les quatre derniers chiffres de votre CIN.",
-    "ar": "الأرقام غير مطابقة. أعد ذكر آخر أربعة أرقام فقط.",
-    "en": "The digits did not match. Repeat only the last four digits.",
+    "fr": "Ça ne correspond pas de mon côté. On réessaie ensemble : les quatre derniers chiffres de votre CIN, s'il vous plaît.",
+    "ar": "الأرقام لا تطابق ما لديّ. لنجرّب مرة أخرى من فضلك: آخر أربعة أرقام من بطاقة هويتك.",
+    "en": "That doesn't match what I have here. Let's try once more — the last four digits of your national ID, please.",
 }
 
 _INVALID = {
-    "fr": "Je dois recevoir exactement quatre chiffres. Veuillez les répéter lentement.",
-    "ar": "يجب أن تذكر أربعة أرقام بالضبط. أعدها ببطء.",
-    "en": "I need exactly four digits. Please repeat them slowly.",
+    "fr": "Je n'ai pas bien saisi. Il me faut seulement les quatre derniers chiffres, doucement s'il vous plaît.",
+    "ar": "عذرًا، لم أسمعها جيدًا. أحتاج آخر أربعة أرقام فقط، ببطء من فضلك.",
+    "en": "Sorry, I didn't quite catch that. I just need the last four digits, slowly if you can.",
 }
 
 _SUCCESS = {
-    "fr": "Merci, votre identité est confirmée.",
-    "ar": "شكراً، تم تأكيد هويتك.",
-    "en": "Thank you, your identity is confirmed.",
+    "fr": "Parfait, merci, c'est bien vous. Je continue.",
+    "ar": "ممتاز، شكرًا لك، تم التأكد من هويتك. نكمل.",
+    "en": "Perfect, thank you — that's confirmed. Let's carry on.",
 }
 
 _FAILURE = {
-    "fr": "Je n'ai pas pu vérifier votre identité. L'action sensible ne sera pas exécutée.",
-    "ar": "تعذر التحقق من هويتك. لن يتم تنفيذ الإجراء الحساس.",
-    "en": "I could not verify your identity. The sensitive action will not be executed.",
+    "fr": "Je suis désolé, je n'arrive pas à confirmer votre identité pour le moment, je ne vais donc pas pouvoir procéder à cette opération. Mais je reste avec vous pour trouver une solution.",
+    "ar": "أعتذر، لا أستطيع تأكيد هويتك في الوقت الحالي، لذلك لن أتمكن من إتمام هذه العملية. لكنني سأبقى معك لنجد حلاً.",
+    "en": "I'm sorry, I can't confirm your identity right now, so I won't be able to go ahead with this. But I'll stay with you and we'll find a way forward.",
 }
 
 _WORD_DIGITS = {

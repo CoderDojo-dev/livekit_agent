@@ -21,6 +21,7 @@ from contextlib import suppress
 
 from clients.routing_client import AdvisorDestination, get_routing_client
 from livekit.agents import RunContext, function_tool, get_job_context
+from livekit.agents.llm.tool_context import StopResponse
 from tasks.callback_schedule_task import CallbackScheduleTask
 from tools.voice_flow import active_persona_tts, say_and_wait
 
@@ -40,7 +41,11 @@ _NO_ADVISOR_MESSAGES = {
 
 
 def _language(user_data) -> str:
-    return getattr(user_data, "language", "fr") or "fr"
+    """2-letter language code, tolerating an enum or a locale like "fr-FR" (as elsewhere)."""
+    raw = getattr(user_data, "language", "fr")
+    value = getattr(raw, "value", raw)
+    code = str(value or "fr").lower().strip()[:2]
+    return code if code in _TRANSFER_MESSAGES else "fr"
 
 
 def _find_sip_caller_identity() -> str | None:
@@ -93,7 +98,12 @@ async def _offer_callback(context: RunContext, reason: str) -> dict:
     user_data = context.session.userdata
     scheduled = await CallbackScheduleTask(tts=active_persona_tts(context))
     if not scheduled:
-        return {"outcome": "callback_declined", "reason": reason}
+        return {
+            "outcome": "callback_declined",
+            "reason": reason,
+            "message": "No advisor is available and no callback was scheduled; say plainly "
+                       "that they can call back at any time.",
+        }
 
     customer = getattr(user_data, "customer_context", None)
     dossier = {
@@ -147,7 +157,11 @@ async def transfer_to_human(context: RunContext) -> dict:
     user_data = context.session.userdata
 
     if getattr(user_data, "human_transfer_in_progress", False):
-        return {"outcome": "transfer_already_in_progress"}
+        return {
+            "outcome": "transfer_already_in_progress",
+            "message": "A transfer is already under way: briefly ask the caller to hold, "
+                       "and say nothing else.",
+        }
 
     user_data.human_transfer_in_progress = True
     skill_tag = getattr(user_data, "current_persona_skill_tag", "general")
@@ -158,6 +172,11 @@ async def transfer_to_human(context: RunContext) -> dict:
             context.disallow_interruptions()
 
         destination = await get_routing_client().resolve_available_advisor(skill_tag)
+        if destination is None and skill_tag != "general":
+            # Fix 2 now sends a real skill tag; never regress a caller into a callback
+            # just because no specialist advisor is free.
+            logger.info("no %r advisor free; falling back to a generalist", skill_tag)
+            destination = await get_routing_client().resolve_available_advisor("general")
 
         if destination is None:
             await say_and_wait(
@@ -178,11 +197,12 @@ async def transfer_to_human(context: RunContext) -> dict:
 
         succeeded, detail = await _do_transfer(destination)
         if succeeded:
-            return {
-                "outcome": "transferred",
-                "advisor": destination.full_name,
-                "destination": detail,
-            }
+            logger.info(
+                "SIP transfer completed (advisor=%s skill=%s)", destination.full_name, skill_tag
+            )
+            # The caller's leg is gone: stop the turn so no LLM/TTS output is billed
+            # for an empty room, and no advisor name is read aloud.
+            raise StopResponse()
 
         logger.warning("SIP transfer failed (%s); releasing advisor and offering a callback", detail)
         await get_routing_client().release_advisor(destination.advisor_id)
