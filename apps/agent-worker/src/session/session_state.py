@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -45,9 +46,29 @@ class SessionUserData:
 
     _idempotency_keys: dict[str, str] = field(default_factory=dict)
 
-    def new_idempotency_key(self, action_type: str) -> str:
-        """One key per (session, action_type); reused across retries so a retry is safe."""
-        if action_type not in self._idempotency_keys:
-            seed = f"{self.session_id}:{action_type}:{uuid.uuid4()}"
-            self._idempotency_keys[action_type] = hashlib.sha256(seed.encode()).hexdigest()
-        return self._idempotency_keys[action_type]
+    @staticmethod
+    def _operation_fingerprint(action_type: str, payload: dict | None) -> str:
+        """Stable identity of one logical operation: its type plus its business parameters."""
+        if not payload:
+            return action_type
+        body = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        return f"{action_type}:{hashlib.sha256(body.encode()).hexdigest()[:16]}"
+
+    def new_idempotency_key(self, action_type: str, payload: dict | None = None) -> str:
+        """Return the idempotency key for ONE logical operation.
+
+        The key is memoised per (session, action_type, business payload) and is kept as long as the
+        operation has NOT been confirmed executed, so any retry (timeout, transport error) reuses it
+        and can never double-charge. Once ``release_idempotency_key`` reports success, the key is
+        dropped: a later request - even with identical parameters - is a genuinely NEW action and
+        gets a NEW key, instead of being silently replayed as the first one.
+        """
+        fingerprint = self._operation_fingerprint(action_type, payload)
+        if fingerprint not in self._idempotency_keys:
+            seed = f"{self.session_id}:{fingerprint}:{uuid.uuid4()}"
+            self._idempotency_keys[fingerprint] = hashlib.sha256(seed.encode()).hexdigest()
+        return self._idempotency_keys[fingerprint]
+
+    def release_idempotency_key(self, action_type: str, payload: dict | None = None) -> None:
+        """Forget a completed operation's key so the next request is not treated as a retry."""
+        self._idempotency_keys.pop(self._operation_fingerprint(action_type, payload), None)

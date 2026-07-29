@@ -22,6 +22,8 @@ from tools.guards import identity_is_fresh
 logger = logging.getLogger(__name__)
 
 _FRUSTRATION_STREAK = 3  # consecutive negative turns -> frustration (sentiment, Phase 8)
+# Fields sent to policy for judgement only; they are not part of the operation's identity.
+_CONTEXTUAL_FIELDS = frozenset({"unpaid_amount", "deferrals_this_year"})
 
 
 def _build_context(run_context: RunContext, action_type: str, payload: dict) -> dict:
@@ -70,8 +72,12 @@ async def execute_guarded_action(run_context: RunContext, action_type: str, payl
 
     # AUTHORIZED -> execute idempotently against the verdict that authorized it.
     user_data = run_context.session.userdata
-    idempotency_key = user_data.new_idempotency_key(action_type)
-    return await get_execution_client().execute(
+    # Only the fields that DEFINE the operation belong to the fingerprint. Contextual facts such
+    # as the outstanding total move between a first attempt and its retry, and must not make a
+    # retry look like a new operation.
+    operation_payload = {k: v for k, v in payload.items() if k not in _CONTEXTUAL_FIELDS}
+    idempotency_key = user_data.new_idempotency_key(action_type, operation_payload)
+    result = await get_execution_client().execute(
         idempotency_key,
         action_type,
         context["session_id"],
@@ -80,3 +86,10 @@ async def execute_guarded_action(run_context: RunContext, action_type: str, payl
         customer_id=context["customer_id"],
         subscription_id=context["subscription_id"],
     )
+
+    # A confirmed execution closes this logical operation: release its key so a further request
+    # with the same parameters is dispatched as a NEW action instead of replaying this one.
+    # A failure keeps the key, which is exactly what makes a retry safe.
+    if isinstance(result, dict) and "executed" in {result.get("outcome"), result.get("status")}:
+        user_data.release_idempotency_key(action_type, operation_payload)
+    return result

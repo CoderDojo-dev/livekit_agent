@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,24 @@ class PolicyThresholds(BaseSettings):
     deferral_min_age_days: int = Field(180, alias="POLICY_DEFERRAL_MIN_AGE_DAYS")
     deferral_max_per_year: int = Field(2, alias="POLICY_DEFERRAL_MAX_PER_YEAR")
     deferral_unpaid_threshold: float = Field(150.0, alias="POLICY_DEFERRAL_UNPAID_THRESHOLD_TND")
+    topup_denominations: tuple[float, ...] = Field(
+        (5.0, 10.0, 20.0, 50.0), alias="POLICY_TOPUP_DENOMINATIONS_TND"
+    )
+    plan_codes: tuple[str, ...] = Field((), alias="POLICY_PLAN_CODES")
+
+    @field_validator("topup_denominations", mode="before")
+    @classmethod
+    def _parse_denominations(cls, value):
+        if isinstance(value, str):
+            return tuple(float(p) for p in value.replace(";", ",").split(",") if p.strip())
+        return value
+
+    @field_validator("plan_codes", mode="before")
+    @classmethod
+    def _parse_plan_codes(cls, value):
+        if isinstance(value, str):
+            return tuple(p.strip().upper() for p in value.replace(";", ",").split(",") if p.strip())
+        return value
 
 
 @lru_cache

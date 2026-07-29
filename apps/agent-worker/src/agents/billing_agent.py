@@ -40,6 +40,17 @@ _CORE = (
 )
 
 
+async def _outstanding_total(context: RunContext) -> float:
+    """The amount currently owed by this caller, across all unpaid invoices."""
+    user_data = context.session.userdata
+    if user_data.customer_context is None:
+        return 0.0
+    invoices = await get_context_client().get_invoices(user_data.customer_context.customer_id)
+    return sum(
+        inv.get("outstanding", inv["amount"]) for inv in invoices if inv.get("status") != "paid"
+    )
+
+
 @function_tool()
 async def make_payment(context: RunContext, amount: float) -> dict:
     """Take a bill payment of ``amount`` TND (CDC section 5.2).
@@ -50,8 +61,11 @@ async def make_payment(context: RunContext, amount: float) -> dict:
     if not await ensure_identity_verified(context):
         return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
     confirmed = await PaymentConfirmTask(amount=amount, tts=active_persona_tts(context))
+    unpaid_amount = await _outstanding_total(context)
     return await execute_guarded_action(
-        context, "EXECUTE_PAYMENT", {"amount": amount, "payment_confirmed": bool(confirmed)}
+        context,
+        "EXECUTE_PAYMENT",
+        {"amount": amount, "unpaid_amount": unpaid_amount, "payment_confirmed": bool(confirmed)},
     )
 
 
@@ -64,20 +78,14 @@ async def request_payment_deferral(context: RunContext, requested_days: int) -> 
     if not await ensure_identity_verified(context):
         return outcomes.escalate("IDENTITY_REQUIRED", "identity not verified")
 
-    user_data = context.session.userdata
-    unpaid_amount = 0.0
-    if user_data.customer_context is not None:
-        invoices = await get_context_client().get_invoices(user_data.customer_context.customer_id)
-        # What is still owed after any payments already applied - not the frozen invoice totals,
-        # which would over-state the debt (and skew the policy cap) after a partial payment.
-        unpaid_amount = sum(
-            inv.get("outstanding", inv["amount"]) for inv in invoices if inv.get("status") != "paid"
-        )
-
+    unpaid_amount = await _outstanding_total(context)
     return await execute_guarded_action(
         context,
         "PAYMENT_DEFERRAL",
-        {"requested_days": requested_days, "unpaid_amount": unpaid_amount, "deferrals_this_year": 0},
+        # deferrals_this_year is deliberately NOT sent: the agent has no access to the deferral
+        # history, and a fabricated 0 disabled the DEF_CAP rule. Policy counts it from its own
+        # action ledger (the only source of truth) and fails closed if it cannot.
+        {"requested_days": requested_days, "unpaid_amount": unpaid_amount},
     )
 
 

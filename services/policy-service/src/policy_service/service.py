@@ -6,14 +6,22 @@ is threaded to the execution-service so no action exists without a verdict (spec
 """
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime
+
+from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
+from persistence.models.execution import ActionLedger
 from persistence.models.policy import PolicyVerdict
 from persistence.util import require_uuid, to_uuid
 from policy_service.config import PolicyThresholds
 from policy_service.engine import evaluate_action, evaluate_response
 from policy_service.rules.base import VerdictResult
+
+logger = logging.getLogger(__name__)
 
 
 class PolicyService:
@@ -26,6 +34,7 @@ class PolicyService:
 
     def evaluate_action(self, ctx) -> tuple[VerdictResult, str]:
         """Judge an action, persist the verdict + audit entry, and return (result, verdict_id)."""
+        ctx = self._enrich(ctx)
         result = evaluate_action(ctx, self._thresholds)
         verdict_id = self._persist(
             session_id=ctx.session_id, customer_id=ctx.customer_id, requested_action=ctx.action_type,
@@ -41,6 +50,45 @@ class PolicyService:
             direction="outbound", result=result, inputs={"length": len(text)},
         )
         return result, verdict_id
+
+    def _enrich(self, ctx):
+        """Fill server-side facts the caller cannot be trusted to provide.
+
+        Only fills a field the caller left as None: an explicitly supplied value (tests, replays)
+        is preserved, so existing behaviour and existing tests are untouched.
+        """
+        if ctx.action_type == "PAYMENT_DEFERRAL" and ctx.deferrals_this_year is None:
+            counted = self._count_deferrals_this_year(ctx.customer_id)
+            if counted is not None:
+                return ctx.model_copy(update={"deferrals_this_year": counted})
+        return ctx
+
+    def _count_deferrals_this_year(self, customer_id) -> int | None:
+        """Succeeded PAYMENT_DEFERRAL actions for this customer in the current calendar year.
+
+        Returns None when the count cannot be established (no customer id, DB error) so the rule
+        can fail closed instead of reading a fabricated 0.
+        """
+        cid = to_uuid(customer_id)
+        if cid is None:
+            return None
+        year_start = datetime(datetime.now(UTC).year, 1, 1, tzinfo=UTC)
+        try:
+            count = self._session.scalar(
+                select(func.count())
+                .select_from(ActionLedger)
+                .where(
+                    ActionLedger.customer_id == cid,
+                    ActionLedger.action_type == "PAYMENT_DEFERRAL",
+                    ActionLedger.status == "succeeded",
+                    ActionLedger.created_at >= year_start,
+                )
+            )
+        except SQLAlchemyError as exc:
+            self._session.rollback()
+            logger.error("deferral-history count failed; failing closed: %s", exc)
+            return None
+        return int(count or 0)
 
     def _persist(self, session_id, customer_id, requested_action, direction, result, inputs) -> str:
         sid = require_uuid(session_id)

@@ -1,7 +1,8 @@
-"""Offline tests: factory defaults to mock; mock adapters honor the ports (no network)."""
+"""Offline tests: factory defaults to live (P6); mock adapters honor the ports (no network)."""
 from __future__ import annotations
 
 import asyncio
+import os
 from decimal import Decimal
 
 import pytest
@@ -9,9 +10,11 @@ from integration_adapters import get_billing_adapter, get_nms_adapter, get_ticke
 
 from domain_core.value_objects import IdempotencyKey, Money
 
+os.environ.setdefault("CONNECTOR_MODE", "mock")
 
-def test_factory_defaults_to_mock(monkeypatch) -> None:
-    monkeypatch.delenv("CONNECTOR_MODE", raising=False)
+
+def test_factory_explicit_mock(monkeypatch) -> None:
+    monkeypatch.setenv("CONNECTOR_MODE", "mock")
     assert type(get_billing_adapter()).__name__ == "MockBillingAdapter"
 
 
@@ -33,6 +36,6 @@ def test_mock_billing_charge_and_invoices() -> None:
 
 def test_mock_nms_and_ticketing() -> None:
     status = asyncio.run(get_nms_adapter().get_network_status("Tunis"))
-    assert status["status"] == "operational"
+    assert status["status"] == "unavailable"
     ticket = asyncio.run(get_ticketing_adapter().create_ticket("subj", "body", "high"))
     assert ticket.ticket_id.startswith("GLPI-")

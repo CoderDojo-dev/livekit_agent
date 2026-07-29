@@ -14,6 +14,12 @@ def check_deferral(ctx, thresholds) -> VerdictResult | None:
             "DEF_MIN_AGE",
             f"account age {ctx.account_age_days}d below minimum {thresholds.deferral_min_age_days}d",
         )
+    if ctx.deferrals_this_year is None:
+        return VerdictResult(
+            ESCALATE,
+            "DEF_HISTORY_UNAVAILABLE",
+            "deferral history unavailable; a human must decide",
+        )
     if ctx.deferrals_this_year >= thresholds.deferral_max_per_year:
         return VerdictResult(REFUSED, "DEF_CAP", "yearly payment-deferral cap reached")
     if ctx.unpaid_amount > thresholds.deferral_unpaid_threshold:

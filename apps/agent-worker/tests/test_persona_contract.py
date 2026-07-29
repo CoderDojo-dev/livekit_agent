@@ -59,9 +59,12 @@ PERSONA_TOOLSETS: dict[str, frozenset[str]] = {
             "change_plan",
             "top_up",
             "toggle_roaming",
+            "get_balance_summary",
+            "get_invoice_summary",
             "route_to_billing",
             "route_to_technical",
             "escalate_to_manager",
+            "knowledge_search",
         }
         | AUTO_INJECTED
     ),
@@ -163,7 +166,7 @@ def test_triage_mandate_is_textually_unchanged_from_v63() -> None:
 
 def test_knowledge_rule_follows_the_declared_capability() -> None:
     assert "GROUND your answer strictly" in _instructions("BillingAgent")
-    assert "GROUND your answer strictly" not in _instructions("AccountServicesAgent")
+    assert "GROUND your answer strictly" in _instructions("AccountServicesAgent")
 
 
 def test_clarification_line_degrades_gracefully() -> None:

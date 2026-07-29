@@ -5,8 +5,8 @@ import os
 
 
 def connector_mode() -> str:
-    """'mock' (local) or 'live' (real legacy systems). Defaults to mock."""
-    return os.getenv("CONNECTOR_MODE", "mock").strip().lower()
+    """'mock' (local) or 'live' (real legacy systems). Defaults to live."""
+    return os.getenv("CONNECTOR_MODE", "live").strip().lower()
 
 
 def is_live() -> bool:

@@ -4,8 +4,13 @@ The idempotent ledger + audit chain are integration-tested against Postgres on t
 machine (see the persistence README)."""
 from __future__ import annotations
 
+import os
+
 import pytest
 from execution_service.executor import dispatch, target_domain
+
+os.environ["CONNECTOR_MODE"] = "mock"
+os.environ["ALLOW_MOCK_SENSITIVE"] = "1"
 
 
 def test_target_domain_mapping() -> None:
@@ -18,8 +23,8 @@ def test_target_domain_mapping() -> None:
 
 
 def test_dispatch_reference_prefixes() -> None:
-    assert dispatch("EXECUTE_PAYMENT", {}).startswith("PAY-")
-    assert dispatch("PAYMENT_DEFERRAL", {}).startswith("DEF-")
-    assert dispatch("UNBLOCK_SIM", {}).startswith("SIM-")
+    assert dispatch("EXECUTE_PAYMENT", {}).startswith("MOCK-PAY-")
+    assert dispatch("PAYMENT_DEFERRAL", {}).startswith("MOCK-DEF-")
+    assert dispatch("UNBLOCK_SIM", {}).startswith("MOCK-SIM-")
     with pytest.raises(ValueError, match="unsupported execution action: MYSTERY"):
         dispatch("MYSTERY", {})

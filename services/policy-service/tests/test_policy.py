@@ -39,15 +39,15 @@ def _ctx(**over) -> PolicyContext:
     return PolicyContext(**base)
 
 def test_clean_deferral_is_authorized() -> None:
-    result = _service().evaluate_action(_ctx(unpaid_amount=42.5))
+    result = _service().evaluate_action(_ctx(deferrals_this_year=0, unpaid_amount=42.5))
     assert result.verdict == "authorized"
     assert result.rule_id == "DEF_OK"
 
 
-def test_vip_short_circuits_to_escalate() -> None:
+def test_vip_no_longer_short_circuits_to_escalate() -> None:
+    # P9: VIP customers pass through business rules; no ESC_VIP verdict.
     result = _service().evaluate_action(_ctx(is_vip=True))
-    assert result.verdict == "escalate"
-    assert result.rule_id == "ESC_VIP"
+    assert result.rule_id != "ESC_VIP"
 
 
 def test_fraud_short_circuits_first() -> None:
@@ -62,7 +62,7 @@ def test_deferral_below_min_age_is_refused() -> None:
 
 
 def test_deferral_high_unpaid_escalates_for_review() -> None:
-    result = _service().evaluate_action(_ctx(unpaid_amount=500.0))
+    result = _service().evaluate_action(_ctx(deferrals_this_year=0, unpaid_amount=500.0))
     assert (result.verdict, result.rule_id) == ("escalate", "DEF_UNPAID_REVIEW")
 
 
@@ -162,11 +162,12 @@ def test_unknown_action_fails_closed() -> None:
     )
 
 
-def test_known_account_action_is_explicitly_authorized() -> None:
+def test_roaming_action_is_authorized() -> None:
+    """P3: ACTIVATE_ROAMING has its own rule (ROAM_OK) — no longer falls through to catch-all."""
     result = _service().evaluate_action(
-        _ctx(action_type="CHANGE_PLAN")
+        _ctx(action_type="ACTIVATE_ROAMING", enable=True)
     )
     assert (result.verdict, result.rule_id) == (
         "authorized",
-        "KNOWN_ACTION_AUTHORIZED",
+        "ROAM_OK",
     )

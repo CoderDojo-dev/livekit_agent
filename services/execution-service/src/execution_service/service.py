@@ -86,7 +86,14 @@ class ExecutionService:
             with self._session.begin_nested():
                 project_domain_effect(self._session, req, row)
         except Exception as exc:
-            logger.warning("domain projection failed (%s): %s", req.action_type, exc)
+            error_message = str(exc)
+            row.error_message = error_message
+            logger.error("domain projection failed for %s: %s", req.action_type, error_message)
+            self._audit.append(
+                require_uuid(req.session_id), "projection_failed",
+                {"action_type": req.action_type, "error_message": error_message, "idempotency_key": req.idempotency_key},
+                entity_reference=f"action_ledger:{row.id}",
+            )
 
         self._session.commit()
         return ExecuteResponse(status="executed", reference=reference, action_type=req.action_type, replay=False)

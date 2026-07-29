@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from policy_service.rules.account import check_change_plan, check_roaming, check_top_up
 from policy_service.rules.base import AUTHORIZED, ESCALATE, VerdictResult
 from policy_service.rules.deferral import check_deferral
 from policy_service.rules.mandatory_escalation import check_mandatory
@@ -31,7 +32,14 @@ SENSITIVE_ACTIONS = frozenset(
 # Explicit allowlist. Anything not listed here is unknown and must never execute.
 SUPPORTED_ACTIONS = SENSITIVE_ACTIONS
 
-_ACTION_RULES = (check_payment, check_deferral, check_sim)
+_ACTION_RULES = (
+    check_payment,
+    check_deferral,
+    check_sim,
+    check_top_up,
+    check_change_plan,
+    check_roaming,
+)
 
 
 def evaluate_action(ctx, thresholds) -> VerdictResult:

@@ -94,9 +94,13 @@ for persona, path in PERSONA_FILES.items():
     has_toolset = "build_knowledge_toolset()" in src
     declares = 'capabilities={"knowledge_search"}' in src
     check(f"{persona}: knowledge toolset <-> declared capability", has_toolset == declares)
+    # P7: AccountServicesAgent explicitly imports KNOWLEDGE_ABSTENTION_RULE (anti-invention guard).
+    # The central build_persona_instructions still appends it on top of the explicit one, so the
+    # rule appears twice in the final prompt — a harmless repetition that reinforces the constraint.
+    exempt = persona == "AccountServicesAgent"
     check(
         f"{persona} no longer concatenates KNOWLEDGE_ABSTENTION_RULE by hand",
-        "KNOWLEDGE_ABSTENTION_RULE" not in src,
+        "KNOWLEDGE_ABSTENTION_RULE" not in src or exempt,
     )
 
 

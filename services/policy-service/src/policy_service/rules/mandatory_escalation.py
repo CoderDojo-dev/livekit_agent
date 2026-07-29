@@ -11,8 +11,8 @@ def check_mandatory(ctx) -> VerdictResult | None:
     """Return an ESCALATE verdict if any mandatory trigger fires, else None."""
     if ctx.fraud_suspected:
         return VerdictResult(ESCALATE, "ESC_FRAUD", "fraud suspicion on the account")
-    if ctx.is_vip:
-        return VerdictResult(ESCALATE, "ESC_VIP", "VIP / grand-compte customer (commercial policy)")
+    # is_vip is deliberately NOT escalated here (P9). VIP customers must pass through
+    # business rules like everyone else. The field remains in PolicyContext for audit.
     if ctx.frustration:
         return VerdictResult(ESCALATE, "ESC_FRUSTRATION", "confirmed caller frustration")
     if ctx.clarification_attempts >= CLARIFICATION_MAX_ATTEMPTS:

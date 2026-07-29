@@ -7,11 +7,13 @@ guarded action path.
 
 from __future__ import annotations
 
+from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from providers.tts import build_persona_tts
 from tools.account_tools import change_plan, get_plan_details, toggle_roaming, top_up
+from tools.billing_tools import get_balance_summary, get_invoice_summary
 from tools.escalation_tools import escalate_to_manager
 
-from agents.base_agent import BaseTelecomAgent
+from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 
@@ -19,8 +21,12 @@ _CORE = (
     "You handle account services: plan consultation, plan changes, prepaid recharges, "
     "and roaming. You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
     "For the current plan call get_plan_details. To change a plan use "
-    "change_plan. For a recharge use top_up. For roaming use toggle_roaming. If the "
-    "caller is upset or asks for a human, call escalate_to_manager. Keep replies short."
+    "change_plan. For a recharge use top_up. For roaming use toggle_roaming. "
+    "For balance or invoice queries use get_balance_summary / get_invoice_summary "
+    "(read-only; payments and deferrals still need route_to_billing). If the "
+    "caller is upset or asks for a human, call escalate_to_manager. "
+    "Keep replies short.\n\n"
+    + KNOWLEDGE_ABSTENTION_RULE
 )
 
 
@@ -34,15 +40,19 @@ class AccountServicesAgent(BaseTelecomAgent):
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
             core_instructions=_CORE.format(lang_name=lang_name),
+            capabilities={"knowledge_search"},
             chat_ctx=chat_ctx,
             tools=[
                 get_plan_details,
                 change_plan,
                 top_up,
                 toggle_roaming,
+                get_balance_summary,
+                get_invoice_summary,
                 route_to_billing,
                 route_to_technical,
                 escalate_to_manager,
+                build_knowledge_toolset(),
             ],
             tts=build_persona_tts(selected_language, "account"),
         )

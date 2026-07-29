@@ -8,6 +8,7 @@ reference and are flagged for binding.
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from decimal import Decimal
 
@@ -20,6 +21,7 @@ _REFERENCE_PREFIX = {
     "REPLACE_SIM": "SIM", "REACTIVATE_SIM": "SIM", "TOP_UP": "TOP",
     "CHANGE_PLAN": "PLN", "ACTIVATE_ROAMING": "ROAM",
 }
+_MONEY_ACTIONS = frozenset({"EXECUTE_PAYMENT", "TOP_UP", "PAYMENT_DEFERRAL"})
 _TARGET_DOMAIN = {
     "EXECUTE_PAYMENT": "billing", "PAYMENT_DEFERRAL": "billing", "TOP_UP": "ocs",
     "UNBLOCK_SIM": "sim", "REPLACE_SIM": "sim", "REACTIVATE_SIM": "sim",
@@ -36,7 +38,7 @@ def _require_supported_action(action_type: str) -> None:
 
 def _mock_reference(action_type: str) -> str:
     _require_supported_action(action_type)
-    return f"{_REFERENCE_PREFIX[action_type]}-{uuid.uuid4().hex[:10].upper()}"
+    return f"MOCK-{_REFERENCE_PREFIX[action_type]}-{uuid.uuid4().hex[:10].upper()}"
 
 
 def dispatch(action_type: str, payload: dict, *, customer_id: str | None = None,
@@ -44,6 +46,10 @@ def dispatch(action_type: str, payload: dict, *, customer_id: str | None = None,
     """Execute the action against the legacy system and return a confirmation reference."""
     _require_supported_action(action_type)
     if not is_live():
+        if action_type in _MONEY_ACTIONS and os.getenv("ALLOW_MOCK_SENSITIVE", "0") != "1":
+            raise RuntimeError(
+                f"Refusing to {action_type} in mock mode without ALLOW_MOCK_SENSITIVE=1"
+            )
         return _mock_reference(action_type)
     return _dispatch_live(action_type, payload, customer_id, idempotency_key)
 

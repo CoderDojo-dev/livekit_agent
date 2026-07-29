@@ -24,8 +24,10 @@ class PolicyContext(BaseModel):
     amount: float | None = None
     requested_days: int | None = None
     account_age_days: int = 0
-    deferrals_this_year: int = 0
+    deferrals_this_year: int | None = None
     unpaid_amount: float = 0.0
+    plan_code: str | None = None
+    enable: bool | None = None
     payment_confirmed: bool = False
 
 
