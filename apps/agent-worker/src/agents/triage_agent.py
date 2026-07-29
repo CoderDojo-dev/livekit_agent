@@ -18,7 +18,7 @@ from tools.routing_tools import (
     route_to_technical,
 )
 
-from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent, merge_instructions
+from agents.base_agent import BaseTelecomAgent
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,8 @@ class TriageAgent(BaseTelecomAgent):
         lang_name = _LANG_NAMES[selected_language]
 
         super().__init__(
-            instructions=merge_instructions(
-                _INSTRUCTIONS.format(language=lang_name) + "\n\n" + KNOWLEDGE_ABSTENTION_RULE,
-            ),
+            core_instructions=_INSTRUCTIONS.format(language=lang_name),
+            capabilities={"knowledge_search"},
             tools=[
                 request_clarification,
                 check_customer_tickets,

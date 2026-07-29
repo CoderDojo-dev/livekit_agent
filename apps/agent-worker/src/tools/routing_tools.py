@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from agents.domains import DOMAIN_BY_KEY
 from livekit.agents import Agent, RunContext, function_tool
 
 from tools.voice_flow import current_chat_ctx, handoff_with_message
@@ -26,25 +27,10 @@ def _resolve_language(context: RunContext) -> str:
     return "fr"
 
 
-# Phrases de transition DÉTERMINISTES (par cible / langue). Déterministe = pas
+# Les phrases de transition DÉTERMINISTES vivent désormais dans agents.domains,
+# aux côtés du nom de l'outil de handoff et des topics utilisés par le mandat de
+# routage : un domaine se déclare à UN seul endroit. Déterministe = pas
 # d'hallucination, pas de tour LLM parasite, cohérent à chaque appel.
-_ROUTE_LINES = {
-    "billing": {
-        "fr": "Très bien, je vous mets en relation avec notre service de facturation.",
-        "ar": "حسنًا، سأحوّلك إلى قسم الفوترة لدينا.",
-        "en": "Sure, I'm connecting you with our billing department.",
-    },
-    "technical": {
-        "fr": "Très bien, je vous mets en relation avec notre service technique.",
-        "ar": "حسنًا، سأحوّلك إلى الدعم الفني لدينا.",
-        "en": "Sure, I'm connecting you with our technical support.",
-    },
-    "account": {
-        "fr": "Très bien, je vous mets en relation avec notre service de gestion de compte.",
-        "ar": "حسنًا، سأحوّلك إلى قسم إدارة الحساب لدينا.",
-        "en": "Sure, I'm connecting you with our account services team.",
-    },
-}
 
 
 @function_tool()
@@ -54,7 +40,7 @@ async def route_to_billing(context: RunContext) -> Agent:
 
     lang = _resolve_language(context)
     agent = BillingAgent(chat_ctx=current_chat_ctx(context), language=lang)
-    return await handoff_with_message(context, agent, _ROUTE_LINES["billing"][lang])
+    return await handoff_with_message(context, agent, DOMAIN_BY_KEY["billing"].lines[lang])
 
 
 @function_tool()
@@ -64,7 +50,7 @@ async def route_to_technical(context: RunContext) -> Agent:
 
     lang = _resolve_language(context)
     agent = TechnicalAgent(chat_ctx=current_chat_ctx(context), language=lang)
-    return await handoff_with_message(context, agent, _ROUTE_LINES["technical"][lang])
+    return await handoff_with_message(context, agent, DOMAIN_BY_KEY["technical"].lines[lang])
 
 
 @function_tool()
@@ -74,4 +60,4 @@ async def route_to_account_services(context: RunContext) -> Agent:
 
     lang = _resolve_language(context)
     agent = AccountServicesAgent(chat_ctx=current_chat_ctx(context), language=lang)
-    return await handoff_with_message(context, agent, _ROUTE_LINES["account"][lang])
+    return await handoff_with_message(context, agent, DOMAIN_BY_KEY["account"].lines[lang])

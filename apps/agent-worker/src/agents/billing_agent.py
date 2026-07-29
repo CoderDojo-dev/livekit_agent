@@ -19,9 +19,25 @@ from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 from tools.voice_flow import active_persona_tts
 
-from agents.base_agent import KNOWLEDGE_ABSTENTION_RULE, BaseTelecomAgent, merge_instructions
+from agents.base_agent import BaseTelecomAgent
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
+
+# Persona core, module level so it can be imported and asserted by tests without
+# building a TTS provider. Text identical to v63.
+_CORE = (
+    "You handle billing: invoice/balance consultation, payment, and payment-deferral. "
+    "You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
+    "For the caller's own invoice or balance, use get_invoice_summary / "
+    "get_balance_summary. To take a payment use make_payment; for a deferral use "
+    "request_payment_deferral. For general offer/procedure/FAQ questions, call "
+    "knowledge_search with a concise ENGLISH query and answer in {lang_name}, "
+    "citing the source. Keep replies short. NEVER claim a payment or "
+    "deferral succeeded yourself - only the tool result decides. Communicate the "
+    "tool's 'message' to the caller: on 'executed' give the reference; on 'refused' "
+    "or 'failed' explain plainly; on 'escalate' explain briefly and call "
+    "escalate_to_manager. Always reply in {lang_name}."
+)
 
 
 @function_tool()
@@ -74,19 +90,8 @@ class BillingAgent(BaseTelecomAgent):
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
-            instructions=merge_instructions(
-                f"You handle billing: invoice/balance consultation, payment, and payment-deferral. "
-                f"You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
-                "For the caller's own invoice or balance, use get_invoice_summary / "
-                "get_balance_summary. To take a payment use make_payment; for a deferral use "
-                "request_payment_deferral. For general offer/procedure/FAQ questions, call "
-                f"knowledge_search with a concise ENGLISH query and answer in {lang_name}, "
-                "citing the source. Keep replies short. NEVER claim a payment or "
-                "deferral succeeded yourself - only the tool result decides. Communicate the "
-                "tool's 'message' to the caller: on 'executed' give the reference; on 'refused' "
-                "or 'failed' explain plainly; on 'escalate' explain briefly and call "
-                f"escalate_to_manager. Always reply in {lang_name}." + "\n\n" + KNOWLEDGE_ABSTENTION_RULE
-            ),
+            core_instructions=_CORE.format(lang_name=lang_name),
+            capabilities={"knowledge_search"},
             chat_ctx=chat_ctx,
             tools=[
                 get_invoice_summary,

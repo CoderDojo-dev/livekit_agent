@@ -11,9 +11,17 @@ from providers.tts import build_persona_tts
 from tools.account_tools import change_plan, get_plan_details, toggle_roaming, top_up
 from tools.escalation_tools import escalate_to_manager
 
-from agents.base_agent import BaseTelecomAgent, merge_instructions
+from agents.base_agent import BaseTelecomAgent
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
+
+_CORE = (
+    "You handle account services: plan consultation, plan changes, prepaid recharges, "
+    "and roaming. You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
+    "For the current plan call get_plan_details. To change a plan use "
+    "change_plan. For a recharge use top_up. For roaming use toggle_roaming. If the "
+    "caller is upset or asks for a human, call escalate_to_manager. Keep replies short."
+)
 
 
 class AccountServicesAgent(BaseTelecomAgent):
@@ -25,13 +33,7 @@ class AccountServicesAgent(BaseTelecomAgent):
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
-            instructions=merge_instructions(
-                f"You handle account services: plan consultation, plan changes, prepaid recharges, "
-                f"and roaming. You MUST speak ONLY in {lang_name}. Never switch to another language.\n"
-                "For the current plan call get_plan_details. To change a plan use "
-                "change_plan. For a recharge use top_up. For roaming use toggle_roaming. If the "
-                "caller is upset or asks for a human, call escalate_to_manager. Keep replies short."
-            ),
+            core_instructions=_CORE.format(lang_name=lang_name),
             chat_ctx=chat_ctx,
             tools=[
                 get_plan_details,

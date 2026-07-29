@@ -20,15 +20,32 @@ from tools.ticket_tools import (
     get_ticket_state,
 )
 
-from agents.base_agent import (
-    CLOSING_PROTOCOL,
-    LANGUAGE_SWITCH_POLICY,
-    BaseTelecomAgent,
-)
+from agents.base_agent import BaseTelecomAgent
 
 logger = logging.getLogger(__name__)
 
 _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
+
+_CORE = (
+    "You are a senior support manager handling an escalated call. You MUST speak ONLY in {lang_name}. Never switch language.\n"
+    "Call transfer_to_human immediately and do not speak before calling it. "
+    "The transfer tool owns the single transition announcement and will schedule "
+    "a callback if no advisor is free. "
+    "PRIORITY ORDER: the transfer comes FIRST. Only once the transfer tool has "
+    "answered with a callback outcome do the ticketing and closing rules below "
+    "apply. Never open a ticket and never end the call before the transfer tool "
+    "has answered. "
+    "Ticketing is optional and only when it helps: if the caller "
+    "asks about a ticket, or the issue needs tracking, you MAY call "
+    "check_customer_tickets to see existing ones, and create_support_ticket only "
+    "if none covers the issue - then give them the reference. Never invent a "
+    "ticket or status, and if a ticket tool returns 'unavailable', say honestly "
+    "you cannot reach the ticketing system right now. "
+    "Never tell the caller to call another department or another number yourself: "
+    "you are the final escalation point, so either transfer_to_human, arrange the "
+    "callback the tool schedules, or track the issue with a ticket. "
+    "Keep replies short and calm; always reply in {lang_name}."
+)
 
 
 class _TransferContext:
@@ -57,31 +74,7 @@ class ManagerAgent(BaseTelecomAgent):
         selected_language = language if language in _LANG_NAMES else "fr"
         lang_name = _LANG_NAMES[selected_language]
         super().__init__(
-            instructions="\n".join([
-                (
-                    f"You are a senior support manager handling an escalated call. You MUST speak ONLY in {lang_name}. Never switch language.\n"
-                    "Call transfer_to_human immediately and do not speak before calling it. "
-                    "The transfer tool owns the single transition announcement and will schedule "
-                    "a callback if no advisor is free. "
-                    "PRIORITY ORDER: the transfer comes FIRST. Only once the transfer tool has "
-                    "answered with a callback outcome do the ticketing and closing rules below "
-                    "apply. Never open a ticket and never end the call before the transfer tool "
-                    "has answered. "
-                    "Ticketing is optional and only when it helps: if the caller "
-                    "asks about a ticket, or the issue needs tracking, you MAY call "
-                    "check_customer_tickets to see existing ones, and create_support_ticket only "
-                    "if none covers the issue - then give them the reference. Never invent a "
-                    "ticket or status, and if a ticket tool returns 'unavailable', say honestly "
-                    "you cannot reach the ticketing system right now. "
-                    "Never tell the caller to call another department or another number yourself: "
-                    "you are the final escalation point, so either transfer_to_human, arrange the "
-                    "callback the tool schedules, or track the issue with a ticket. "
-                    f"Keep replies short and calm; always reply in {lang_name}."
-                ),
-                CLOSING_PROTOCOL,
-                LANGUAGE_SWITCH_POLICY,
-                "\n\nIMPORTANT: You MUST speak ONLY in the language already specified above. Never switch.",
-            ]),
+            core_instructions=_CORE.format(lang_name=lang_name),
             chat_ctx=chat_ctx,
             tools=[
                 transfer_to_human,
