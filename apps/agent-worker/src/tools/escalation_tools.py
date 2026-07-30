@@ -7,12 +7,13 @@ import logging
 from agents.manager_agent import ManagerAgent
 from livekit.agents import Agent, RunContext, function_tool
 
+from tools.escalation_policy import EscalationPolicy, decide
 from tools.voice_flow import current_chat_ctx, handoff_with_message
 
 logger = logging.getLogger(__name__)
 
-# Motifs autorisant une escalade SANS demander l'avis de l'appelant.
-_IMMEDIATE_REASONS = frozenset({"abuse", "threat", "fraud", "legal"})
+_POLICY = EscalationPolicy()
+_MAX_OFFERS = 3
 
 _OFFER_FIRST = {
     "fr": "Do not transfer yet. In ONE short French sentence, say plainly what you cannot "
@@ -23,23 +24,11 @@ _OFFER_FIRST = {
           "do, then ask if they would like to speak with a manager. Wait for their answer.",
 }
 
-
-def _trigger_for(user_data, reason: str = "") -> str:
-    """Select the strongest verified escalation trigger.
-
-    An explicit reason given by the model wins only when it is one of the immediate
-    ones: those are the cases a supervisor must be able to filter on later.
-    """
-    motive = (reason or "").strip().lower()
-    if motive in _IMMEDIATE_REASONS:
-        return motive
-    if getattr(user_data, "should_offer_escalation", False):
-        return "frustration"
-    if getattr(user_data, "clarification_attempts", 0) >= 2:
-        return "clarify_fail"
-    if getattr(user_data, "identity_attempts", 0) >= 3:
-        return "identity_fail"
-    return "hard_failure"
+_KEEP_HELPING = {
+    "fr": "Pas de problème. Je continue à vous aider. Dites-moi ce dont vous avez besoin.",
+    "ar": "لا مشكلة. سأستمر في مساعدتك. أخبرني بما تحتاجه.",
+    "en": "No problem. I will keep helping you. Tell me what you need.",
+}
 
 
 def _resolve_language(context: RunContext) -> str:
@@ -74,6 +63,16 @@ def _skill_tag_for(context: RunContext) -> str:
     return _SKILL_TAGS.get(type(current).__name__, "general")
 
 
+_HARD_FAILURE = {
+    "fr": "Je comprends. Malheureusement, je ne peux pas vous transférer pour le moment. "
+          "Veuillez rappeler plus tard ou contacter notre service client par un autre canal.",
+    "ar": "أتفهم ذلك. لسوء الحظ، لا يمكنني تحويلك في الوقت الحالي. "
+          "يرجى الاتصال لاحقًا أو الاتصال بخدمة العملاء عبر قناة أخرى.",
+    "en": "I understand. Unfortunately, I cannot transfer you right now. "
+          "Please call back later or contact our customer service through another channel.",
+}
+
+
 @function_tool()
 async def escalate_to_manager(
     context: RunContext,
@@ -87,18 +86,20 @@ async def escalate_to_manager(
     (reason="abuse" / "threat" / "fraud", caller_agreed may stay false).
     """
     user_data = context.session.userdata
-    motive = (reason or "").strip().lower()
+    trigger = decide(user_data, reason)
 
-    # Deterministic gate: a premature escalation is refused here, not merely discouraged
-    # in the prompt. The caller keeps the persona that already knows their case.
-    if not caller_agreed and motive not in _IMMEDIATE_REASONS:
+    if not caller_agreed and trigger not in {"abuse", "threat", "fraud", "legal"}:
         language = _resolve_language(context)
-        logger.info("escalation deferred (reason=%s, no consent yet)", motive or "unspecified")
+        if getattr(user_data, "user_refused_manager", False):
+            return _KEEP_HELPING.get(language, _KEEP_HELPING["en"])
+        if getattr(user_data, "offer_count", 0) >= _MAX_OFFERS:
+            logger.info("escalation hard-failure (reason=%s, offers exhausted)", trigger or "unspecified")
+            return _HARD_FAILURE.get(language, _HARD_FAILURE["en"])
+        user_data.offer_count += 1
+        logger.info("escalation deferred (reason=%s, offer %d/%d)",
+                     trigger or "unspecified", user_data.offer_count, _MAX_OFFERS)
         return _OFFER_FIRST.get(language, _OFFER_FIRST["fr"])
 
-    # The human transfer needs the skill of the persona we are leaving, and the
-    # handoff line below IS the transition announcement - so tell transfer_to_human
-    # not to speak a second one.
     user_data.current_persona_skill_tag = _skill_tag_for(context)
     user_data.human_transfer_announced = True
 
@@ -109,7 +110,7 @@ async def escalate_to_manager(
         customer = getattr(user_data, "customer_context", None)
         try:
             writer.record_escalation(
-                trigger=_trigger_for(user_data, motive),
+                trigger=trigger,
                 target="manager_agent",
                 dossier={
                     "consecutive_negative_turns": getattr(user_data, "consecutive_negative_turns", 0),
@@ -119,7 +120,18 @@ async def escalate_to_manager(
                 customer_id=customer.customer_id if customer else None,
             )
         except Exception as exc:
-            # Persistence is off the real-time path and must never block a handoff.
             logger.warning("escalation record skipped: %s", exc)
 
     return await handoff_with_message(context, next_agent, _MANAGER_LINES[_resolve_language(context)])
+
+
+@function_tool()
+async def caller_refused_manager(context: RunContext) -> str:
+    """The caller does NOT want to speak with a manager. Acknowledge and continue helping."""
+    user_data = context.session.userdata
+    user_data.user_refused_manager = True
+    user_data.can_hardfail = False
+    user_data.should_offer_escalation = False
+    language = _resolve_language(context)
+    logger.info("caller refused manager; will not offer again")
+    return _KEEP_HELPING.get(language, _KEEP_HELPING["en"])

@@ -11,7 +11,7 @@ from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from providers.tts import build_persona_tts
 from tools.account_tools import change_plan, get_plan_details, toggle_roaming, top_up
 from tools.billing_tools import get_balance_summary, get_invoice_summary
-from tools.escalation_tools import escalate_to_manager
+from tools.escalation_tools import caller_refused_manager, escalate_to_manager
 
 from agents.base_agent import BaseTelecomAgent
 
@@ -53,6 +53,7 @@ class AccountServicesAgent(BaseTelecomAgent):
                 route_to_billing,
                 route_to_technical,
                 escalate_to_manager,
+                caller_refused_manager,
                 build_knowledge_toolset(),
             ],
             tts=build_persona_tts(selected_language, "account"),

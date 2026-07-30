@@ -43,6 +43,7 @@ KNOWN_TOOL_VOCABULARY: frozenset[str] = frozenset(
         "route_to_technical",
         "request_clarification",
         "escalate_to_manager",
+        "caller_refused_manager",
         "transfer_to_human",
         "end_conversation",
         "switch_spoken_language",

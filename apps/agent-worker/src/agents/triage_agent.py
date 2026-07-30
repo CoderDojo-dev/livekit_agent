@@ -11,7 +11,7 @@ from tasks.consent_task import ConsentTask
 from tools.clarification_tools import request_clarification
 from tools.ticket_tools import check_customer_tickets, get_ticket_state
 from tools.voice_flow import persona_tts
-from tools.escalation_tools import escalate_to_manager
+from tools.escalation_tools import caller_refused_manager, escalate_to_manager
 from tools.routing_tools import (
     route_to_account_services,
     route_to_billing,
@@ -65,6 +65,7 @@ class TriageAgent(BaseTelecomAgent):
                 route_to_billing,
                 route_to_technical,
                 escalate_to_manager,
+                caller_refused_manager,
                 build_knowledge_toolset(),
             ],
             tts=build_persona_tts(selected_language, "triage"),

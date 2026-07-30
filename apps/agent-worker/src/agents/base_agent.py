@@ -13,6 +13,7 @@ from conversation.writer import sentiment_label
 from livekit.agents import Agent
 from livekit.agents.types import NotGivenOr
 from sentiment.sentiment_scorer import get_sentiment_scorer
+from tools.escalation_policy import decide
 from tools.session_flow_tools import end_conversation, switch_spoken_language
 
 from agents.instruction_kit import (
@@ -181,7 +182,7 @@ class BaseTelecomAgent(Agent):
                 )
                 writer.record_sentiment(score=score, label=sentiment_label(score))
 
-        if getattr(user_data, "should_offer_escalation", False):
+        if decide(user_data) == "frustration":
             try:
                 lang = getattr(self, "_lang_name", None)
                 if not lang and user_data is not None:

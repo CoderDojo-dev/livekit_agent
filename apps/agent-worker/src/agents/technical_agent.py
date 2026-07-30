@@ -11,7 +11,7 @@ from mcp_clients.knowledge_toolset import build_knowledge_toolset
 from providers.tts import build_persona_tts
 from tasks.sim_replacement_task_group import SimReplacementTaskGroup
 from tools import outcomes
-from tools.escalation_tools import escalate_to_manager
+from tools.escalation_tools import caller_refused_manager, escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 from tools.voice_flow import active_persona_tts
@@ -115,6 +115,7 @@ class TechnicalAgent(BaseTelecomAgent):
                 route_to_account_services,
                 route_to_billing,
                 escalate_to_manager,
+                caller_refused_manager,
                 create_support_ticket,
                 check_customer_tickets,
                 get_ticket_state,

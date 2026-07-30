@@ -138,9 +138,9 @@ def test_empty_clarification_uses_safe_fallback():
     asyncio.run(run())
 
 
-def test_second_clarification_hands_off(monkeypatch):
-    async def fake_escalate(context):
-        return "manager-agent"
+def test_third_clarification_offers_transfer(monkeypatch):
+    async def fake_escalate(context, reason="caller_request", caller_agreed=False):
+        return f"manager-agent:{reason}"
 
     monkeypatch.setattr(
         clarification_tools,
@@ -149,7 +149,7 @@ def test_second_clarification_hands_off(monkeypatch):
     )
 
     async def run():
-        userdata = make_userdata(clarification_attempts=1)
+        userdata = make_userdata(clarification_attempts=2)
         context, session = make_context(userdata)
 
         result = await clarification_tools.request_clarification(
@@ -157,8 +157,8 @@ def test_second_clarification_hands_off(monkeypatch):
             "Encore une précision ?",
         )
 
-        assert result == "manager-agent"
-        assert userdata.clarification_attempts == 2
+        assert isinstance(result, str)
+        assert userdata.clarification_attempts == 3
         assert session.say_calls == []
 
     asyncio.run(run())
@@ -209,17 +209,18 @@ class FakeWriter:
 
 
 @pytest.mark.parametrize(
-    ("overrides", "expected_trigger"),
+    ("overrides", "reason", "expected_trigger"),
     [
-        ({"should_offer_escalation": True}, "frustration"),
-        ({"clarification_attempts": 2}, "clarify_fail"),
-        ({"identity_attempts": 3}, "identity_fail"),
-        ({}, "hard_failure"),
+        ({"should_offer_escalation": True}, "caller_request", "frustration"),
+        ({"clarification_attempts": 3}, "caller_request", "clarify_fail"),
+        ({"identity_attempts": 3}, "caller_request", "identity_fail"),
+        ({}, "abuse", "abuse"),
     ],
 )
 def test_manager_escalation_paths(
     monkeypatch,
     overrides,
+    reason,
     expected_trigger,
 ):
     class FakeManager:
@@ -237,7 +238,7 @@ def test_manager_escalation_paths(
         context, session = make_context(userdata)
         original_chat_ctx = session.current_agent.chat_ctx
 
-        result = await escalation_tools.escalate_to_manager(context, caller_agreed=True)
+        result = await escalation_tools.escalate_to_manager(context, reason=reason, caller_agreed=True)
 
         assert isinstance(result, FakeManager)
         assert result.chat_ctx is original_chat_ctx

@@ -10,15 +10,15 @@ from __future__ import annotations
 from typing import Protocol
 
 NEGATIVE_THRESHOLD = -0.35
-ESCALATE_AFTER_CONSECUTIVE_NEGATIVE_TURNS = 2
+ESCALATE_AFTER_CONSECUTIVE_NEGATIVE_TURNS = 3
 
 _NEGATIVE = (
     # en
     "angry", "furious", "unacceptable", "terrible", "ridiculous", "useless", "worst",
-    "frustrated", "frustrating", "scam", "cancel", "hate", "awful", "incompetent", "complaint",
+    "frustrated", "frustrating", "scam", "hate", "awful", "incompetent",
     # fr
     "inacceptable", "ridicule", "horrible", "arnaque", "scandaleux", "marre", "énervé",
-    "colère", "inadmissible", "résilier", "honteux", "incompétent", "nul",
+    "colère", "inadmissible", "honteux", "incompétent",
     # ar
     "سيء", "غاضب", "مرفوض", "فضيحة", "مزعج", "سخيف",
 )
@@ -26,6 +26,24 @@ _POSITIVE = (
     "thanks", "thank you", "great", "perfect", "helpful", "appreciate", "excellent",
     "merci", "parfait", "génial", "super", "شكرا", "ممتاز", "رائع",
 )
+
+_ABUSE = (
+    # en
+    "stupid", "idiot", "moron", "shut up", "fuck", "kill", "die", "bastard",
+    # fr
+    "con", "connard", "stupide", "idiot", "imbécile", "ferme-la", "ta gueule",
+    # ar
+    "غبي", "أحمق", "اخرس",
+)
+
+
+def detect_abuse(transcript: str) -> tuple[str, float]:
+    """Return ("abuse", 1.0) if the transcript contains abusive/threatening language, else ("", 0.0)."""
+    text = transcript.lower()
+    for word in _ABUSE:
+        if word in text:
+            return "abuse", 1.0
+    return "", 0.0
 
 
 class SentimentScorer(Protocol):

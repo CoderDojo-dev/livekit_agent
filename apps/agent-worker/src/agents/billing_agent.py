@@ -14,7 +14,7 @@ from providers.tts import build_persona_tts
 from tasks.payment_confirm_task import PaymentConfirmTask
 from tools import outcomes
 from tools.billing_tools import get_balance_summary, get_invoice_summary
-from tools.escalation_tools import escalate_to_manager
+from tools.escalation_tools import caller_refused_manager, escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
 from tools.voice_flow import active_persona_tts
@@ -113,6 +113,7 @@ class BillingAgent(BaseTelecomAgent):
                 route_to_account_services,
                 route_to_technical,
                 escalate_to_manager,
+                caller_refused_manager,
                 build_knowledge_toolset(),
             ],
             tts=build_persona_tts(selected_language, "billing"),

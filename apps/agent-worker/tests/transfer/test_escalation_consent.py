@@ -12,6 +12,7 @@ class _Session:
             language="fr", clarification_attempts=0, identity_attempts=1,
             should_offer_escalation=False, conversation_writer=None,
             current_persona_skill_tag="general", human_transfer_announced=False,
+            offer_count=0, user_refused_manager=False, can_hardfail=True,
         )
         self.current_agent = MagicMock()
         self.current_agent.chat_ctx = MagicMock()

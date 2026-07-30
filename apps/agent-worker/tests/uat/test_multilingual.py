@@ -31,8 +31,9 @@ def test_negativity_detected_per_language(lang: str, negative: str, positive: st
     assert ud_neg.consecutive_negative_turns >= 1, f"{lang}: negative turn should be flagged"
 
 
-def test_two_negative_turns_escalate_in_arabic() -> None:
+def test_three_negative_turns_escalate_in_arabic() -> None:
     ud = SessionUserData(language="ar")
     scorer.score("هذا سيء جدا", ud)
     scorer.score("مرفوض، فضيحة", ud)
+    scorer.score("سخيف ومزعج", ud)
     assert ud.should_offer_escalation is True  # the de-escalation path works cross-lingually

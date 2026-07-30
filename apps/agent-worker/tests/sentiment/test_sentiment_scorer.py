@@ -7,11 +7,12 @@ from session.session_state import SessionUserData
 scorer = LexicalSentimentScorer()
 
 
-def test_two_negative_turns_recommend_escalation() -> None:
+def test_three_negative_turns_recommend_escalation() -> None:
     ud = SessionUserData()
     scorer.score("this is unacceptable, I am furious", ud)
     scorer.score("ridiculous, the worst service ever", ud)
-    assert ud.consecutive_negative_turns >= 2
+    scorer.score("this is completely useless", ud)
+    assert ud.consecutive_negative_turns >= 3
     assert ud.should_offer_escalation is True
 
 

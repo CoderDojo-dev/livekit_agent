@@ -40,6 +40,9 @@ class SessionUserData:
     human_transfer_in_progress: bool = False
     human_transfer_outcome: str | None = None
     escalation_reason: str | None = None
+    offer_count: int = 0
+    user_refused_manager: bool = False
+    can_hardfail: bool = True
 
     # --- conversation persistence (P3) ---
     conversation_writer: object | None = None
