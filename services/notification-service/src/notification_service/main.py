@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import Depends, FastAPI
 
-from notification_service.channels import channel_status
+from notification_service.channels import channel_status, verify_credentials
 from notification_service.schemas import NotifyRequest, NotifyResponse
 from notification_service.service import NotificationService
 from service_auth import require_internal_key
@@ -24,6 +24,12 @@ async def health() -> dict:
 async def notify(req: NotifyRequest) -> NotifyResponse:
     """Send one localized written confirmation."""
     return await _service.notify(req)
+
+
+@app.get("/health/credentials", tags=["health"])
+async def health_credentials() -> dict:
+    """Live credential probe. Slow on purpose: never call it from a readiness probe."""
+    return await verify_credentials()
 
 
 @app.get("/sent")

@@ -37,12 +37,20 @@ class TwilioChannel:
     def __init__(self, name: str, from_number: str) -> None:
         self.name = name
         self._from = from_number
-        self._sid = os.environ["TWILIO_ACCOUNT_SID"]
-        self._token = os.environ["TWILIO_AUTH_TOKEN"]
+        self._sid = os.getenv("TWILIO_ACCOUNT_SID", "")
+        self._token = os.getenv("TWILIO_AUTH_TOKEN", "")
 
     @property
     def configured(self) -> bool:
-        return bool(self._sid and self._from)
+        return bool(self._sid and self._token and self._from)
+
+    @staticmethod
+    def _address(number: str, prefix: str) -> str:
+        """Twilio rejects a doubled channel prefix; the console shows numbers already prefixed."""
+        clean = (number or "").strip()
+        if clean.startswith("whatsapp:"):
+            clean = clean[len("whatsapp:"):]
+        return f"{prefix}{clean}"
 
     async def send(self, to: str, body: str) -> str:
         prefix = "whatsapp:" if self.name == "whatsapp" else ""
@@ -50,7 +58,8 @@ class TwilioChannel:
         async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.post(
                 url, auth=(self._sid, self._token),
-                data={"From": f"{prefix}{self._from}", "To": f"{prefix}{to}", "Body": body},
+                data={"From": self._address(self._from, prefix),
+                      "To": self._address(to, prefix), "Body": body},
             )
             resp.raise_for_status()
             return resp.json().get("sid", "")
@@ -62,7 +71,7 @@ class SmtpEmailChannel:
     name = "email"
 
     def __init__(self) -> None:
-        self._host = os.environ["SMTP_HOST"]
+        self._host = os.getenv("SMTP_HOST", "")
         self._port = int(os.getenv("SMTP_PORT", "587"))
         self._user = os.getenv("SMTP_USER", "")
         self._password = os.getenv("SMTP_PASSWORD", "")
@@ -78,7 +87,7 @@ class SmtpEmailChannel:
         message["To"] = to
         message["Subject"] = "Tunisie Telecom"
         message.set_content(body)
-        with smtplib.SMTP(self._host, self._port) as server:
+        with smtplib.SMTP(self._host, self._port, timeout=10) as server:
             server.starttls()
             if self._user:
                 server.login(self._user, self._password)
@@ -146,3 +155,47 @@ def get_channel(name: str) -> NotificationChannel:
     if name not in ("sms", "whatsapp", "email"):
         raise ChannelUnavailable(f"unknown channel {name!r}")
     return _build_channel(name)
+
+
+async def verify_credentials() -> dict[str, dict]:
+    """Actually ask each provider whether our credentials work.
+
+    channel_status() only reports whether variables are set, which is why a wrong auth token
+    looked healthy right up to the first live call.
+    """
+    report: dict[str, dict] = {}
+
+    sid = os.getenv("TWILIO_ACCOUNT_SID", "")
+    token = os.getenv("TWILIO_AUTH_TOKEN", "")
+    if sid and token:
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}.json"
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(url, auth=(sid, token))
+            report["twilio"] = {
+                "ok": resp.status_code == 200,
+                "status": resp.status_code,
+                "account": resp.json().get("friendly_name", "") if resp.status_code == 200 else "",
+            }
+        except Exception as exc:
+            report["twilio"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    else:
+        report["twilio"] = {"ok": False, "error": "TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not set"}
+
+    host = os.getenv("SMTP_HOST", "")
+    if host:
+        def _probe() -> dict:
+            with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=10) as server:
+                server.starttls()
+                user = os.getenv("SMTP_USER", "")
+                if user:
+                    server.login(user, os.getenv("SMTP_PASSWORD", ""))
+            return {"ok": True}
+        try:
+            report["smtp"] = await asyncio.to_thread(_probe)
+        except Exception as exc:
+            report["smtp"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    else:
+        report["smtp"] = {"ok": False, "error": "SMTP_HOST not set"}
+
+    return report

@@ -17,6 +17,7 @@ identity mismatch. It is a cold transfer: the caller's LiveKit session ends once
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import suppress
 
 from clients.routing_client import AdvisorDestination, get_routing_client
@@ -162,6 +163,12 @@ async def transfer_to_human(context: RunContext) -> dict:
             "message": "A transfer is already under way: briefly ask the caller to hold, "
                        "and say nothing else.",
         }
+
+    if os.getenv("SIP_TRANSFER_ENABLED", "false").lower() not in ("1", "true", "yes"):
+        logger.info("SIP transfer disabled; offering a callback directly")
+        user_data.escalation_reason = "sip_unavailable"
+        user_data.human_transfer_outcome = "callback_only"
+        return await _offer_callback(context, reason="sip_unavailable")
 
     user_data.human_transfer_in_progress = True
     skill_tag = getattr(user_data, "current_persona_skill_tag", "general")

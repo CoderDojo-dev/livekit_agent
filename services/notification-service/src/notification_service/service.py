@@ -77,7 +77,7 @@ class NotificationService:
             "template": req.template, "reference": reference,
             "sent": status == "sent", "reason": "" if status == "sent" else status,
         })
-        if os.getenv("DATABASE_URL") and status == "sent":
+        if os.getenv("DATABASE_URL"):
             try:
                 self._persist(req, status)
             except Exception as exc:

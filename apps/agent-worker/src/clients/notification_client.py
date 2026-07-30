@@ -86,6 +86,42 @@ class NotificationClient:
                 return last
         return last
 
+    async def notify_all_available(
+        self,
+        customer_id: str,
+        template: str,
+        language: str,
+        params: dict,
+        channels: tuple[str, ...] = ("whatsapp", "email"),
+        fallback: str = "sms",
+    ) -> list[str]:
+        """Send the same confirmation on every channel the customer can be reached on.
+
+        A booked callback is a commitment, so the written trace should exist wherever the
+        caller will look for it. Channels are independent: WhatsApp failing must not suppress
+        the email. Returns the channels that actually went out.
+
+        ``fallback`` is only tried when every primary channel failed, so a customer with no
+        WhatsApp and no email still gets an SMS rather than silence.
+        """
+        delivered: list[str] = []
+        for channel in channels:
+            try:
+                result = await self.notify(customer_id, template, language, params, channel=channel)
+            except Exception as exc:  # one dead channel must never hide the others
+                logger.warning("notify %s failed: %s", channel, exc)
+                continue
+            if result.get("sent"):
+                delivered.append(channel)
+            else:
+                logger.info("notify %s not delivered: %s", channel, result.get("reason", ""))
+
+        if not delivered and fallback:
+            result = await self.notify(customer_id, template, language, params, channel=fallback)
+            if result.get("sent"):
+                delivered.append(fallback)
+        return delivered
+
     async def aclose(self) -> None:
         await self._client.aclose()
 

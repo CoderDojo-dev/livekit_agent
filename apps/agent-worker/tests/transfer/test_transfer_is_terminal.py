@@ -14,6 +14,9 @@ from livekit.agents.llm.tool_context import StopResponse
 def test_success_sets_outcome_and_stops() -> None:
     """After a successful SIP REFER the outcome is 'transferred' and the turn stops."""
     import asyncio
+    import os
+
+    os.environ["SIP_TRANSFER_ENABLED"] = "true"
     import telephony.sip_transfer as _st
     from telephony.sip_transfer import transfer_to_human
 
@@ -63,6 +66,7 @@ def test_success_sets_outcome_and_stops() -> None:
         _st.get_routing_client = original_routing
         _st._find_sip_caller_identity = original_find
         _st.say_and_wait = original_say
+        os.environ.pop("SIP_TRANSFER_ENABLED", None)
 
     assert user_data.human_transfer_outcome == "transferred"
 

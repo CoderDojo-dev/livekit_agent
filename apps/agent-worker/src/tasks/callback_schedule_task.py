@@ -77,6 +77,7 @@ _CHANNEL = {
     "email": {"fr": "e-mail", "ar": "\u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a", "en": "email"},
     "sms": {"fr": "SMS", "ar": "\u0631\u0633\u0627\u0644\u0629 \u0642\u0635\u064a\u0631\u0629", "en": "SMS"},
 }
+_JOIN = {"fr": " et ", "ar": " \u0648 ", "en": " and "}
 
 
 def _lang(session) -> str:
@@ -206,9 +207,9 @@ class CallbackScheduleTask(AgentTask[bool]):
         user_data.callback_requested = True
         user_data.callback_when = chosen
 
-        channel = await self._notify(language, spoken)
-        if channel:
-            label = _CHANNEL[channel][language]
+        channels = await self._notify(language, spoken)
+        if channels:
+            label = _JOIN[language].join(_CHANNEL[c][language] for c in channels)
             await self.session.say(_CONFIRMED[language].format(when=spoken, channel=label))
         else:
             # The appointment is real even when the confirmation message could not go out;
@@ -272,12 +273,12 @@ class CallbackScheduleTask(AgentTask[bool]):
         offered = ", ".join(s["slot_start"] for s in self._slots[:2])
         return f"Say exactly: {sentence} -- bookable slot_start values: {offered}"
 
-    async def _notify(self, language: str, spoken: str) -> str | None:
-        """Send the confirmation over WhatsApp, then email, then SMS. None when all failed."""
+    async def _notify(self, language: str, spoken: str) -> list[str]:
+        """Confirm on every reachable channel. Returns what actually went out."""
         customer_id = getattr(self._customer, "customer_id", None)
         if not customer_id:
-            return None
-        result = await get_notification_client().notify_first_available(
+            logger.warning("callback booked without a customer_id: no written confirmation")
+            return []
+        return await get_notification_client().notify_all_available(
             customer_id, "callback_scheduled", language, {"when": spoken}
         )
-        return result.get("channel") if result.get("sent") else None
