@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
 from business_api import advisors as advisor_repo
+from business_api import availability as availability_repo
 from business_api import callbacks as callback_repo
 from business_api import policy_view
 from business_api.jobs.integrity import run_integrity
@@ -27,7 +28,7 @@ app = FastAPI(title="business-api")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5174").split(","),
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type", "X-Role"],
 )
 
@@ -141,6 +142,92 @@ def retention(
     return run_retention(session, retention_days=retention_days, dry_run=dry_run).__dict__
 
 
+# ---------------- Advisor working hours (admin dashboard + agent negotiation) ----------------
+class ShiftWindow(BaseModel):
+    """One working window, in business-local time."""
+
+    weekday: int          # 0 = Monday ... 6 = Sunday
+    start: str            # "08:00"
+    end: str              # "16:00"
+    is_active: bool = True
+
+
+class ShiftGrid(BaseModel):
+    """The complete weekly grid for one advisor. Sent whole, replaced whole."""
+
+    windows: list[ShiftWindow]
+
+
+class TimeOffPayload(BaseModel):
+    """A dated absence (ISO-8601 instants)."""
+
+    starts_at: str
+    ends_at: str
+    reason: str | None = None
+
+
+# Coverage must be declared BEFORE {advisor_id} routes so FastAPI doesn't route "coverage" as an id.
+@app.get("/api/v1/advisors/coverage")
+def advisor_coverage(session: DbSession, role: SuperviseurRole, days: int = 7) -> dict:
+    """Hour-by-hour coverage, including the hours nobody covers (supervision view)."""
+    return availability_repo.coverage_report(session, days)
+
+
+@app.get("/api/v1/advisors/{advisor_id}/schedule")
+def advisor_schedule(advisor_id: str, session: DbSession, role: SuperviseurRole) -> dict:
+    """One advisor's weekly grid plus upcoming absences (dashboard detail panel)."""
+    return availability_repo.advisor_week(session, advisor_id)
+
+
+@app.put("/api/v1/advisors/{advisor_id}/schedule")
+def replace_advisor_schedule(advisor_id: str, grid: ShiftGrid, session: DbSession,
+                             role: AdministrateurRole) -> dict:
+    """Replace an advisor's whole weekly grid. Overlapping windows are rejected."""
+    try:
+        shifts = availability_repo.replace_shifts(
+            session, advisor_id, [w.model_dump() for w in grid.windows]
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="advisor not found")
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    session.commit()
+    return {"advisor_id": advisor_id, "shifts": shifts}
+
+
+@app.get("/api/v1/advisors/{advisor_id}/time-off")
+def advisor_time_off(advisor_id: str, session: DbSession, role: SuperviseurRole,
+                     upcoming_only: bool = True) -> dict:
+    """An advisor's absences."""
+    return {"time_off": availability_repo.list_time_off(session, advisor_id, upcoming_only)}
+
+
+@app.post("/api/v1/advisors/{advisor_id}/time-off", status_code=201)
+def create_advisor_time_off(advisor_id: str, payload: TimeOffPayload, session: DbSession,
+                            role: AdministrateurRole) -> dict:
+    """Declare an absence; it removes the advisor from every slot it covers, immediately."""
+    try:
+        created = availability_repo.create_time_off(
+            session, advisor_id, payload.starts_at, payload.ends_at, payload.reason
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="advisor not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    session.commit()
+    return created
+
+
+@app.delete("/api/v1/advisors/time-off/{time_off_id}")
+def delete_advisor_time_off(time_off_id: str, session: DbSession,
+                            role: AdministrateurRole) -> dict:
+    """Cancel an absence; the weekly grid applies again from that instant."""
+    if not availability_repo.delete_time_off(session, time_off_id):
+        raise HTTPException(status_code=404, detail="time off not found")
+    session.commit()
+    return {"deleted": True, "time_off_id": time_off_id}
+
+
 # ---------------- Advisor registry (admin dashboard + agent routing) ----------------
 class AdvisorPayload(BaseModel):
     """Advisor create/update body. Skills are tags matched against the escalating persona."""
@@ -247,10 +334,23 @@ class CallbackOutcome(BaseModel):
 
 
 @app.get("/api/v1/callbacks/slots")
-def callback_slots(session: DbSession, role: ConseillerRole, days: int = 2,
-                   limit: int = 6) -> dict:
-    """Bookable callback slots, soonest first. An empty list means nobody is on call."""
-    return {"slots": callback_repo.free_slots(session, days, limit)}
+def callback_slots(session: DbSession, role: ConseillerRole, days: int = 2, limit: int = 6,
+                   day: str | None = None, skill_tag: str | None = None,
+                   language: str | None = None) -> dict:
+    """Bookable slots, soonest first. ``day`` (YYYY-MM-DD) answers "what about Thursday?"."""
+    return {"slots": callback_repo.free_slots(session, days, limit, day, skill_tag, language)}
+
+
+@app.get("/api/v1/callbacks/check")
+def callback_check(requested: str, session: DbSession, role: ConseillerRole,
+                   alternatives: int = 3, skill_tag: str | None = None,
+                   language: str | None = None) -> dict:
+    """Is this exact time bookable? Returns a reason and the nearest real alternatives.
+
+    This is what makes the negotiation honest: the agent proposes only times this endpoint
+    returned, and declines with a reason it did not invent.
+    """
+    return callback_repo.check_slot(session, requested, alternatives, skill_tag, language)
 
 
 @app.post("/api/v1/callbacks/reserve", status_code=201)

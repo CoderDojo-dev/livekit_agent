@@ -13,8 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
-from datetime import datetime
+from datetime import date as _date
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from livekit.agents import AgentTask, RunContext, function_tool
 
@@ -79,6 +82,111 @@ _CHANNEL = {
 }
 _JOIN = {"fr": " et ", "ar": " \u0648 ", "en": " and "}
 
+_NOT_THAT_TIME = {
+    "fr": "Ce moment-la n'est pas possible. ",
+    "en": "That time is not possible. ",
+    "ar": "That time is not possible. ",
+}
+_CLOSED = {
+    "fr": "Nous ne travaillons pas a ce moment-la. ",
+    "en": "We are not working at that time. ",
+    "ar": "We are not working at that time. ",
+}
+_FULL = {
+    "fr": "Ce creneau est deja complet. ",
+    "en": "That slot is already full. ",
+    "ar": "That slot is already full. ",
+}
+_TOO_SOON = {
+    "fr": "C'est trop proche, il nous faut un peu de temps. ",
+    "en": "That is too soon, we need a little time. ",
+    "ar": "That is too soon, we need a little time. ",
+}
+_WHAT_SUITS = {
+    "fr": "Est-ce que l'un de ces horaires vous conviendrait ?",
+    "en": "Would one of these times suit you?",
+    "ar": "Would one of these times suit you?",
+}
+
+BUSINESS_TZ = ZoneInfo(os.getenv("CALLBACK_TIMEZONE", "Africa/Tunis"))
+
+_DAY_WORDS = {
+    "lundi": 0, "mardi": 1, "mercredi": 2, "jeudi": 3, "vendredi": 4,
+    "samedi": 5, "dimanche": 6,
+    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
+    "saturday": 5, "sunday": 6,
+}
+_PART_OF_DAY = {"matin": 9, "morning": 9, "apres-midi": 15, "afternoon": 15,
+                "midi": 12, "noon": 12, "soir": 17, "evening": 17}
+
+
+def parse_requested_time(text: str, now: datetime | None = None) -> str | None:
+    """Turn what the caller said into one ISO instant, or None when it is genuinely ambiguous.
+
+    Deterministic on purpose. A model asked to "understand the date" will confidently produce a
+    Thursday that does not exist, and the caller will be waiting for a call nobody scheduled.
+    Returning None is the safe failure: the agent then simply offers the next real slots.
+    """
+    if not text:
+        return None
+    raw = text.strip().lower()
+    now = (now or datetime.now(BUSINESS_TZ)).astimezone(BUSINESS_TZ)
+
+    day: _date | None = None
+    if "apres demain" in raw or "apres-demain" in raw or "day after tomorrow" in raw:
+        day = (now + timedelta(days=2)).date()
+    elif "demain" in raw or "tomorrow" in raw:
+        day = (now + timedelta(days=1)).date()
+    elif "aujourd" in raw or "today" in raw:
+        day = now.date()
+
+    if day is None:
+        explicit = re.search(r"(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?", raw)
+        if explicit:
+            d, m, y = explicit.groups()
+            year = int(y) if y else now.year
+            if year < 100:
+                year += 2000
+            try:
+                day = _date(year, int(m), int(d))
+            except ValueError:
+                return None
+
+    if day is None:
+        for word, weekday in _DAY_WORDS.items():
+            if word in raw:
+                ahead = (weekday - now.weekday()) % 7 or 7
+                day = (now + timedelta(days=ahead)).date()
+                break
+
+    hour, minute = None, 0
+    clock = re.search(r"(\d{1,2})\s*(?:h|:)\s*(\d{2})?", raw)
+    if clock:
+        hour = int(clock.group(1))
+        minute = int(clock.group(2) or 0)
+    else:
+        bare = re.search(r"\b(\d{1,2})\s*(?:heures?|hours?|o'clock)\b", raw)
+        if bare:
+            hour = int(bare.group(1))
+    if hour is not None and hour < 8 and ("soir" in raw or "pm" in raw or "apres" in raw):
+        hour += 12
+    if hour is None:
+        for word, default_hour in _PART_OF_DAY.items():
+            if word in raw:
+                hour = default_hour
+                break
+
+    if day is None and hour is None:
+        return None
+    if day is None:
+        day = now.date() if (hour or 0) > now.hour else (now + timedelta(days=1)).date()
+    if hour is None:
+        hour = 9
+    if not 0 <= hour <= 23:
+        return None
+    return datetime(day.year, day.month, day.day, hour, minute,
+                    tzinfo=BUSINESS_TZ).isoformat()
+
 
 def _lang(session) -> str:
     """Caller language with a French default; never raises."""
@@ -111,7 +219,11 @@ class CallbackScheduleTask(AgentTask[bool]):
                 "You are arranging a callback. Offer the slots you are given, accept a "
                 "counter-proposal from the caller, and call accept_slot as soon as they agree "
                 "on one. Never invent a time that was not offered. If they refuse a callback, "
-                "call decline_callback."
+                "call decline_callback. "
+                "When the caller names a day or a time, always call request_other_time with "
+                "their exact words. Never judge availability yourself and never invent a time: "
+                "only offer times the tools returned. If a time is refused, say briefly why "
+                "and immediately offer the alternatives you were given."
             )
         )
         self._reason = reason
@@ -219,14 +331,36 @@ class CallbackScheduleTask(AgentTask[bool]):
         return "Callback booked and confirmed to the caller."
 
     @function_tool()
-    async def request_other_time(self, context: RunContext, preferred_time: str = "") -> str:
-        """The caller asked for a different time. Give back the closest free slots."""
+    async def request_other_time(self, context: RunContext, preferred_time: str) -> str:
+        """Called when the caller proposes a time in their own words.
+
+        Args:
+            preferred_time: exactly what the caller said, e.g. "jeudi vers 14h", "le 31/07".
+        """
         self._arm()
         if self._done:
             return "The callback step is already finished."
-        language = _lang(self.session)
-        self._slots = self._sorted_by_hint(preferred_time)
-        return self._offer_again(language, alternatives=True)
+
+        lang = _lang(self.session)
+        reason_map = {"closed": _CLOSED, "full": _FULL, "too_soon": _TOO_SOON}
+
+        requested = parse_requested_time(preferred_time)
+        if requested is None:
+            # Not understood is not a failure: fall back to offering what genuinely exists.
+            self._slots = await get_callback_client().free_slots(days=2, limit=2)
+            return self._offer_again(lang)
+
+        verdict = await get_callback_client().check_time(requested)
+
+        if verdict.get("available"):
+            # Book the instant the API confirmed, never the one we parsed.
+            return await self.accept_slot(context, verdict["slot_start"])
+
+        self._slots = list(verdict.get("alternatives") or [])
+        prefix = reason_map.get(verdict.get("reason", ""), _NOT_THAT_TIME)[lang]
+        if not self._slots:
+            return prefix + _NO_SLOT[lang]
+        return prefix + self._offer_again(lang) + " " + _WHAT_SUITS[lang]
 
     @function_tool()
     async def decline_callback(self, context: RunContext) -> str:

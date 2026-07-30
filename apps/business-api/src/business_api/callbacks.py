@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 from persistence.models.conversation import CallbackSchedule
 from persistence.models.crm import Customer
 from persistence.models.routing import Advisor
+
+from business_api.availability import BUSINESS_TZ, ScheduleIndex, load_schedule
 
 logger = logging.getLogger(__name__)
 
@@ -85,18 +87,21 @@ def _hydrate(session: Session, rows: list[CallbackSchedule]) -> list[dict]:
     ]
 
 
-def _slot_capacity(session: Session) -> int:
-    """How many callbacks one slot can hold: one per on-call advisor.
+def _slot_capacity(session: Session, moment: datetime | None = None,
+                   index: ScheduleIndex | None = None) -> int:
+    """How many callbacks a given instant can hold: one per advisor actually working then.
 
-    Capacity is derived from the registry, never from a constant: adding an advisor in the
-    admin dashboard immediately opens more slots, and taking the last one off call closes
-    the queue honestly instead of promising calls nobody will make.
+    Capacity used to be a constant for the whole week, which is why every slot looked identical
+    and the agent could never decline a time. It is now derived from the weekly grid and the dated
+    exceptions, so Sunday at 08:00 honestly reports zero.
+
+    ``moment=None`` keeps the old meaning (how many advisors are on call at all) for callers that
+    only need a yes/no on whether the queue exists.
     """
-    total = session.scalar(
-        select(func.count()).select_from(Advisor)
-        .where(Advisor.is_active.is_(True), Advisor.is_on_call.is_(True))
-    ) or 0
-    return int(total)
+    index = index or load_schedule(session)
+    if moment is None:
+        return len(index.advisors)
+    return index.capacity_at(moment)
 
 
 def _slot_bounds(now: datetime, days: int) -> list[datetime]:
@@ -115,18 +120,32 @@ def _slot_bounds(now: datetime, days: int) -> list[datetime]:
     return slots
 
 
-def free_slots(session: Session, days: int = 2, limit: int = 6) -> list[dict]:
-    """Bookable slots, soonest first. Empty list when nobody is on call.
+def free_slots(session: Session, days: int = 2, limit: int = 6,
+               day: str | None = None, skill_tag: str | None = None,
+               language: str | None = None) -> list[dict]:
+    """Bookable slots, soonest first. Empty list when nobody works in the window asked about.
 
-    An empty list is a legitimate answer and MUST be spoken as such: it is the difference
-    between a promise and a lie.
+    ``day`` (YYYY-MM-DD, business timezone) answers "what have you got on Thursday?" without
+    scanning the whole horizon - the question a caller actually asks. An empty list stays a
+    legitimate answer and MUST be spoken as such: it is the difference between a promise and a lie.
     """
-    capacity = _slot_capacity(session)
-    if capacity <= 0:
+    index = load_schedule(session, skill_tag=skill_tag, language=language)
+    if not index.advisors:
         return []
 
     now = datetime.now(UTC)
-    candidates = _slot_bounds(now, days)
+    if day:
+        try:
+            wanted = date.fromisoformat(day)
+        except ValueError:
+            return []
+        horizon_days = max(1, (wanted - now.astimezone(BUSINESS_TZ).date()).days + 1)
+        candidates = [
+            slot for slot in _slot_bounds(now, horizon_days)
+            if slot.astimezone(BUSINESS_TZ).date() == wanted
+        ]
+    else:
+        candidates = _slot_bounds(now, days)
     if not candidates:
         return []
 
@@ -146,16 +165,87 @@ def free_slots(session: Session, days: int = 2, limit: int = 6) -> list[dict]:
 
     free: list[dict] = []
     for slot in candidates:
-        if taken.get(slot, 0) >= capacity:
+        capacity = index.capacity_at(slot)
+        if capacity <= 0:
             continue
+        remaining = capacity - taken.get(slot, 0)
+        if remaining <= 0:
+            continue
+        local = slot.astimezone(BUSINESS_TZ)
         free.append({
             "slot_start": slot.isoformat(),
             "slot_minutes": SLOT_MINUTES,
-            "remaining": capacity - taken.get(slot, 0),
+            "remaining": remaining,
+            "local_day": local.strftime("%Y-%m-%d"),
+            "local_time": local.strftime("%H:%M"),
         })
         if len(free) >= limit:
             break
     return free
+
+
+def check_slot(session: Session, requested: str, alternatives: int = 3,
+               skill_tag: str | None = None, language: str | None = None) -> dict:
+    """Answer "can you call me Thursday at 14:00?" with a reason and a way forward.
+
+    A bare False would leave the agent guessing what to say next, and guessing is exactly how it
+    starts inventing times. Every refusal therefore carries a machine-readable ``reason`` and the
+    nearest real alternatives, so the reply is generated from facts and never from imagination.
+    """
+    try:
+        when = datetime.fromisoformat(requested)
+    except ValueError:
+        return {"available": False, "reason": "unparsable", "requested": requested,
+                "alternatives": []}
+    when = when if when.tzinfo is not None else when.replace(tzinfo=BUSINESS_TZ)
+    when = when.astimezone(UTC)
+
+    now = datetime.now(UTC)
+    index = load_schedule(session, skill_tag=skill_tag, language=language)
+
+    # Snap to the slot grid: a caller says "around two", the queue works in half hours.
+    minute = (when.minute // SLOT_MINUTES) * SLOT_MINUTES
+    slot = when.replace(minute=minute, second=0, microsecond=0)
+
+    def _nearby() -> list[dict]:
+        local_day = slot.astimezone(BUSINESS_TZ).strftime("%Y-%m-%d")
+        same_day = free_slots(session, days=7, limit=alternatives, day=local_day,
+                              skill_tag=skill_tag, language=language)
+        if same_day:
+            return same_day
+        # Nothing that day: widen rather than dead-end, so the caller always has something to say
+        # yes to.
+        return free_slots(session, days=7, limit=alternatives,
+                          skill_tag=skill_tag, language=language)
+
+    if slot < now + timedelta(minutes=LEAD_MINUTES):
+        return {"available": False, "reason": "too_soon", "requested": slot.isoformat(),
+                "alternatives": _nearby()}
+
+    capacity = index.capacity_at(slot)
+    if capacity <= 0:
+        return {"available": False, "reason": "closed", "requested": slot.isoformat(),
+                "alternatives": _nearby()}
+
+    used = session.scalar(
+        select(func.count()).select_from(CallbackSchedule)
+        .where(CallbackSchedule.status == OPEN, CallbackSchedule.scheduled_time == slot)
+    ) or 0
+    if int(used) >= capacity:
+        return {"available": False, "reason": "full", "requested": slot.isoformat(),
+                "alternatives": _nearby()}
+
+    local = slot.astimezone(BUSINESS_TZ)
+    return {
+        "available": True,
+        "reason": "ok",
+        "slot_start": slot.isoformat(),
+        "slot_minutes": SLOT_MINUTES,
+        "remaining": capacity - int(used),
+        "local_day": local.strftime("%Y-%m-%d"),
+        "local_time": local.strftime("%H:%M"),
+        "alternatives": [],
+    }
 
 
 def list_callbacks(session: Session, status: str = OPEN, overdue_only: bool = False,
@@ -274,8 +364,11 @@ def reserve(session: Session, *, slot_start: str, customer_id: str | None = None
 
     session.execute(text("SELECT pg_advisory_xact_lock(hashtext('callback_slot_booking'))"))
 
-    capacity = _slot_capacity(session)
+    # Capacity is re-derived for THIS instant under the lock: the schedule may have been edited
+    # between the offer and the answer, and a booking outside working hours is a call nobody makes.
+    capacity = _slot_capacity(session, when)
     if capacity <= 0:
+        logger.info("callback refused: no advisor works at %s", when.isoformat())
         return None
     used = session.scalar(
         select(func.count()).select_from(CallbackSchedule)

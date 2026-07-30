@@ -24,18 +24,41 @@ class CallbackClient:
             base_url=base_url, timeout=timeout, headers={"X-Role": "conseiller"}
         )
 
-    async def free_slots(self, days: int = 2, limit: int = 6) -> list[dict]:
-        """Bookable slots, soonest first; empty list on any failure."""
+    async def free_slots(self, days: int = 2, limit: int = 6, day: str | None = None,
+                         skill_tag: str | None = None) -> list[dict]:
+        """Bookable slots. ``day`` (YYYY-MM-DD) narrows to the day the caller asked about."""
+        params: dict[str, object] = {"days": days, "limit": limit}
+        if day:
+            params["day"] = day
+        if skill_tag:
+            params["skill_tag"] = skill_tag
         try:
             resp = await self._client.get(
-                "/api/v1/callbacks/slots", params={"days": days, "limit": limit},
-                headers=inject_trace_context(),
+                "/api/v1/callbacks/slots", params=params, headers=inject_trace_context(),
             )
             resp.raise_for_status()
-            return resp.json().get("slots", [])
-        except httpx.HTTPError as exc:
-            logger.error("callback slot lookup failed: %s", exc)
+            return list(resp.json().get("slots", []))
+        except Exception as exc:
+            logger.warning("callback slots unavailable: %s", exc)
             return []
+
+    async def check_time(self, requested: str, skill_tag: str | None = None) -> dict:
+        """Ask whether one precise instant is bookable, with alternatives when it is not.
+
+        On any transport failure this returns ``available: False`` with reason ``unreachable``:
+        the caller must never be promised a time the queue could not confirm.
+        """
+        params: dict[str, object] = {"requested": requested}
+        if skill_tag:
+            params["skill_tag"] = skill_tag
+        try:
+            resp = await self._client.get("/api/v1/callbacks/check", params=params,
+                                          headers=inject_trace_context())
+            resp.raise_for_status()
+            return dict(resp.json())
+        except Exception as exc:
+            logger.warning("callback check failed: %s", exc)
+            return {"available": False, "reason": "unreachable", "alternatives": []}
 
     async def reserve(self, slot_start: str, **payload) -> dict | None:
         """Book one slot; None when it is gone or the API is unreachable."""
