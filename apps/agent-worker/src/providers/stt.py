@@ -58,6 +58,12 @@ def build_stt(preset: dict[str, str], model: str = "nova-3", break_primary: bool
 
     providers: list = [primary]
 
+    # Same-provider fallback: a plain Deepgram instance without keyterms so that
+    # an overly-aggressive keyterm list never causes a total STT failure.
+    if keyterms:
+        plain_kwargs = {k: v for k, v in primary_kwargs.items() if k not in ("keyterm", "keyterms")}
+        providers.append(deepgram.STT(**plain_kwargs))
+
     # --- Optional fallback: Gladia (skipped if no key) ---
     gladia_key = os.getenv("GLADIA_API_KEY", "")
     if gladia_key:

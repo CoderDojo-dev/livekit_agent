@@ -28,7 +28,9 @@ class NotificationClient:
                 "/notify",
                 json={
                     "customer_id": customer_id,
-                    "to": customer_id,
+                    # No "to": the notification-service resolves the handle from crm.customers
+                    # for the requested channel. Sending customer_id as "to" made every message
+                    # addressed to a UUID.
                     "channel": channel,
                     "template": template,
                     "language": language,
@@ -65,6 +67,24 @@ class NotificationClient:
         except httpx.HTTPError as exc:
             logger.warning("advisor notification failed (%s -> %s): %s", template, channel, exc)
             return False
+
+    async def notify_first_available(
+        self, customer_id: str, template: str, language: str, params: dict,
+        channels: tuple[str, ...] = ("whatsapp", "email", "sms"),
+    ) -> dict:
+        """Try each channel until one is actually sent; report the one that worked.
+
+        A channel can fail for two very different reasons — not configured, or the provider
+        refused — and both are recoverable by trying the next one. The result always says
+        which channel carried the message, so the agent never claims more than what happened.
+        """
+        last: dict = {"sent": False}
+        for channel in channels:
+            last = await self.notify(customer_id, template, language, params, channel=channel)
+            if last.get("sent"):
+                last["channel"] = channel
+                return last
+        return last
 
     async def aclose(self) -> None:
         await self._client.aclose()

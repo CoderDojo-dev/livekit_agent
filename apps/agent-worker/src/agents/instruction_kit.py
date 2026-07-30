@@ -208,7 +208,18 @@ def routing_mandate(available: frozenset[str]) -> str:
     else:
         parts.append(
             "- NEVER tell the caller to call a different department or number yourself. "
-            f"Use the route_* tool. If none of the above fits, call {ESCALATION_TOOL}.\n"
+            "Use the route_* tool.\n"
+            "- When you cannot do what the caller asks, do NOT escalate straight away. "
+            "Say plainly and warmly, in one short sentence, what you cannot do and why, "
+            "offer what you CAN still do, and only then ask whether they would like you to "
+            f"pass them to a manager. Call {ESCALATION_TOOL} with caller_agreed=true ONLY "
+            "after they clearly say yes.\n"
+            "- A failed or refused identity check is NEVER by itself a reason to escalate: "
+            "keep helping with everything that does not require verification, and let the "
+            "identity step finish on its own.\n"
+            f"- Call {ESCALATION_TOOL} immediately, without asking, ONLY if the caller is "
+            "insulting, threatening, or the request looks fraudulent: pass "
+            "reason=\"abuse\", reason=\"threat\" or reason=\"fraud\".\n"
             "- The route_* tools transfer the caller to the right specialist; after calling "
             "one you will NOT speak again, so do not also say goodbye yourself."
         )

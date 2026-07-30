@@ -227,12 +227,41 @@ def on_call_advisors(session: DbSession, role: ConseillerRole) -> dict:
 
 
 # ---------------- Callback queue (the promise made when no advisor was free) ----------------
+class CallbackReservation(BaseModel):
+    """A slot the caller agreed to, plus who it is for."""
+
+    slot_start: str
+    customer_id: str | None = None
+    subscription_id: str | None = None
+    session_id: str | None = None
+    preferred_window: str | None = None
+    reason: str | None = None
+
+
 class CallbackOutcome(BaseModel):
     """Result of an attempted callback."""
 
     note: str = ""
     reached: bool = True      # False -> the caller did not answer; return it to the queue
     advisor_id: str | None = None
+
+
+@app.get("/api/v1/callbacks/slots")
+def callback_slots(session: DbSession, role: ConseillerRole, days: int = 2,
+                   limit: int = 6) -> dict:
+    """Bookable callback slots, soonest first. An empty list means nobody is on call."""
+    return {"slots": callback_repo.free_slots(session, days, limit)}
+
+
+@app.post("/api/v1/callbacks/reserve", status_code=201)
+def reserve_callback(payload: CallbackReservation, session: DbSession,
+                     role: ConseillerRole) -> dict:
+    """Book one slot for a caller. 409 when it was taken between the offer and the answer."""
+    booked = callback_repo.reserve(session, **payload.model_dump())
+    if booked is None:
+        raise HTTPException(status_code=409, detail="slot no longer available")
+    session.commit()
+    return booked
 
 
 @app.get("/api/v1/callbacks")

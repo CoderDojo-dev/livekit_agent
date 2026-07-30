@@ -185,6 +185,7 @@ async def transfer_to_human(context: RunContext) -> dict:
                 allow_interruptions=False,
             )
             user_data.escalation_reason = "no_advisor_available"
+            user_data.human_transfer_outcome = "no_advisor"
             return await _offer_callback(context, reason="no_advisor_available")
 
         if not getattr(user_data, "human_transfer_announced", False):
@@ -200,6 +201,7 @@ async def transfer_to_human(context: RunContext) -> dict:
             logger.info(
                 "SIP transfer completed (advisor=%s skill=%s)", destination.full_name, skill_tag
             )
+            user_data.human_transfer_outcome = "transferred"
             # The caller's leg is gone: stop the turn so no LLM/TTS output is billed
             # for an empty room, and no advisor name is read aloud.
             raise StopResponse()
@@ -212,6 +214,7 @@ async def transfer_to_human(context: RunContext) -> dict:
             allow_interruptions=False,
         )
         user_data.escalation_reason = "transfer_failed"
+        user_data.human_transfer_outcome = "transfer_failed"
         return await _offer_callback(context, reason="transfer_failed")
     finally:
         user_data.human_transfer_in_progress = False

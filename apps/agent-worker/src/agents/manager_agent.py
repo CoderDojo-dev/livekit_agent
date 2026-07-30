@@ -28,7 +28,7 @@ _LANG_NAMES = {"fr": "French", "ar": "Arabic", "en": "English"}
 
 _CORE = (
     "You are a senior support manager handling an escalated call. You MUST speak ONLY in {lang_name}. Never switch language.\n"
-    "Call transfer_to_human immediately and do not speak before calling it. "
+    "Call transfer_to_human ONCE and do not speak before calling it. "
     "The transfer tool owns the single transition announcement and will schedule "
     "a callback if no advisor is free. "
     "PRIORITY ORDER: the transfer comes FIRST. Only once the transfer tool has "
@@ -91,6 +91,19 @@ class ManagerAgent(BaseTelecomAgent):
     async def on_enter(self) -> None:
         """Start the transfer without generating a second transition message."""
         user_data = getattr(self.session, "userdata", None)
+
+        # If the transfer already completed on a previous entry (e.g. LLM re-prompt
+        # after a callback was scheduled), do not try to transfer again.
+        existing_outcome = getattr(user_data, "human_transfer_outcome", None) if user_data else None
+        if existing_outcome:
+            logger.info("transfer outcome already set (%s); skipping re-transfer", existing_outcome)
+            guidance = (
+                "In one short sentence, remind the caller that a callback has been arranged "
+                "or that the transfer was already completed, then ask if they need anything else."
+            )
+            await self.session.generate_reply(instructions=guidance)
+            return
+
         if user_data is not None:
             lang = getattr(user_data, "language", self._language)
             lang_code = getattr(lang, "value", lang) if lang else self._language

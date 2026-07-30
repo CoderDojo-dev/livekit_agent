@@ -11,9 +11,28 @@ from tools.voice_flow import current_chat_ctx, handoff_with_message
 
 logger = logging.getLogger(__name__)
 
+# Motifs autorisant une escalade SANS demander l'avis de l'appelant.
+_IMMEDIATE_REASONS = frozenset({"abuse", "threat", "fraud", "legal"})
 
-def _trigger_for(user_data) -> str:
-    """Select the strongest verified escalation trigger."""
+_OFFER_FIRST = {
+    "fr": "Do not transfer yet. In ONE short French sentence, say plainly what you cannot "
+          "do, then ask if they would like to speak with a manager. Wait for their answer.",
+    "ar": "Do not transfer yet. In ONE short Arabic sentence, say plainly what you cannot "
+          "do, then ask if they would like to speak with a manager. Wait for their answer.",
+    "en": "Do not transfer yet. In ONE short English sentence, say plainly what you cannot "
+          "do, then ask if they would like to speak with a manager. Wait for their answer.",
+}
+
+
+def _trigger_for(user_data, reason: str = "") -> str:
+    """Select the strongest verified escalation trigger.
+
+    An explicit reason given by the model wins only when it is one of the immediate
+    ones: those are the cases a supervisor must be able to filter on later.
+    """
+    motive = (reason or "").strip().lower()
+    if motive in _IMMEDIATE_REASONS:
+        return motive
     if getattr(user_data, "should_offer_escalation", False):
         return "frustration"
     if getattr(user_data, "clarification_attempts", 0) >= 2:
@@ -56,9 +75,26 @@ def _skill_tag_for(context: RunContext) -> str:
 
 
 @function_tool()
-async def escalate_to_manager(context: RunContext) -> Agent:
-    """Record the escalation and hand off to the manager on the same session."""
+async def escalate_to_manager(
+    context: RunContext,
+    reason: str = "caller_request",
+    caller_agreed: bool = False,
+) -> Agent | str:
+    """Hand the call over to a manager.
+
+    Only call this when the caller has agreed to speak with a manager (caller_agreed=true),
+    or when the caller is abusive, threatening or the request looks fraudulent
+    (reason="abuse" / "threat" / "fraud", caller_agreed may stay false).
+    """
     user_data = context.session.userdata
+    motive = (reason or "").strip().lower()
+
+    # Deterministic gate: a premature escalation is refused here, not merely discouraged
+    # in the prompt. The caller keeps the persona that already knows their case.
+    if not caller_agreed and motive not in _IMMEDIATE_REASONS:
+        language = _resolve_language(context)
+        logger.info("escalation deferred (reason=%s, no consent yet)", motive or "unspecified")
+        return _OFFER_FIRST.get(language, _OFFER_FIRST["fr"])
 
     # The human transfer needs the skill of the persona we are leaving, and the
     # handoff line below IS the transition announcement - so tell transfer_to_human
@@ -73,7 +109,7 @@ async def escalate_to_manager(context: RunContext) -> Agent:
         customer = getattr(user_data, "customer_context", None)
         try:
             writer.record_escalation(
-                trigger=_trigger_for(user_data),
+                trigger=_trigger_for(user_data, motive),
                 target="manager_agent",
                 dossier={
                     "consecutive_negative_turns": getattr(user_data, "consecutive_negative_turns", 0),

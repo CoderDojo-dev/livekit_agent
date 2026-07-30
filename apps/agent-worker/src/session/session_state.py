@@ -38,6 +38,7 @@ class SessionUserData:
     callback_when: str | None = None
     human_transfer_announced: bool = False
     human_transfer_in_progress: bool = False
+    human_transfer_outcome: str | None = None
     escalation_reason: str | None = None
 
     # --- conversation persistence (P3) ---

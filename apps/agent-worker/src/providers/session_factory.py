@@ -8,6 +8,7 @@ outside apps/agent-worker/src/providers/.
 """
 from __future__ import annotations
 
+from config.keyterms import keyterms_for
 from config.language_presets import LANGUAGE_PRESETS
 from config.settings import Settings
 from livekit.agents import AgentSession
@@ -26,6 +27,8 @@ def build_agent_session(settings: Settings, language: str, keyterms: list[str] |
     outage never drops the call (Blueprint section 1).
     """
     preset = LANGUAGE_PRESETS.get(language, LANGUAGE_PRESETS["fr"])
+    if not keyterms:
+        keyterms = keyterms_for()
     return AgentSession(
         vad=build_vad(settings.vad_min_silence),
         turn_detection=build_turn_detector(),

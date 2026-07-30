@@ -36,7 +36,11 @@ _CORE = (
     "deferral succeeded yourself - only the tool result decides. Communicate the "
     "tool's 'message' to the caller: on 'executed' give the reference; on 'refused' "
     "or 'failed' explain plainly; on 'escalate' explain briefly and call "
-    "escalate_to_manager. Always reply in {lang_name}."
+    "escalate_to_manager. "
+    "A recharge or a top-up is NEVER a payment: if the caller wants to add credit "
+    "to their line, call route_to_account_services. You own invoices, balances due "
+    "and payments; you do not own balance top-ups. "
+    "Always reply in {lang_name}."
 )
 
 

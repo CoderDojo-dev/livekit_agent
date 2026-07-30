@@ -90,24 +90,41 @@ class PolicyService:
             return None
         return int(count or 0)
 
-    def _persist(self, session_id, customer_id, requested_action, direction, result, inputs) -> str:
+    def _persist(self, session_id, customer_id, requested_action, direction, result, inputs) -> str | None:
+        """Persist verdict + audit atomically.
+
+        A storage failure must NEVER turn a correctly computed REFUSED/ESCALATE into an
+        HTTP 500: the caller-facing consequence of a 500 is a fail-closed ESCALATE, i.e. a
+        manager escalation for a decision that was already taken and already negative.
+        An AUTHORIZED verdict still fails hard: no persisted verdict, no execution.
+        """
         sid = require_uuid(session_id)
-        verdict = PolicyVerdict(
-            session_id=sid,
-            customer_id=to_uuid(customer_id),
-            requested_action=requested_action,
-            direction=direction,
-            verdict=result.verdict.upper(),
-            rule_id=result.rule_id,
-            justification=result.justification,
-            inputs_snapshot=inputs,
-        )
-        self._session.add(verdict)
-        self._session.flush()
-        self._audit.append(
-            sid, "policy_verdict",
-            {"action": requested_action, "verdict": result.verdict, "rule_id": result.rule_id},
-            entity_reference=f"policy_verdicts:{verdict.id}",
-        )
-        self._session.commit()
-        return str(verdict.id)
+        try:
+            verdict = PolicyVerdict(
+                session_id=sid,
+                customer_id=to_uuid(customer_id),
+                requested_action=requested_action,
+                direction=direction,
+                verdict=result.verdict.upper(),
+                rule_id=result.rule_id,
+                justification=result.justification,
+                inputs_snapshot=inputs,
+            )
+            self._session.add(verdict)
+            self._session.flush()
+            self._audit.append(
+                sid, "policy_verdict",
+                {"action": requested_action, "verdict": result.verdict, "rule_id": result.rule_id},
+                entity_reference=f"policy_verdicts:{verdict.id}",
+            )
+            self._session.commit()
+            return str(verdict.id)
+        except SQLAlchemyError as exc:
+            self._session.rollback()
+            logger.error(
+                "policy verdict persistence failed (action=%s verdict=%s rule=%s): %s",
+                requested_action, result.verdict, result.rule_id, exc,
+            )
+            if result.verdict.upper() == "AUTHORIZED":
+                raise
+            return None

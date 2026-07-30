@@ -11,9 +11,10 @@ opening the queue at the same moment must not both take the same caller.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+import os
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from persistence.models.conversation import CallbackSchedule
@@ -25,6 +26,13 @@ logger = logging.getLogger(__name__)
 OPEN = "pending"
 COMPLETED = "completed"
 CANCELLED = "cancelled"
+
+# Slot geometry. Env-driven so the call centre can change its hours without a deploy.
+SLOT_MINUTES = int(os.getenv("CALLBACK_SLOT_MINUTES", "30"))
+DAY_START_HOUR = int(os.getenv("CALLBACK_DAY_START_HOUR", "8"))
+DAY_END_HOUR = int(os.getenv("CALLBACK_DAY_END_HOUR", "18"))
+# Never offer a slot the queue cannot honour: an advisor needs time to pick the case up.
+LEAD_MINUTES = int(os.getenv("CALLBACK_LEAD_MINUTES", "30"))
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -75,6 +83,79 @@ def _hydrate(session: Session, rows: list[CallbackSchedule]) -> list[dict]:
         to_dict(r, customers.get(r.customer_id), advisors.get(r.assigned_advisor_id), now)
         for r in rows
     ]
+
+
+def _slot_capacity(session: Session) -> int:
+    """How many callbacks one slot can hold: one per on-call advisor.
+
+    Capacity is derived from the registry, never from a constant: adding an advisor in the
+    admin dashboard immediately opens more slots, and taking the last one off call closes
+    the queue honestly instead of promising calls nobody will make.
+    """
+    total = session.scalar(
+        select(func.count()).select_from(Advisor)
+        .where(Advisor.is_active.is_(True), Advisor.is_on_call.is_(True))
+    ) or 0
+    return int(total)
+
+
+def _slot_bounds(now: datetime, days: int) -> list[datetime]:
+    """Every slot start between now+lead and now+days, inside business hours."""
+    step = timedelta(minutes=SLOT_MINUTES)
+    first = now + timedelta(minutes=LEAD_MINUTES)
+    # Round up to the next slot boundary so offered times are always clean (09:00, 09:30).
+    minute = (first.minute // SLOT_MINUTES + 1) * SLOT_MINUTES
+    cursor = first.replace(minute=0, second=0, microsecond=0) + timedelta(minutes=minute)
+    end = now + timedelta(days=days)
+    slots: list[datetime] = []
+    while cursor < end:
+        if DAY_START_HOUR <= cursor.hour < DAY_END_HOUR:
+            slots.append(cursor)
+        cursor = cursor + step
+    return slots
+
+
+def free_slots(session: Session, days: int = 2, limit: int = 6) -> list[dict]:
+    """Bookable slots, soonest first. Empty list when nobody is on call.
+
+    An empty list is a legitimate answer and MUST be spoken as such: it is the difference
+    between a promise and a lie.
+    """
+    capacity = _slot_capacity(session)
+    if capacity <= 0:
+        return []
+
+    now = datetime.now(UTC)
+    candidates = _slot_bounds(now, days)
+    if not candidates:
+        return []
+
+    horizon_end = candidates[-1] + timedelta(minutes=SLOT_MINUTES)
+    taken: dict[datetime, int] = {}
+    rows = session.scalars(
+        select(CallbackSchedule).where(
+            CallbackSchedule.status == OPEN,
+            CallbackSchedule.scheduled_time >= candidates[0] - timedelta(minutes=SLOT_MINUTES),
+            CallbackSchedule.scheduled_time < horizon_end,
+        )
+    )
+    for row in rows:
+        booked = _aware(row.scheduled_time)
+        if booked is not None:
+            taken[booked] = taken.get(booked, 0) + 1
+
+    free: list[dict] = []
+    for slot in candidates:
+        if taken.get(slot, 0) >= capacity:
+            continue
+        free.append({
+            "slot_start": slot.isoformat(),
+            "slot_minutes": SLOT_MINUTES,
+            "remaining": capacity - taken.get(slot, 0),
+        })
+        if len(free) >= limit:
+            break
+    return free
 
 
 def list_callbacks(session: Session, status: str = OPEN, overdue_only: bool = False,
@@ -170,4 +251,49 @@ def cancel_callback(session: Session, callback_id: str, note: str = "") -> dict 
     row.status = CANCELLED
     row.outcome_note = (note or "")[:500] or row.outcome_note
     row.updated_at = datetime.now(UTC)
+    return _hydrate(session, [row])[0]
+
+
+def reserve(session: Session, *, slot_start: str, customer_id: str | None = None,
+            subscription_id: str | None = None, session_id: str | None = None,
+            preferred_window: str | None = None, reason: str | None = None,
+            priority: int = 1) -> dict | None:
+    """Book one slot atomically. None when the slot filled up in the meantime.
+
+    Two callers can reach the same slot in the same second, so capacity is re-checked under a
+    transaction-scoped advisory lock: overbooking a callback is exactly as harmful as
+    transferring two callers to one advisor.
+    """
+    from persistence.util import to_uuid
+
+    try:
+        when = datetime.fromisoformat(slot_start)
+    except ValueError:
+        return None
+    when = when if when.tzinfo is not None else when.replace(tzinfo=UTC)
+
+    session.execute(text("SELECT pg_advisory_xact_lock(hashtext('callback_slot_booking'))"))
+
+    capacity = _slot_capacity(session)
+    if capacity <= 0:
+        return None
+    used = session.scalar(
+        select(func.count()).select_from(CallbackSchedule)
+        .where(CallbackSchedule.status == OPEN, CallbackSchedule.scheduled_time == when)
+    ) or 0
+    if int(used) >= capacity:
+        return None
+
+    row = CallbackSchedule(
+        session_id=to_uuid(session_id),
+        customer_id=to_uuid(customer_id),
+        subscription_id=to_uuid(subscription_id),
+        scheduled_time=when,
+        priority_level=priority,
+        preferred_window=(preferred_window or "")[:120] or None,
+        reason=(reason or "")[:60] or None,
+    )
+    session.add(row)
+    session.flush()
+    logger.info("callback reserved for %s (customer=%s)", when.isoformat(), customer_id)
     return _hydrate(session, [row])[0]

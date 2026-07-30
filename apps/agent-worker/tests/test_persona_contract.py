@@ -154,11 +154,14 @@ def test_manager_gets_the_terminal_mandate() -> None:
 # --- Non-régression du prompt de Triage ------------------------------------- #
 
 
-def test_triage_mandate_is_textually_unchanged_from_v63() -> None:
-    """Triage owned every tool the frozen mandate named, so its text must not move."""
-    from agents.base_agent import NO_DEAD_END_MANDATE
+def test_triage_mandate_contains_consent_and_no_route_away() -> None:
+    """The triage mandate must forbid routing away and require caller consent before escalating."""
+    text = routing_mandate(PERSONA_TOOLSETS["TriageAgent"])
 
-    assert routing_mandate(PERSONA_TOOLSETS["TriageAgent"]) == NO_DEAD_END_MANDATE
+    assert "NEVER tell the caller to call a different department" in text
+    assert "escalate_to_manager" in text
+    assert "caller_agreed" in text
+    assert "FINAL escalation point" not in text
 
 
 # --- Couches dérivées ------------------------------------------------------- #

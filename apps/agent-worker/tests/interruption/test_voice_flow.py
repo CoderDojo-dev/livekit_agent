@@ -237,7 +237,7 @@ def test_manager_escalation_paths(
         context, session = make_context(userdata)
         original_chat_ctx = session.current_agent.chat_ctx
 
-        result = await escalation_tools.escalate_to_manager(context)
+        result = await escalation_tools.escalate_to_manager(context, caller_agreed=True)
 
         assert isinstance(result, FakeManager)
         assert result.chat_ctx is original_chat_ctx
