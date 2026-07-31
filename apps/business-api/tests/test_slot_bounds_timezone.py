@@ -1,8 +1,8 @@
 """Slot generation must respect business-local opening hours, not UTC ones."""
 from datetime import UTC, datetime
 
-from business_api.availability import BUSINESS_TZ
-from business_api.callbacks import DAY_END_HOUR, DAY_START_HOUR, _slot_bounds
+from business_api.availability import BUSINESS_TZ, DAY_END_HOUR, DAY_START_HOUR
+from business_api.callbacks import _slot_bounds
 
 
 def test_every_generated_slot_is_within_local_business_hours():

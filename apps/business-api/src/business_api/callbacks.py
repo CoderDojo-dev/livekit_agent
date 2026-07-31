@@ -21,7 +21,8 @@ from persistence.models.conversation import CallbackSchedule
 from persistence.models.crm import Customer
 from persistence.models.routing import Advisor
 
-from business_api.availability import BUSINESS_TZ, ScheduleIndex, load_schedule
+from business_api.availability import (BUSINESS_TZ, DAY_END_HOUR, DAY_START_HOUR,
+                                       ScheduleIndex, load_schedule)
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,6 @@ CANCELLED = "cancelled"
 
 # Slot geometry. Env-driven so the call centre can change its hours without a deploy.
 SLOT_MINUTES = int(os.getenv("CALLBACK_SLOT_MINUTES", "30"))
-DAY_START_HOUR = int(os.getenv("CALLBACK_DAY_START_HOUR", "8"))
-DAY_END_HOUR = int(os.getenv("CALLBACK_DAY_END_HOUR", "18"))
 # Never offer a slot the queue cannot honour: an advisor needs time to pick the case up.
 LEAD_MINUTES = int(os.getenv("CALLBACK_LEAD_MINUTES", "30"))
 
@@ -375,6 +374,21 @@ def _pick_advisor(session: Session, when: datetime,
     """
     index = index or load_schedule(session)
     candidates = index.available_advisors(when)
+    if not candidates:
+        return None
+
+    # Day-level load is the tie-break, but it cannot arbitrate the instant itself: an advisor
+    # already booked at this exact minute cannot take a second caller then, however light the
+    # rest of their day looks. This is also what makes the `remaining` count truthful - without
+    # it the last free unit of capacity may belong to somebody already on the phone.
+    taken_now = set(session.scalars(
+        select(CallbackSchedule.assigned_advisor_id).where(
+            CallbackSchedule.status == OPEN,
+            CallbackSchedule.scheduled_time == when,
+            CallbackSchedule.assigned_advisor_id.is_not(None),
+        )
+    ))
+    candidates = [a for a in candidates if a.id not in taken_now]
     if not candidates:
         return None
 

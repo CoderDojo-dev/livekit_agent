@@ -27,6 +27,12 @@ logger = logging.getLogger(__name__)
 # Doing the conversion in one documented place is what keeps the two from drifting in October.
 BUSINESS_TZ = ZoneInfo(os.getenv("CALLBACK_TIMEZONE", "Africa/Tunis"))
 
+# Business hours live here, next to the timezone they are expressed in: callbacks.py imports
+# them rather than the reverse, and the coverage report must measure the same day the queue
+# sells - reporting 18:00-20:00 as uncovered describes hours nobody was ever going to work.
+DAY_START_HOUR = int(os.getenv("CALLBACK_DAY_START_HOUR", "8"))
+DAY_END_HOUR = int(os.getenv("CALLBACK_DAY_END_HOUR", "18"))
+
 WEEKDAY_NAMES = ("monday", "tuesday", "wednesday", "thursday",
                  "friday", "saturday", "sunday")
 
@@ -276,12 +282,12 @@ def coverage_report(session: Session, days: int = 7) -> dict:
     all_languages = sorted({a.language for a in index.advisors.values()})
     rows: list[dict] = []
     gaps: list[str] = []
-    covered_by_language: dict[str, list[str]] = {lang: [] for lang in all_languages}
+    uncovered_by_language: dict[str, list[str]] = {lang: [] for lang in all_languages}
     cursor = start
     limit = start + timedelta(days=days)
     while cursor < limit:
         local_hour = cursor.hour
-        if 8 <= local_hour < 20:
+        if DAY_START_HOUR <= local_hour < DAY_END_HOUR:
             available = index.available_advisors(cursor)
             languages = sorted({a.language for a in available})
             entry = {
@@ -297,12 +303,12 @@ def coverage_report(session: Session, days: int = 7) -> dict:
             # it is working that hour - a supervisor wants the gap per language, not just per hour.
             for language in all_languages:
                 if language not in languages:
-                    covered_by_language.setdefault(language, []).append(entry["local"])
+                    uncovered_by_language.setdefault(language, []).append(entry["local"])
         cursor += timedelta(hours=1)
     return {
         "hours": rows,
         "uncovered_hours": gaps,
-        "uncovered_by_language": covered_by_language,
+        "uncovered_by_language": uncovered_by_language,
         "languages": all_languages,
         "advisors_total": len(index.advisors),
         "timezone": str(BUSINESS_TZ),
