@@ -21,6 +21,7 @@ try {
             "$work/apps/business-api/src",
             "$work/apps/agent-worker/src",
             "$work/services/notification-service/src",
+            "$work/services/policy-service/src",
             "$work/packages/persistence/src",
             "$work/packages/service-auth/src",
             "$work/packages/audit-trail/src",
@@ -36,6 +37,8 @@ try {
         python -m pytest apps/agent-worker/tests/ -q
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         python -m pytest services/notification-service/tests/ -q
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        python -m pytest services/policy-service/tests/ -q
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     } finally {
         Pop-Location
