@@ -295,22 +295,29 @@ def claim_next(session: Session, advisor_id: str | None = None) -> dict | None:
     """
     from persistence.util import to_uuid as _to_uuid
 
-    aid = _to_uuid(advisor_id) if advisor_id else None
+    wanted = _to_uuid(advisor_id) if advisor_id else None
     stmt = (
         select(CallbackSchedule)
         .where(CallbackSchedule.status == OPEN)
-        .order_by(
-            # Own callbacks first (a caller was promised this advisor by name), then unassigned.
-            (CallbackSchedule.assigned_advisor_id == aid).desc(),
-            CallbackSchedule.priority_level.desc(),
-            CallbackSchedule.scheduled_time.asc(),
+    )
+    if wanted is not None:
+        # An advisor asking for work gets their own callbacks first, then anything unassigned.
+        # Without this filter, naming the advisor at booking time would be undone at claim time.
+        stmt = stmt.where(
+            (CallbackSchedule.assigned_advisor_id == wanted)
+            | CallbackSchedule.assigned_advisor_id.is_(None)
         )
+    stmt = (
+        stmt
+        .order_by(CallbackSchedule.priority_level.desc(),
+                  CallbackSchedule.scheduled_time.asc())
         .limit(1)
         .with_for_update(skip_locked=True)
     )
     row = session.scalar(stmt)
     if row is None:
         return None
+    aid = _to_uuid(advisor_id) if advisor_id else None
     if row.assigned_advisor_id is None:
         row.assigned_advisor_id = aid
     row.attempts += 1
