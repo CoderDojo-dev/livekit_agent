@@ -20,7 +20,12 @@ def db_session():
     engine = create_engine(url, future=True)
     connection = engine.connect()
     transaction = connection.begin()
-    session = Session(bind=connection, future=True)
+    # join_transaction_mode is NOT a convenience: _persist() commits of its own right, and the
+    # only thing that keeps that commit out of the database is this mode. The default
+    # (conditional_savepoint) happens to fall back to rollback_only here, but if a SQLAlchemy
+    # upgrade ever changed that default, test verdicts would land in an append-only hash-chained
+    # ledger - the one place in the system a stray write cannot be repaired. Pin it explicitly.
+    session = Session(bind=connection, future=True, join_transaction_mode="rollback_only")
     try:
         yield session
     finally:

@@ -34,3 +34,6 @@ make down
 - Phase 0 — Verification & Decision Gate: DONE (`docs/architecture/phase-0-verification-gate/`)
 - Phase 2 — Modular Scaffolding: THIS TREE
 - Phase 1/3+ — pipeline, context, knowledge, policy, execution, escalation, frontend, observability: next
+
+## Validation
+- `scripts/test_committed.ps1` — runs all four test suites (business-api, agent-worker, notification, policy-service) against the committed tree, with pinned `PYTHONPATH` and `DATABASE_URL` (Windows PowerShell; no WSL/git-bash required).

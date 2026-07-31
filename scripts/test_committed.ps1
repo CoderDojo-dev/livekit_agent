@@ -2,7 +2,7 @@
 #
 # Copying the working directory into a container tests the developer's disk, not the branch.
 # That is how a broken URL and a correct test coexisted with a green report.
-# Windows PowerShell equivalent of scripts/test_committed.sh (no WSL/git-bash required).
+# Canonical validation script for this repository (Windows PowerShell; no WSL/git-bash required).
 param([string]$Ref = "HEAD")
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +32,12 @@ try {
             "$work/packages/notification-client/src"
         ) -join ";"
 
+        # Pin the connection string the same way PYTHONPATH is pinned: the validation chain must
+        # not depend on whatever DATABASE_URL the invoking shell happens to carry (a compose
+        # hostname instead of localhost would fail the policy suite on a healthy branch). No skip
+        # if Postgres is unreachable - a test that disables itself is how defects survive.
+        $env:DATABASE_URL = "postgresql+psycopg://telecom:telecom@localhost:5432/telecom"
+
         python -m pytest apps/business-api/tests/ -q
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         python -m pytest apps/agent-worker/tests/ -q
@@ -43,6 +49,7 @@ try {
     } finally {
         Pop-Location
         Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+        Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
     }
 } finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
