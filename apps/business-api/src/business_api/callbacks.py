@@ -289,24 +289,30 @@ def claim_next(session: Session, advisor_id: str | None = None) -> dict | None:
     """Atomically take the next due callback; None when the queue is empty.
 
     SKIP LOCKED so concurrent advisors get different callers instead of colliding on the first row.
-    Assignment is recorded so the queue shows who owns each one.
+    Assignment is recorded so the queue shows who owns each one. An advisor resumes the callbacks
+    already assigned to them first, then takes unassigned ones - a caller promised "advisor X will
+    call you" must not be picked up by someone else while X is busy.
     """
-    from persistence.util import to_uuid
+    from persistence.util import to_uuid as _to_uuid
 
+    aid = _to_uuid(advisor_id) if advisor_id else None
     stmt = (
         select(CallbackSchedule)
-        .where(CallbackSchedule.status == OPEN,
-               CallbackSchedule.assigned_advisor_id.is_(None))
-        .order_by(CallbackSchedule.priority_level.desc(),
-                  CallbackSchedule.scheduled_time.asc())
+        .where(CallbackSchedule.status == OPEN)
+        .order_by(
+            # Own callbacks first (a caller was promised this advisor by name), then unassigned.
+            (CallbackSchedule.assigned_advisor_id == aid).desc(),
+            CallbackSchedule.priority_level.desc(),
+            CallbackSchedule.scheduled_time.asc(),
+        )
         .limit(1)
         .with_for_update(skip_locked=True)
     )
     row = session.scalar(stmt)
     if row is None:
         return None
-    aid = to_uuid(advisor_id) if advisor_id else None
-    row.assigned_advisor_id = aid
+    if row.assigned_advisor_id is None:
+        row.assigned_advisor_id = aid
     row.attempts += 1
     row.updated_at = datetime.now(UTC)
     logger.info("callback %s claimed by advisor %s", row.id, advisor_id)
@@ -350,6 +356,34 @@ def cancel_callback(session: Session, callback_id: str, note: str = "") -> dict 
     return _hydrate(session, [row])[0]
 
 
+def _pick_advisor(session: Session, when: datetime,
+                  index: ScheduleIndex | None = None) -> Advisor | None:
+    """The least-loaded advisor actually working at ``when``; None when nobody is available.
+
+    A booking is a promise that a specific person calls, so the promise must carry a name from
+    the start - "an advisor will call you" has failed this caller before. Load counts OPEN
+    callbacks assigned to each advisor for that whole business day, so the queue does not pile
+    everything onto the first advisor whose shift covers the instant; the str(id) tie-break
+    keeps the pick deterministic for tests and reports.
+    """
+    index = index or load_schedule(session)
+    candidates = index.available_advisors(when)
+    if not candidates:
+        return None
+
+    day_start = when.astimezone(BUSINESS_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+    loads = dict(session.execute(
+        select(CallbackSchedule.assigned_advisor_id, func.count())
+        .where(CallbackSchedule.status == OPEN,
+               CallbackSchedule.assigned_advisor_id.is_not(None),
+               CallbackSchedule.scheduled_time >= day_start.astimezone(UTC),
+               CallbackSchedule.scheduled_time < day_end.astimezone(UTC))
+        .group_by(CallbackSchedule.assigned_advisor_id)
+    ).all())
+    return min(candidates, key=lambda a: (loads.get(a.id, 0), str(a.id)))
+
+
 def reserve(session: Session, *, slot_start: str, customer_id: str | None = None,
             subscription_id: str | None = None, session_id: str | None = None,
             preferred_window: str | None = None, reason: str | None = None,
@@ -368,11 +402,21 @@ def reserve(session: Session, *, slot_start: str, customer_id: str | None = None
         return None
     when = when if when.tzinfo is not None else when.replace(tzinfo=UTC)
 
+    # Slot-grid contract: everything the queue offers is minute-aligned on the grid, so a
+    # reservation off it can only come from a hand-built payload, and honouring it would store a
+    # timestamp no offer or report can ever produce. Refuse BEFORE the advisory lock: the lock is
+    # for race-safe capacity checks, not for validating the caller's arithmetic.
+    if when.minute % SLOT_MINUTES or when.second or when.microsecond:
+        logger.info("callback refused: %s is off the %d-minute grid",
+                    when.isoformat(), SLOT_MINUTES)
+        return None
+
     session.execute(text("SELECT pg_advisory_xact_lock(hashtext('callback_slot_booking'))"))
 
     # Capacity is re-derived for THIS instant under the lock: the schedule may have been edited
     # between the offer and the answer, and a booking outside working hours is a call nobody makes.
-    capacity = _slot_capacity(session, when)
+    index = load_schedule(session)
+    capacity = index.capacity_at(when)
     if capacity <= 0:
         logger.info("callback refused: no advisor works at %s", when.isoformat())
         return None
@@ -382,6 +426,10 @@ def reserve(session: Session, *, slot_start: str, customer_id: str | None = None
     ) or 0
     if int(used) >= capacity:
         return None
+    advisor = _pick_advisor(session, when, index=index)
+    if advisor is None:
+        logger.info("callback refused: no advisor available at %s", when.isoformat())
+        return None
 
     row = CallbackSchedule(
         session_id=to_uuid(session_id),
@@ -389,6 +437,7 @@ def reserve(session: Session, *, slot_start: str, customer_id: str | None = None
         subscription_id=to_uuid(subscription_id),
         scheduled_time=when,
         priority_level=priority,
+        assigned_advisor_id=advisor.id,
         preferred_window=(preferred_window or "")[:120] or None,
         reason=(reason or "")[:60] or None,
     )

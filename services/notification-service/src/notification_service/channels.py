@@ -31,16 +31,21 @@ class NotificationChannel(Protocol):
     async def send(self, to: str, body: str) -> str: ...
 
 
+# Twilio REST root, deliberately not an f-string: a transport that doubles braces would turn
+# a valid URL into a literal-brace string and urlparse would report an empty scheme.
+_TWILIO_API_ROOT = "https://api.twilio.com/2010-04-01/Accounts/"
+
+
 def _messages_url(sid: str) -> str:
     """Twilio REST endpoint for sending messages: built once, tested directly, no literal
     braces allowed around it - a doubled brace becomes a literal character and urlparse then
     reports an empty scheme."""
-    return f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+    return _TWILIO_API_ROOT + sid + "/Messages.json"
 
 
 def _account_url(sid: str) -> str:
     """Twilio REST endpoint for the account resource (credential probe)."""
-    return f"https://api.twilio.com/2010-04-01/Accounts/{sid}.json"
+    return _TWILIO_API_ROOT + sid + ".json"
 
 
 class TwilioChannel:

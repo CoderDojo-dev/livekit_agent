@@ -271,27 +271,39 @@ def coverage_report(session: Session, days: int = 7) -> dict:
     index = load_schedule(session)
     now = datetime.now(UTC)
     start = now.astimezone(BUSINESS_TZ).replace(minute=0, second=0, microsecond=0)
+    # Languages the service promises across its whole staff - gaps are measured against these,
+    # so an hour with only French advisors reports ar/en as uncovered even if someone is working.
+    all_languages = sorted({a.language for a in index.advisors.values()})
     rows: list[dict] = []
     gaps: list[str] = []
+    covered_by_language: dict[str, list[str]] = {lang: [] for lang in all_languages}
     cursor = start
     limit = start + timedelta(days=days)
     while cursor < limit:
         local_hour = cursor.hour
         if 8 <= local_hour < 20:
             available = index.available_advisors(cursor)
+            languages = sorted({a.language for a in available})
             entry = {
                 "at": cursor.astimezone(UTC).isoformat(),
                 "local": cursor.strftime("%Y-%m-%d %H:%M"),
                 "advisors": len(available),
-                "languages": sorted({a.language for a in available}),
+                "languages": languages,
             }
             rows.append(entry)
             if not available:
                 gaps.append(entry["local"])
+            # A language the service promises is only covered when at least one advisor speaking
+            # it is working that hour - a supervisor wants the gap per language, not just per hour.
+            for language in all_languages:
+                if language not in languages:
+                    covered_by_language.setdefault(language, []).append(entry["local"])
         cursor += timedelta(hours=1)
     return {
         "hours": rows,
         "uncovered_hours": gaps,
+        "uncovered_by_language": covered_by_language,
+        "languages": all_languages,
         "advisors_total": len(index.advisors),
         "timezone": str(BUSINESS_TZ),
     }
