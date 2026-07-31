@@ -353,7 +353,17 @@ class CallbackScheduleTask(AgentTask[bool]):
         verdict = await get_callback_client().check_time(requested)
 
         if verdict.get("available"):
-            # Book the instant the API confirmed, never the one we parsed.
+            # The API just confirmed this instant, so it becomes the only bookable offer.
+            # Without this, the anti-hallucination guard in _match rejects it and the agent
+            # re-offers the previous slots instead of booking the one the caller asked for.
+            confirmed = dict(
+                slot_start=verdict["slot_start"],
+                slot_minutes=verdict.get("slot_minutes"),
+                remaining=verdict.get("remaining"),
+                local_day=verdict.get("local_day"),
+                local_time=verdict.get("local_time"),
+            )
+            self._slots = [confirmed]
             return await self.accept_slot(context, verdict["slot_start"])
 
         self._slots = list(verdict.get("alternatives") or [])

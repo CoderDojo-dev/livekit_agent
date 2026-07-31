@@ -1,13 +1,25 @@
-"""The Twilio URL must use single-brace f-string interpolation, not double braces."""
-import pathlib
+"""The Twilio REST URL must be a URL, not a string that merely contains one."""
+from urllib.parse import urlparse
+
+from notification_service.channels import _account_url, _messages_url
 
 
-def test_twilio_url_uses_single_braces() -> None:
-    here = pathlib.Path(__file__).resolve().parent
-    src = (here.parent / "src" / "notification_service" / "channels.py").read_text(encoding="utf-8")
-    assert "{{https://api.twilio.com" not in src
-    assert "{self._sid}" in src
-    assert "{{self._sid}}" not in src
+def test_messages_url_is_parseable() -> None:
+    sid = "AC0123456789abcdef"
+    parsed = urlparse(_messages_url(sid))
+
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "api.twilio.com"
+    assert "AC0123456789abcdef" in parsed.path
+
+
+def test_account_url_is_parseable() -> None:
+    sid = "AC0123456789abcdef"
+    parsed = urlparse(_account_url(sid))
+
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "api.twilio.com"
+    assert parsed.path.endswith(f"/Accounts/{sid}.json")
 
 
 def test_whatsapp_prefix_is_not_doubled() -> None:

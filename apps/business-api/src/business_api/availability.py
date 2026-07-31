@@ -106,11 +106,18 @@ def load_schedule(session: Session, skill_tag: str | None = None,
     advisors = list(session.scalars(stmt))
     if skill_tag:
         wanted = skill_tag.strip().lower()
-        advisors = [
-            a for a in advisors
-            if wanted in {s.strip().lower() for s in (a.skills or "").split(",")}
-            or "general" in {s.strip().lower() for s in (a.skills or "").split(",")}
-        ]
+
+        def _skills_of(advisor) -> set[str]:
+            return {s.strip().lower() for s in (advisor.skills or "").split(",")}
+
+        specialists = [a for a in advisors if wanted in _skills_of(a)]
+        # Falling back to generalists keeps a callback possible instead of returning nothing,
+        # but specialists must come first, and the fallback must be traceable in the logs.
+        if specialists:
+            advisors = specialists
+        else:
+            advisors = [a for a in advisors if "general" in _skills_of(a)]
+            logger.info("no specialist for %r, falling back to generalists", wanted)
     if not advisors:
         return ScheduleIndex([], [], [])
 

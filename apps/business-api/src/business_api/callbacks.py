@@ -109,12 +109,18 @@ def _slot_bounds(now: datetime, days: int) -> list[datetime]:
     step = timedelta(minutes=SLOT_MINUTES)
     first = now + timedelta(minutes=LEAD_MINUTES)
     # Round up to the next slot boundary so offered times are always clean (09:00, 09:30).
-    minute = (first.minute // SLOT_MINUTES + 1) * SLOT_MINUTES
+    # Ceiling, not "next": an instant already on a boundary must stay where it is, otherwise the
+    # soonest slot we can offer drifts by a whole step for no reason.
+    minute = -(-first.minute // SLOT_MINUTES) * SLOT_MINUTES
     cursor = first.replace(minute=0, second=0, microsecond=0) + timedelta(minutes=minute)
     end = now + timedelta(days=days)
     slots: list[datetime] = []
     while cursor < end:
-        if DAY_START_HOUR <= cursor.hour < DAY_END_HOUR:
+        # DAY_START_HOUR / DAY_END_HOUR are business-local hours, and cursor is UTC. Comparing
+        # them directly silently dropped the first local working hour and let a late UTC hour
+        # through. capacity_at() already reasons in local time; this must match it.
+        local_hour = cursor.astimezone(BUSINESS_TZ).hour
+        if DAY_START_HOUR <= local_hour < DAY_END_HOUR:
             slots.append(cursor)
         cursor = cursor + step
     return slots

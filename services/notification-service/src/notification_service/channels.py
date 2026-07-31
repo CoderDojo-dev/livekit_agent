@@ -31,6 +31,18 @@ class NotificationChannel(Protocol):
     async def send(self, to: str, body: str) -> str: ...
 
 
+def _messages_url(sid: str) -> str:
+    """Twilio REST endpoint for sending messages: built once, tested directly, no literal
+    braces allowed around it - a doubled brace becomes a literal character and urlparse then
+    reports an empty scheme."""
+    return f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+
+
+def _account_url(sid: str) -> str:
+    """Twilio REST endpoint for the account resource (credential probe)."""
+    return f"https://api.twilio.com/2010-04-01/Accounts/{sid}.json"
+
+
 class TwilioChannel:
     """SMS/WhatsApp via the Twilio REST API (no SDK dependency)."""
 
@@ -54,7 +66,7 @@ class TwilioChannel:
 
     async def send(self, to: str, body: str) -> str:
         prefix = "whatsapp:" if self.name == "whatsapp" else ""
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{self._sid}/Messages.json"
+        url = _messages_url(self._sid)
         async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.post(
                 url, auth=(self._sid, self._token),
@@ -168,7 +180,7 @@ async def verify_credentials() -> dict[str, dict]:
     sid = os.getenv("TWILIO_ACCOUNT_SID", "")
     token = os.getenv("TWILIO_AUTH_TOKEN", "")
     if sid and token:
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}.json"
+        url = _account_url(sid)
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
                 resp = await client.get(url, auth=(sid, token))
