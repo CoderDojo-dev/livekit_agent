@@ -15,19 +15,20 @@ WEEKLY_HOURS_PER_ADVISOR = text(
     join routing.advisor_shifts s on s.advisor_id = a.id
     where a.is_active and a.is_on_call and s.is_active
     group by a.full_name, a.language
-    order by weekly_hours desc
+    order by weekly_hours asc
     """
 )
 
 HOURS_PER_LANGUAGE = text(
     """
     select a.language,
+           count(distinct a.id) as advisors,
            sum(s.end_minute - s.start_minute) / 60.0 as weekly_hours
     from routing.advisors a
     join routing.advisor_shifts s on s.advisor_id = a.id
     where a.is_active and a.is_on_call and s.is_active
     group by a.language
-    order by weekly_hours desc
+    order by weekly_hours asc
     """
 )
 
