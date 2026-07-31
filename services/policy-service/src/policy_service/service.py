@@ -38,7 +38,7 @@ class PolicyService:
         result = evaluate_action(ctx, self._thresholds)
         verdict_id = self._persist(
             session_id=ctx.session_id, customer_id=ctx.customer_id, requested_action=ctx.action_type,
-            direction="inbound", result=result, inputs=ctx.model_dump(),
+            direction="inbound", result=result, inputs=ctx.model_dump(mode="json"),
         )
         return result, verdict_id
 
@@ -119,12 +119,16 @@ class PolicyService:
             )
             self._session.commit()
             return str(verdict.id)
-        except SQLAlchemyError as exc:
+        except Exception as exc:  # noqa: BLE001 - a storage defect must never rewrite a verdict
             self._session.rollback()
             logger.error(
                 "policy verdict persistence failed (action=%s verdict=%s rule=%s): %s",
                 requested_action, result.verdict, result.rule_id, exc,
+                exc_info=True,
             )
             if result.verdict.upper() == "AUTHORIZED":
+                # Deliberate and unchanged: no persisted verdict means no execution (spec 12).
+                # The 500 is the correct answer here - what was wrong was reaching it because of
+                # a serialization detail rather than a real storage outage.
                 raise
             return None
