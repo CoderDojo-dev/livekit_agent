@@ -1,0 +1,425 @@
+@import "tailwindcss" source(none);
+@source "../src";
+
+/*
+ * NEXUS CUSTOMER PORTAL — THE MONOCHROME EXPERIENCE BIBLE
+ * Volume II. Strictly achromatic: every colour value satisfies R === G === B.
+ * Thirteen greys. No hue, no saturation, no gradient tint.
+ */
+
+:root {
+  /* --- Chapitre 2.1 : les treize valeurs --- */
+  --n-0: #000000;
+  --n-1: #0a0a0a;
+  --n-2: #101010;
+  --n-3: #141414;
+  --n-4: #1a1a1a;
+  --n-5: #212121;
+  --n-6: #2a2a2a;
+  --n-7: #383838;
+  --n-8: #4d4d4d;
+  --n-9: #6e6e6e;
+  --n-10: #9b9b9b;
+  --n-11: #c9c9c9;
+  --n-12: #ffffff;
+
+  /* --- 2.2 surfaces --- */
+  --surface-0: var(--n-1);
+  --surface-1: var(--n-2);
+  --surface-2: var(--n-3);
+  --surface-3: var(--n-4);
+  --surface-4: var(--n-5);
+  --surface-5: var(--n-6);
+
+  /* --- 2.3 traits --- */
+  --stroke-subtle: rgba(255, 255, 255, 0.06);
+  --stroke-default: rgba(255, 255, 255, 0.09);
+  --stroke-strong: rgba(255, 255, 255, 0.14);
+  --stroke-ink: rgba(255, 255, 255, 0.24);
+
+  /* --- 2.4 encres --- */
+  --ink-1: var(--n-12);
+  --ink-2: var(--n-11);
+  --ink-3: var(--n-10);
+  --ink-4: var(--n-9);
+  --ink-5: var(--n-8);
+  --ink-inverse: var(--n-0);
+
+  /* --- 5.1 espacement, douze pas --- */
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 20px;
+  --sp-8: 24px;
+  --sp-9: 32px;
+  --sp-10: 40px;
+  --sp-11: 56px;
+  --sp-12: 80px;
+
+  /* --- 5.3 rayons, plafond 12px --- */
+  --r-0: 0px;
+  --r-1: 4px;
+  --r-2: 6px;
+  --r-3: 8px;
+  --r-4: 10px;
+  --r-5: 12px;
+
+  /* --- 6.2 elevations --- */
+  --elev-0: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --elev-1:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elev-2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px -2px rgba(0, 0, 0, 0.5);
+  --elev-3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 24px -6px rgba(0, 0, 0, 0.6), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+  --elev-4:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 32px 64px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
+
+  /* --- 6.6 lueur --- */
+  --glow-soft: 0 0 24px rgba(255, 255, 255, 0.06);
+  --glow-strong: 0 0 48px rgba(255, 255, 255, 0.1);
+  --glow-line: 0 0 12px rgba(255, 255, 255, 0.14);
+
+  /* --- 6.7 couches z --- */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-rail: 20;
+  --z-topbar: 30;
+  --z-callbar: 40;
+  --z-dropdown: 50;
+  --z-popover: 60;
+  --z-tooltip: 70;
+  --z-overlay: 80;
+  --z-drawer: 90;
+  --z-dialog: 100;
+  --z-command: 110;
+  --z-toast: 120;
+  --z-grain: 9999;
+
+  /* --- mouvement --- */
+  --d-1: 80ms;
+  --d-2: 120ms;
+  --d-3: 180ms;
+  --d-4: 240ms;
+  --d-5: 320ms;
+  --d-6: 420ms;
+  --d-7: 520ms;
+  --d-8: 640ms;
+  --d-9: 900ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@theme inline {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-n-0: var(--n-0);
+  --color-n-1: var(--n-1);
+  --color-n-2: var(--n-2);
+  --color-n-3: var(--n-3);
+  --color-n-4: var(--n-4);
+  --color-n-5: var(--n-5);
+  --color-n-6: var(--n-6);
+  --color-n-7: var(--n-7);
+  --color-n-8: var(--n-8);
+  --color-n-9: var(--n-9);
+  --color-n-10: var(--n-10);
+  --color-n-11: var(--n-11);
+  --color-n-12: var(--n-12);
+
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-surface-5: var(--surface-5);
+
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-ink-5: var(--ink-5);
+  --color-ink-inverse: var(--ink-inverse);
+
+  --color-stroke-subtle: var(--stroke-subtle);
+  --color-stroke-default: var(--stroke-default);
+  --color-stroke-strong: var(--stroke-strong);
+  --color-stroke-ink: var(--stroke-ink);
+
+  --radius-r-0: var(--r-0);
+  --radius-r-1: var(--r-1);
+  --radius-r-2: var(--r-2);
+  --radius-r-3: var(--r-3);
+  --radius-r-4: var(--r-4);
+  --radius-r-5: var(--r-5);
+
+  --spacing-sp-1: var(--sp-1);
+  --spacing-sp-2: var(--sp-2);
+  --spacing-sp-3: var(--sp-3);
+  --spacing-sp-4: var(--sp-4);
+  --spacing-sp-5: var(--sp-5);
+  --spacing-sp-6: var(--sp-6);
+  --spacing-sp-7: var(--sp-7);
+  --spacing-sp-8: var(--sp-8);
+  --spacing-sp-9: var(--sp-9);
+  --spacing-sp-10: var(--sp-10);
+  --spacing-sp-11: var(--sp-11);
+  --spacing-sp-12: var(--sp-12);
+
+  --shadow-elev-0: var(--elev-0);
+  --shadow-elev-1: var(--elev-1);
+  --shadow-elev-2: var(--elev-2);
+  --shadow-elev-3: var(--elev-3);
+  --shadow-elev-4: var(--elev-4);
+  --shadow-glow-soft: var(--glow-soft);
+  --shadow-glow-strong: var(--glow-strong);
+  --shadow-glow-line: var(--glow-line);
+}
+
+/* --- 4.3 l'echelle typographique : dix-huit tokens --- */
+@utility t-display {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 44px;
+  letter-spacing: -0.03em;
+}
+@utility t-metric-xl {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 36px;
+  letter-spacing: -0.025em;
+}
+@utility t-metric-l {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 30px;
+  letter-spacing: -0.02em;
+}
+@utility t-metric-m {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.015em;
+}
+@utility t-title-1 {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 30px;
+  letter-spacing: -0.02em;
+}
+@utility t-title-2 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.015em;
+}
+@utility t-title-3 {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -0.01em;
+}
+@utility t-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
+@utility t-body-strong {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+@utility t-ui {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+@utility t-ui-regular {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+}
+@utility t-label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+@utility t-caption {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+}
+@utility t-micro {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@utility t-micro-2 {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+@utility t-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+}
+@utility t-mono-s {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 14px;
+}
+@utility t-mono-l {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--n-12);
+    outline-offset: 2px;
+    border-radius: var(--r-2);
+  }
+}
+
+/* Hachures pour le depassement d'usage, chapitre 38.4 */
+@utility hatch-45 {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.3) 0px,
+    rgba(0, 0, 0, 0.3) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+@layer base {
+  * {
+    border-color: var(--stroke-default);
+    hyphens: none;
+  }
+
+  html,
+  body {
+    background-color: var(--surface-0);
+    color: var(--ink-2);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings:
+      "tnum" 1,
+      "cv01" 1,
+      "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* 2.7 le grain : dithering du banding, jamais desactive sauf a l'impression */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-grain);
+    pointer-events: none;
+    background-image: url("/noise.png");
+    background-size: 160px 160px;
+    background-repeat: repeat;
+    opacity: 0.028;
+    mix-blend-mode: overlay;
+  }
+
+  @media print {
+    body::after {
+      display: none;
+    }
+  }
+
+  ::selection {
+    background: var(--n-12);
+    color: var(--n-0);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--n-6);
+    border-radius: var(--r-1);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--n-7);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 0%,
+    var(--surface-4) 50%,
+    var(--surface-3) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1400ms linear infinite;
+  border-radius: var(--r-2);
+}
+
+@keyframes caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
