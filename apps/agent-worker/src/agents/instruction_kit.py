@@ -210,6 +210,9 @@ def routing_mandate(available: frozenset[str]) -> str:
         parts.append(
             "- NEVER tell the caller to call a different department or number yourself. "
             "Use the route_* tool.\n"
+            "- You may NEVER hand the caller back to a department they were already "
+            "transferred from, and never route them a second time to the same "
+            "specialist: one routing per concern, then finish the call politely.\n"
             "- When you cannot do what the caller asks, do NOT escalate straight away. "
             "Say plainly and warmly, in one short sentence, what you cannot do and why, "
             "offer what you CAN still do, and only then ask whether they would like you to "

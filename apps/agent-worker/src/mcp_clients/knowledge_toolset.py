@@ -7,6 +7,7 @@ ticketing (ticketing-glpi, Phase 9). Per-agent scoping: each persona builds its 
 """
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 
 import mcp.client.streamable_http as streamable_http
@@ -19,11 +20,22 @@ if not hasattr(streamable_http, "streamable_http_client") and hasattr(
 
 from livekit.agents import mcp
 
+_DEFAULT_MCP_TIMEOUT_S = 9.0
+
+
+def _mcp_timeout_s() -> float:
+    """MCP client timeout; invalid env values fall back to the safe default."""
+    try:
+        return float(os.environ.get("KNOWLEDGE_MCP_TIMEOUT_S", _DEFAULT_MCP_TIMEOUT_S))
+    except ValueError:
+        return _DEFAULT_MCP_TIMEOUT_S
+
 
 def build_knowledge_toolset(allowed_tools: Iterable[str] = ("knowledge_search",)):
     """Return an MCPToolset exposing only ``allowed_tools`` from the knowledge MCP server."""
     server = mcp.MCPServerHTTP(
         url=get_settings().knowledge_mcp_url,
         allowed_tools=list(allowed_tools),
+        client_session_timeout_seconds=_mcp_timeout_s(),
     )
     return mcp.MCPToolset(id="ai-knowledge-rag", mcp_server=server)

@@ -14,7 +14,10 @@ from tools.voice_flow import persona_tts
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 3
-TASK_DEADLINE_S = 30.0
+MAX_INVALID_INPUTS = 4
+# Timeout hierarchy (invariant): VERIFY_CALL_TIMEOUT_S < TASK_DEADLINE_S < GATE_TIMEOUT_S,
+# so the verify call, the whole task, and the surrounding identity gate each fail in order.
+TASK_DEADLINE_S = 45.0
 VERIFY_CALL_TIMEOUT_S = 5.0
 
 _PROMPTS = {
@@ -105,6 +108,7 @@ class IdentityVerificationTask(AgentTask[bool]):
         self._customer_id = customer_id
         self._verify_fn = verify_fn
         self._attempts = 0
+        self._invalid_inputs = 0
         self._done = False
         self._watchdog: asyncio.Task | None = None
 
@@ -169,6 +173,10 @@ class IdentityVerificationTask(AgentTask[bool]):
 
         # Invalid speech does not consume a persisted authentication attempt.
         if digits is None:
+            self._invalid_inputs += 1
+            if self._invalid_inputs >= MAX_INVALID_INPUTS:
+                await self._fail_closed("max_invalid_inputs")
+                return
             await self._speak(_INVALID)
             self._arm()
             return

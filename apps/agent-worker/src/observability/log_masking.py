@@ -27,8 +27,15 @@ class PiiMaskingFilter(logging.Filter):
 
 
 def install_pii_masking() -> None:
-    """Attach the PII masking filter to every root handler exactly once."""
+    """Attach the PII masking filter to every root handler exactly once.
+
+    The filter is also registered on the root logger itself, so records are
+    scrubbed even when a handler is added later (e.g. by livekit's CLI logging
+    setup) after this install ran.
+    """
     root = logging.getLogger()
     for handler in root.handlers:
         if not any(isinstance(f, PiiMaskingFilter) for f in handler.filters):
             handler.addFilter(PiiMaskingFilter())
+    if not any(isinstance(f, PiiMaskingFilter) for f in root.filters):
+        root.addFilter(PiiMaskingFilter())

@@ -32,7 +32,9 @@ from session import SessionUserData
 from observability_kit import configure_tracer
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO)
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    logging.basicConfig(level=logging.INFO)
 install_pii_masking()
 from providers.tts_audit import install_tts_audit
 install_tts_audit()
@@ -167,4 +169,5 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
 if __name__ == "__main__":
+    root_logger.handlers.clear()
     agents.cli.run_app(server)

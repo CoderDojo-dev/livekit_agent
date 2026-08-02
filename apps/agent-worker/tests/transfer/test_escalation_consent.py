@@ -34,7 +34,7 @@ def _call(**kwargs):
     original_manager = escalation_tools.ManagerAgent
     escalation_tools.ManagerAgent = _FakeManager
 
-    async def _fake_handoff(_ctx, _agent, _msg):
+    async def _fake_handoff(_ctx, _agent, _msg, **kwargs):
         return _agent
 
     original_handoff = escalation_tools.handoff_with_message

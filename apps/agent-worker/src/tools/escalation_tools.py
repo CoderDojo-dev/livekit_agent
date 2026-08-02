@@ -122,7 +122,13 @@ async def escalate_to_manager(
         except Exception as exc:
             logger.warning("escalation record skipped: %s", exc)
 
-    return await handoff_with_message(context, next_agent, _MANAGER_LINES[_resolve_language(context)])
+    return await handoff_with_message(
+        context,
+        next_agent,
+        _MANAGER_LINES[_resolve_language(context)],
+        language=_resolve_language(context),
+        loop_guard=False,
+    )
 
 
 @function_tool()

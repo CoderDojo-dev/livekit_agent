@@ -12,7 +12,10 @@ from tools.voice_flow import active_persona_tts
 
 logger = logging.getLogger(__name__)
 
-GATE_TIMEOUT_S = 40.0
+# Timeout hierarchy (invariant): VERIFY_CALL_TIMEOUT_S < TASK_DEADLINE_S < GATE_TIMEOUT_S.
+# The gate waits slightly longer than the whole identity task so a task-level
+# timeout is reported as such instead of being swallowed by the outer deadline.
+GATE_TIMEOUT_S = 60.0
 
 
 def identity_is_fresh(user_data) -> bool:
@@ -90,7 +93,11 @@ async def ensure_identity_verified(context: RunContext) -> bool:
             timeout=GATE_TIMEOUT_S,
         )
     except Exception as exc:
-        logger.warning("identity gate fail-closed (%s)", exc)
+        logger.warning(
+            "identity gate fail-closed (%s: %s)",
+            type(exc).__name__,
+            exc or "no detail",
+        )
         verified = False
 
     user_data.identity_verified = bool(verified) and identity_is_fresh(

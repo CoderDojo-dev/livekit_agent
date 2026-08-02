@@ -156,6 +156,8 @@ class BaseTelecomAgent(Agent):
         if user_data is None:
             return
 
+        user_data.caller_turn_index = getattr(user_data, "caller_turn_index", 0) + 1
+
         # Patch #5 — le compteur de clarifications doit mesurer les deferrals
         # CONSÉCUTIFS sur le sujet courant, pas le total de l'appel. Si le client
         # répond à une clarification qu'on vient de poser, on conserve le streak ;

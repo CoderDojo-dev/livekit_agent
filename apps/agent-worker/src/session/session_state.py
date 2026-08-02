@@ -43,6 +43,9 @@ class SessionUserData:
     offer_count: int = 0
     user_refused_manager: bool = False
     can_hardfail: bool = True
+    caller_turn_index: int = 0
+    handoff_count: int = 0
+    last_handoff_turn: int = 0
 
     # --- conversation persistence (P3) ---
     conversation_writer: object | None = None

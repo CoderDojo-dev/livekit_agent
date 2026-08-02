@@ -87,6 +87,13 @@ async def lifespan(app: FastAPI):
             except CEGateError as exc:
                 logger.warning("CE gate failed to warm: %s", exc)
         threading.Thread(target=_warm_ce_gate, daemon=True).start()
+    # Warm-up: run one real search so the first caller question does not pay the
+    # retrieval-path cost (Qdrant connection, filter build, RRF fusion).
+    try:
+        get_retriever().search("forfait", top_k=1)
+        logger.info("retriever warm-up search done")
+    except Exception as exc:
+        logger.warning("retriever warm-up search failed: %s", exc)
     yield
 
 
