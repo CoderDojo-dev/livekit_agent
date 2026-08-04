@@ -45,6 +45,88 @@ class SupervisionRepository:
             "tickets": [{"glpi_id": t.glpi_ticket_id, "status": t.status, "subject": t.subject} for t in tickets],
         }
 
+    def ticket_list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        category: str | None = None,
+        priority: str | None = None,
+        customer_id: str | None = None,
+        search: str | None = None,
+    ) -> dict:
+        """Paginated view over the local GLPI mirror (ticketing.tickets).
+
+        Read-only. GLPI remains the source of truth; this exposes the durable local projection
+        the mirror was built to serve, and reports last_synced_at so the reader can judge how
+        fresh that projection is.
+        """
+        stmt = select(Ticket)
+        count_stmt = select(func.count()).select_from(Ticket)
+
+        def _both(clause):
+            nonlocal stmt, count_stmt
+            stmt = stmt.where(clause)
+            count_stmt = count_stmt.where(clause)
+
+        if status:
+            _both(Ticket.status == status)
+        if category:
+            _both(Ticket.category == category)
+        if priority:
+            _both(Ticket.priority == priority)
+
+        cid = to_uuid(customer_id) if customer_id else None
+        if cid is not None:
+            _both(Ticket.customer_id == cid)
+
+        if search:
+            like = f"%{search.strip()}%"
+            _both(Ticket.subject.ilike(like) | Ticket.glpi_ticket_id.ilike(like))
+
+        total = self._s.scalar(count_stmt) or 0
+        limit = max(1, min(limit, 200))
+        offset = max(0, offset)
+
+        rows = self._s.scalars(
+            stmt.order_by(Ticket.created_at.desc()).limit(limit).offset(offset)
+        ).all()
+
+        customer_ids = {r.customer_id for r in rows if r.customer_id}
+        customers = {}
+        if customer_ids:
+            customers = {
+                c.id: c
+                for c in self._s.scalars(select(Customer).where(Customer.id.in_(customer_ids))).all()
+            }
+
+        counts = {
+            row[0]: row[1]
+            for row in self._s.execute(
+                select(Ticket.status, func.count()).group_by(Ticket.status)
+            ).all()
+        }
+
+        items = []
+        for r in rows:
+            customer = customers.get(r.customer_id)
+            items.append({
+                "ticket_id": r.glpi_ticket_id,
+                "status": r.status,
+                "subject": r.subject,
+                "category": r.category,
+                "priority": r.priority,
+                "customer_id": str(r.customer_id) if r.customer_id else None,
+                "customer_name": f"{customer.first_name} {customer.last_name}".strip() if customer else None,
+                "customer_vip": bool(customer.vip_flag) if customer else False,
+                "subscription_id": str(r.subscription_id) if r.subscription_id else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "last_synced_at": r.last_synced_at.isoformat() if r.last_synced_at else None,
+            })
+
+        return {"tickets": items, "total": total, "counts": counts, "limit": limit, "offset": offset}
+
     def session_detail(self, session_id: str) -> dict | None:
         sid = to_uuid(session_id)
         call = self._s.get(CallSession, sid) if sid else None
@@ -65,6 +147,88 @@ class SupervisionRepository:
             ],
             "sentiment": [{"index": x.turn_index, "score": float(x.score), "label": x.label} for x in sentiment],
         }
+
+    def session_list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        disposition: str | None = None,
+        customer_id: str | None = None,
+        search: str | None = None,
+    ) -> dict:
+        """Paginated index of call sessions for the supervision dashboard.
+
+        Read-only, like every method here. Exposes columns that are already persisted; it
+        computes nothing the platform does not already know.
+        """
+        stmt = select(CallSession)
+        count_stmt = select(func.count()).select_from(CallSession)
+
+        if disposition:
+            stmt = stmt.where(CallSession.final_disposition == disposition)
+            count_stmt = count_stmt.where(CallSession.final_disposition == disposition)
+
+        cid = to_uuid(customer_id) if customer_id else None
+        if cid is not None:
+            stmt = stmt.where(CallSession.customer_id == cid)
+            count_stmt = count_stmt.where(CallSession.customer_id == cid)
+
+        if search:
+            like = f"%{search.strip()}%"
+            stmt = stmt.where(CallSession.msisdn.ilike(like))
+            count_stmt = count_stmt.where(CallSession.msisdn.ilike(like))
+
+        total = self._s.scalar(count_stmt) or 0
+        limit = max(1, min(limit, 200))
+        offset = max(0, offset)
+
+        # start_time is nullable on in-flight rows; fall back to created_at so ordering is total.
+        ordering = func.coalesce(CallSession.start_time, CallSession.created_at).desc()
+        rows = self._s.scalars(stmt.order_by(ordering).limit(limit).offset(offset)).all()
+
+        customer_ids = {r.customer_id for r in rows if r.customer_id}
+        customers = {}
+        if customer_ids:
+            customers = {
+                c.id: c
+                for c in self._s.scalars(select(Customer).where(Customer.id.in_(customer_ids))).all()
+            }
+
+        turn_counts: dict = {}
+        if rows:
+            turn_counts = dict(
+                self._s.execute(
+                    select(Turn.session_id, func.count())
+                    .where(Turn.session_id.in_([r.id for r in rows]))
+                    .group_by(Turn.session_id)
+                ).all()
+            )
+
+        items = []
+        for r in rows:
+            customer = customers.get(r.customer_id)
+            items.append({
+                "session_id": str(r.id),
+                "customer_id": str(r.customer_id) if r.customer_id else None,
+                "customer_name": f"{customer.first_name} {customer.last_name}".strip() if customer else None,
+                "customer_vip": bool(customer.vip_flag) if customer else False,
+                "preferred_language": customer.preferred_language if customer else None,
+                "msisdn": r.msisdn,
+                "channel": r.channel,
+                "start_time": r.start_time.isoformat() if r.start_time else None,
+                "end_time": r.end_time.isoformat() if r.end_time else None,
+                "duration_seconds": r.duration_seconds,
+                "disposition": r.final_disposition,
+                "max_frustration": (
+                    float(r.max_frustration_score) if r.max_frustration_score is not None else None
+                ),
+                "recording_consent": bool(r.recording_consent),
+                "has_recording": bool(r.audio_record_url),
+                "turn_count": int(turn_counts.get(r.id, 0)),
+            })
+
+        return {"sessions": items, "total": total, "limit": limit, "offset": offset}
 
     def escalations(self, status: str = "open") -> list[dict]:
         rows = self._s.scalars(select(EscalationCase).order_by(EscalationCase.created_at.desc())).all()

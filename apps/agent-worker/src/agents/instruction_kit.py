@@ -161,6 +161,17 @@ TTS_LANGUAGE_REMINDER = (
     "\n\nIMPORTANT: You MUST speak ONLY in the language already specified above. Never switch."
 )
 
+# A turn that promises and does not deliver is the worst failure mode on a phone
+# call. This text deliberately cites NO tool name, so instruction_violations()
+# can never flag it against KNOWN_TOOL_VOCABULARY.
+TOOL_TIMING_POLICY = (
+    "\n\nTool timing: do not announce that you are about to check, look up, or "
+    "verify something. Run the tool first, then speak once with the actual "
+    "answer. Never end a turn on a promise such as 'let me check that' or 'one "
+    "moment'. If a result is unavailable, say so plainly in the same turn and "
+    "give the next step."
+)
+
 
 # --------------------------------------------------------------------------- #
 # Derived routing mandate
@@ -246,7 +257,13 @@ def build_persona_instructions(
     head = core
     if KNOWLEDGE_TOOL in available:
         head = core + "\n\n" + KNOWLEDGE_ABSTENTION_RULE
-    parts: list[str] = [head, routing_mandate(available), CLOSING_PROTOCOL, LANGUAGE_SWITCH_POLICY]
+    parts: list[str] = [
+        head,
+        routing_mandate(available),
+        CLOSING_PROTOCOL,
+        LANGUAGE_SWITCH_POLICY,
+        TOOL_TIMING_POLICY,
+    ]
     if tts_provided:
         parts.append(TTS_LANGUAGE_REMINDER)
     return "\n".join(parts)

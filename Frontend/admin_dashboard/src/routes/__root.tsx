@@ -13,7 +13,9 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppSidebar } from "@/components/nexus/app-sidebar";
 import { AppShell } from "@/components/nexus/app-topbar";
-
+import { redirect, useRouterState } from "@tanstack/react-router";
+import { getSession } from "@/lib/api/auth.server";
+import type { AdminSession } from "@/lib/api/session";
 
 function NotFoundComponent() {
   return (
@@ -75,7 +77,22 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+  session: AdminSession | null;
+}>()({
+  // UX gate only. The security boundary is authedMiddleware on each server function
+  // (see src/lib/api/middleware.ts).
+  beforeLoad: async ({ location }) => {
+    const session = await getSession();
+    if (!session && location.pathname !== "/login") {
+      throw redirect({ to: "/login" });
+    }
+    if (session && location.pathname === "/login") {
+      throw redirect({ to: "/overview" });
+    }
+    return { session };
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -132,6 +149,16 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // The login screen is full-bleed: no sidebar, no topbar.
+  if (pathname === "/login") {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <Outlet />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -140,7 +167,6 @@ function RootComponent() {
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
       </AppShell>
-
     </QueryClientProvider>
   );
 }

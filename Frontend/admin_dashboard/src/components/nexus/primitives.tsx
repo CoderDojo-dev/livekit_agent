@@ -471,9 +471,13 @@ export function Td({
 export function SearchInput({
   placeholder,
   className,
+  value,
+  onChange,
 }: {
   placeholder: string;
   className?: string;
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
   return (
     <label className={cn("relative block", className)}>
@@ -492,6 +496,8 @@ export function SearchInput({
       <input
         type="search"
         placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
         className="h-[34px] w-full rounded-r-3 border border-stroke-default bg-surface-3 pl-[30px] pr-sp-5 t-ui-regular text-ink-1 placeholder:text-ink-4 transition-colors duration-[120ms] hover:border-stroke-strong focus:border-stroke-ink"
       />
     </label>
@@ -558,6 +564,7 @@ export function Segmented({
         return (
           <button
             key={item}
+            type="button"
             onClick={() => onSelect?.(item)}
             aria-pressed={selected}
             className={cn(
@@ -577,12 +584,22 @@ export function Segmented({
 
 /* ---------- Checkbox (16px, radius 4) ---------- */
 
-export function Checkbox({ label }: { label: string }) {
+export function Checkbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
+}) {
   return (
     <label className="relative inline-flex size-[16px] items-center justify-center">
       <span className="sr-only">{label}</span>
       <input
         type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange?.(e.target.checked)}
         className="peer size-[16px] appearance-none rounded-r-1 border border-stroke-strong bg-surface-3 transition-colors duration-[120ms] checked:border-n-12 checked:bg-n-12 hover:border-stroke-ink"
       />
       <svg
@@ -629,5 +646,23 @@ export function Sparkline({
         vectorEffect="non-scaling-stroke"
       />
     </svg>
+  );
+}
+
+/* ---------- Text field (chapter 17 — same field metrics as SearchInput) ---------- */
+
+export function TextField({
+  label,
+  className,
+  ...rest
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+  return (
+    <label className={cn("block", className)}>
+      <span className="t-micro mb-sp-2 block font-medium text-ink-5">{label}</span>
+      <input
+        className="h-[34px] w-full rounded-r-3 border border-stroke-default bg-surface-3 px-sp-5 t-ui-regular text-ink-1 placeholder:text-ink-4 transition-colors duration-[120ms] hover:border-stroke-strong focus:border-stroke-ink"
+        {...rest}
+      />
+    </label>
   );
 }

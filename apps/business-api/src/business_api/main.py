@@ -53,6 +53,37 @@ def customer_360(customer_id: str, session: DbSession, role: ConseillerRole) -> 
     return data
 
 
+@app.get("/api/v1/tickets")
+def ticket_index(session: DbSession, role: SuperviseurRole, limit: int = 50, offset: int = 0,
+                 status: str | None = None, category: str | None = None,
+                 priority: str | None = None, customer_id: str | None = None,
+                 search: str | None = None) -> dict:
+    """Supervision list over the local GLPI ticket mirror.
+
+    GLPI stays the source of truth. This never writes: ticket mutations must go through the
+    ticketing-glpi MCP server so GLPI is updated first and the mirror stays consistent.
+    """
+    return SupervisionRepository(session).ticket_list(
+        limit=limit, offset=offset, status=status, category=category,
+        priority=priority, customer_id=customer_id, search=search,
+    )
+
+
+@app.get("/api/v1/sessions")
+def session_index(session: DbSession, role: SuperviseurRole, limit: int = 50, offset: int = 0,
+                  disposition: str | None = None, customer_id: str | None = None,
+                  search: str | None = None) -> dict:
+    """Paginated index of call sessions (supervision list view).
+
+    The detail endpoint below answers "what happened on this call"; this one answers
+    "which calls exist", which is otherwise undiscoverable from outside the database.
+    """
+    return SupervisionRepository(session).session_list(
+        limit=limit, offset=offset, disposition=disposition,
+        customer_id=customer_id, search=search,
+    )
+
+
 @app.get("/api/v1/sessions/{session_id}")
 def session_detail(session_id: str, session: DbSession, role: ConseillerRole) -> dict:
     """Masked transcript + sentiment timeline + disposition for a call session."""
@@ -139,6 +170,8 @@ def retention(
     dry_run: bool = True,
 ) -> dict:
     """Run the audited retention/purge job (dry_run=True by default) - spec section 8.3."""
+    if retention_days < 30:
+        raise HTTPException(status_code=422, detail="retention_days must be >= 30")
     return run_retention(session, retention_days=retention_days, dry_run=dry_run).__dict__
 
 

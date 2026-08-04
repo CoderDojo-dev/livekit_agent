@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdvisorsRouteImport } from './routes/advisors'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as CallbacksRouteImport } from './routes/callbacks'
 import { Route as CallsRouteImport } from './routes/calls'
 import { Route as ConversationsRouteImport } from './routes/conversations'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PoliciesRouteImport } from './routes/policies'
 import { Route as RulesRouteImport } from './routes/rules'
@@ -36,6 +38,11 @@ const AdvisorsRoute = AdvisorsRouteImport.update({
 const AnalyticsRoute = AnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AvailabilityRoute = AvailabilityRouteImport.update({
+  id: '/availability',
+  path: '/availability',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CallbacksRoute = CallbacksRouteImport.update({
@@ -61,6 +68,11 @@ const CustomersRoute = CustomersRouteImport.update({
 const KnowledgeRoute = KnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OverviewRoute = OverviewRouteImport.update({
@@ -93,11 +105,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/advisors': typeof AdvisorsRoute
   '/analytics': typeof AnalyticsRoute
+  '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
   '/conversations': typeof ConversationsRoute
   '/customers': typeof CustomersRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
   '/rules': typeof RulesRoute
@@ -108,11 +122,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/advisors': typeof AdvisorsRoute
   '/analytics': typeof AnalyticsRoute
+  '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
   '/conversations': typeof ConversationsRoute
   '/customers': typeof CustomersRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
   '/rules': typeof RulesRoute
@@ -124,11 +140,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/advisors': typeof AdvisorsRoute
   '/analytics': typeof AnalyticsRoute
+  '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
   '/conversations': typeof ConversationsRoute
   '/customers': typeof CustomersRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
   '/rules': typeof RulesRoute
@@ -141,11 +159,13 @@ export interface FileRouteTypes {
     | '/'
     | '/advisors'
     | '/analytics'
+    | '/availability'
     | '/callbacks'
     | '/calls'
     | '/conversations'
     | '/customers'
     | '/knowledge'
+    | '/login'
     | '/overview'
     | '/policies'
     | '/rules'
@@ -156,11 +176,13 @@ export interface FileRouteTypes {
     | '/'
     | '/advisors'
     | '/analytics'
+    | '/availability'
     | '/callbacks'
     | '/calls'
     | '/conversations'
     | '/customers'
     | '/knowledge'
+    | '/login'
     | '/overview'
     | '/policies'
     | '/rules'
@@ -171,11 +193,13 @@ export interface FileRouteTypes {
     | '/'
     | '/advisors'
     | '/analytics'
+    | '/availability'
     | '/callbacks'
     | '/calls'
     | '/conversations'
     | '/customers'
     | '/knowledge'
+    | '/login'
     | '/overview'
     | '/policies'
     | '/rules'
@@ -187,11 +211,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdvisorsRoute: typeof AdvisorsRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  AvailabilityRoute: typeof AvailabilityRoute
   CallbacksRoute: typeof CallbacksRoute
   CallsRoute: typeof CallsRoute
   ConversationsRoute: typeof ConversationsRoute
   CustomersRoute: typeof CustomersRoute
   KnowledgeRoute: typeof KnowledgeRoute
+  LoginRoute: typeof LoginRoute
   OverviewRoute: typeof OverviewRoute
   PoliciesRoute: typeof PoliciesRoute
   RulesRoute: typeof RulesRoute
@@ -220,6 +246,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/analytics'
       preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/availability': {
+      id: '/availability'
+      path: '/availability'
+      fullPath: '/availability'
+      preLoaderRoute: typeof AvailabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/callbacks': {
@@ -255,6 +288,13 @@ declare module '@tanstack/react-router' {
       path: '/knowledge'
       fullPath: '/knowledge'
       preLoaderRoute: typeof KnowledgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/overview': {
@@ -299,11 +339,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdvisorsRoute: AdvisorsRoute,
   AnalyticsRoute: AnalyticsRoute,
+  AvailabilityRoute: AvailabilityRoute,
   CallbacksRoute: CallbacksRoute,
   CallsRoute: CallsRoute,
   ConversationsRoute: ConversationsRoute,
   CustomersRoute: CustomersRoute,
   KnowledgeRoute: KnowledgeRoute,
+  LoginRoute: LoginRoute,
   OverviewRoute: OverviewRoute,
   PoliciesRoute: PoliciesRoute,
   RulesRoute: RulesRoute,
@@ -313,3 +355,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

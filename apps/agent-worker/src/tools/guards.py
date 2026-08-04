@@ -42,7 +42,17 @@ def _parse_datetime(value):
 
 
 async def ensure_identity_verified(context: RunContext) -> bool:
-    """Verify CIN once per customer/session and reuse it until expiration."""
+    """Verify CIN once per customer/session and reuse it until expiration.
+
+    The nested IdentityVerificationTask runs inside ``RunContext.foreground()``
+    (livekit-agents 1.6.5): the context manager waits for the session to be idle
+    and then HOLDS the floor for the duration of the sub-task.
+
+    Without it, an AgentTask awaited from inside a function tool races the parent
+    turn's speech scheduling. LiveKit logs "speech scheduling is paused" and the
+    reply that should follow the tool is DROPPED rather than queued, leaving the
+    caller in silence until they speak again purely to hand the floor back.
+    """
     user_data = context.session.userdata
 
     if identity_is_fresh(user_data):
@@ -84,14 +94,15 @@ async def ensure_identity_verified(context: RunContext) -> bool:
         return user_data.identity_verified
 
     try:
-        verified = await asyncio.wait_for(
-            IdentityVerificationTask(
-                customer_id=customer.customer_id,
-                verify_fn=verify,
-                tts=active_persona_tts(context),
-            ),
-            timeout=GATE_TIMEOUT_S,
-        )
+        async with context.foreground():
+            verified = await asyncio.wait_for(
+                IdentityVerificationTask(
+                    customer_id=customer.customer_id,
+                    verify_fn=verify,
+                    tts=active_persona_tts(context),
+                ),
+                timeout=GATE_TIMEOUT_S,
+            )
     except Exception as exc:
         logger.warning(
             "identity gate fail-closed (%s: %s)",

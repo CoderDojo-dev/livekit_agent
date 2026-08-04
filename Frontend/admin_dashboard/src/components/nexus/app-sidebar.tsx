@@ -1,10 +1,23 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { NAV, NAV_SECTIONS, ACCOUNT } from "@/lib/nexus/nav";
+import { NAV, NAV_SECTIONS, ACCOUNT_FALLBACK, type AccountInfo } from "@/lib/nexus/nav";
 import { Avatar, PresenceDot } from "@/components/nexus/primitives";
+import { Route as RootRoute } from "@/routes/__root";
+import { ROLE_LABEL } from "@/lib/api/session";
+import { initials as toInitials } from "@/lib/nexus/format";
 import { cn } from "@/lib/utils";
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { session } = RootRoute.useRouteContext();
+
+  const account: AccountInfo = session
+    ? {
+        name: session.sub.split("@")[0] ?? session.sub,
+        role: ROLE_LABEL[session.role],
+        email: session.sub,
+        initials: toInitials((session.sub.split("@")[0] ?? "").replace(/[._-]/g, " ")) || "··",
+      }
+    : ACCOUNT_FALLBACK;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-[236px] flex-col border-r border-stroke-default bg-surface-1 lg:flex">
@@ -76,10 +89,10 @@ export function AppSidebar() {
       {/* Account */}
       <div className="shrink-0 border-t border-stroke-subtle p-sp-5">
         <div className="flex items-center gap-sp-5 rounded-r-3 p-sp-4 transition-colors duration-[120ms] hover:bg-surface-2">
-          <Avatar initials={ACCOUNT.initials} name={ACCOUNT.name} size="md" />
+          <Avatar initials={account.initials} name={account.name} size="md" />
           <div className="min-w-0">
-            <p className="t-ui truncate text-ink-1">{ACCOUNT.name}</p>
-            <p className="t-caption truncate text-ink-4">{ACCOUNT.role}</p>
+            <p className="t-ui truncate text-ink-1">{account.name}</p>
+            <p className="t-caption truncate text-ink-4">{account.role}</p>
           </div>
         </div>
       </div>

@@ -10,6 +10,7 @@ import {
   Phone,
   Headset,
   PhoneOutgoing,
+  CalendarClock,
   BarChart3,
   Settings,
   type LucideIcon,
@@ -106,6 +107,14 @@ export const NAV: readonly NavItem[] = [
     shortcut: "G A",
   },
   {
+    id: "availability",
+    label: "Availability",
+    href: "/availability",
+    icon: CalendarClock,
+    section: "OPERATIONS",
+    shortcut: "G D",
+  },
+  {
     id: "callbacks",
     label: "Callbacks",
     href: "/callbacks",
@@ -178,6 +187,10 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
     title: "Advisors",
     subtitle: "Availability, workload and performance.",
   },
+  "/availability": {
+    title: "Availability",
+    subtitle: "Coverage across the rota.",
+  },
   "/callbacks": {
     title: "Callbacks",
     subtitle: "Scheduled return calls awaiting an advisor.",
@@ -192,9 +205,19 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   },
 };
 
-export const ACCOUNT = {
-  name: "Chouaib Saad",
-  role: "Administrator",
-  email: "chouaib.saad@nexus.io",
-  initials: "CS",
+// Account is now derived from the signed session (see src/lib/api/session.ts).
+// The shape is preserved so consuming components did not need restructuring.
+export type AccountInfo = {
+  name: string;
+  role: string;
+  email: string;
+  initials: string;
+};
+
+/** Rendered only before the session resolves, and on the login screen. */
+export const ACCOUNT_FALLBACK: AccountInfo = {
+  name: "—",
+  role: "—",
+  email: "",
+  initials: "··",
 };
