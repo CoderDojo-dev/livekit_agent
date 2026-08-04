@@ -2,7 +2,7 @@
 import {
   LayoutDashboard,
   Users,
-  MessageSquare,
+  LifeBuoy,
   Ticket,
   BookOpen,
   ScrollText,
@@ -47,14 +47,12 @@ export const NAV: readonly NavItem[] = [
     shortcut: "G C",
   },
   {
-    id: "conversations",
-    label: "Conversations",
-    href: "/conversations",
-    icon: MessageSquare,
+    id: "escalations",
+    label: "Escalations",
+    href: "/escalations",
+    icon: LifeBuoy,
     section: "PLATFORM",
-    shortcut: "G V",
-    badge: 4,
-    badgeVariant: "live",
+    shortcut: "G E",
   },
   {
     id: "tickets",
@@ -159,9 +157,9 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
     title: "Customers",
     subtitle: "Manage every account, role and access level.",
   },
-  "/conversations": {
-    title: "Conversations",
-    subtitle: "Live and archived exchanges across all channels.",
+  "/escalations": {
+    title: "Escalations",
+    subtitle: "Handoffs from the AI to a manager agent or a human advisor.",
   },
   "/tickets": {
     title: "Tickets",

@@ -94,3 +94,9 @@ export const policyKeys = {
   all: ["policies"] as const,
   rules: () => [...policyKeys.all, "rules"] as const,
 };
+
+/* Feature 13 — escalations. Read-only; scope is in the key so Open/All are separate caches. */
+export const escalationKeys = {
+  all: ["escalations"] as const,
+  list: (scope: string) => ["escalations", "list", scope] as const,
+};

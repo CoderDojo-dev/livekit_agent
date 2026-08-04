@@ -240,6 +240,11 @@ class SupervisionRepository:
             out.append({
                 "id": str(case.id), "session_id": str(case.session_id), "trigger": case.trigger,
                 "target": case.target, "resolution": case.resolution, "dossier": case.dossier,
+                # Batch 1 / C13: expose created_at (the query already orders by it) and
+                # customer_id (present on the model, one join from Customer 360). Additive keys —
+                # consumed by the admin dashboard only; supervisor-dashboard ignores them.
+                "created_at": case.created_at.isoformat() if case.created_at else None,
+                "customer_id": str(case.customer_id) if case.customer_id else None,
             })
         return out
 

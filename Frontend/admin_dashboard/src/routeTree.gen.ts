@@ -15,8 +15,8 @@ import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as CallbacksRouteImport } from './routes/callbacks'
 import { Route as CallsRouteImport } from './routes/calls'
-import { Route as ConversationsRouteImport } from './routes/conversations'
 import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as EscalationsRouteImport } from './routes/escalations'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OverviewRouteImport } from './routes/overview'
@@ -55,14 +55,14 @@ const CallsRoute = CallsRouteImport.update({
   path: '/calls',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ConversationsRoute = ConversationsRouteImport.update({
-  id: '/conversations',
-  path: '/conversations',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CustomersRoute = CustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EscalationsRoute = EscalationsRouteImport.update({
+  id: '/escalations',
+  path: '/escalations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KnowledgeRoute = KnowledgeRouteImport.update({
@@ -108,8 +108,8 @@ export interface FileRoutesByFullPath {
   '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
-  '/conversations': typeof ConversationsRoute
   '/customers': typeof CustomersRoute
+  '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
@@ -125,8 +125,8 @@ export interface FileRoutesByTo {
   '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
-  '/conversations': typeof ConversationsRoute
   '/customers': typeof CustomersRoute
+  '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
@@ -143,8 +143,8 @@ export interface FileRoutesById {
   '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
-  '/conversations': typeof ConversationsRoute
   '/customers': typeof CustomersRoute
+  '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
@@ -162,8 +162,8 @@ export interface FileRouteTypes {
     | '/availability'
     | '/callbacks'
     | '/calls'
-    | '/conversations'
     | '/customers'
+    | '/escalations'
     | '/knowledge'
     | '/login'
     | '/overview'
@@ -179,8 +179,8 @@ export interface FileRouteTypes {
     | '/availability'
     | '/callbacks'
     | '/calls'
-    | '/conversations'
     | '/customers'
+    | '/escalations'
     | '/knowledge'
     | '/login'
     | '/overview'
@@ -196,8 +196,8 @@ export interface FileRouteTypes {
     | '/availability'
     | '/callbacks'
     | '/calls'
-    | '/conversations'
     | '/customers'
+    | '/escalations'
     | '/knowledge'
     | '/login'
     | '/overview'
@@ -214,8 +214,8 @@ export interface RootRouteChildren {
   AvailabilityRoute: typeof AvailabilityRoute
   CallbacksRoute: typeof CallbacksRoute
   CallsRoute: typeof CallsRoute
-  ConversationsRoute: typeof ConversationsRoute
   CustomersRoute: typeof CustomersRoute
+  EscalationsRoute: typeof EscalationsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LoginRoute: typeof LoginRoute
   OverviewRoute: typeof OverviewRoute
@@ -269,18 +269,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CallsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/conversations': {
-      id: '/conversations'
-      path: '/conversations'
-      fullPath: '/conversations'
-      preLoaderRoute: typeof ConversationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/customers': {
       id: '/customers'
       path: '/customers'
       fullPath: '/customers'
       preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/escalations': {
+      id: '/escalations'
+      path: '/escalations'
+      fullPath: '/escalations'
+      preLoaderRoute: typeof EscalationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/knowledge': {
@@ -342,8 +342,8 @@ const rootRouteChildren: RootRouteChildren = {
   AvailabilityRoute: AvailabilityRoute,
   CallbacksRoute: CallbacksRoute,
   CallsRoute: CallsRoute,
-  ConversationsRoute: ConversationsRoute,
   CustomersRoute: CustomersRoute,
+  EscalationsRoute: EscalationsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LoginRoute: LoginRoute,
   OverviewRoute: OverviewRoute,

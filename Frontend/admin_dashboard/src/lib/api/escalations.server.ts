@@ -1,0 +1,43 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireRole } from "@/lib/api/middleware";
+import { businessApi } from "@/lib/api/business-api";
+
+/* ---------- wire types: exactly what SupervisionRepository.escalations() serialises ---------- */
+
+export type Escalation = {
+  id: string;
+  session_id: string;
+  trigger: string;
+  target: string;
+  resolution: string | null;
+  dossier: Record<string, string | number | boolean | null>;
+  /** Batch 1 / C13 — added to the repository dict (additive). */
+  created_at: string | null;
+  customer_id: string | null;
+};
+
+/**
+ * The backend treats ONLY the literal "open" as a filter; every other value returns all rows
+ * (4.1). "all" is our sentinel for that branch, not a supported enum member.
+ */
+export const escalationScope = z.enum(["open", "all"]);
+export type EscalationScope = z.infer<typeof escalationScope>;
+
+/** Response is a bare envelope { escalations: [...] }, not a raw array. */
+export type EscalationList = { escalations: Escalation[] };
+
+const ListInput = z.object({
+  scope: escalationScope.default("open"),
+});
+
+export const listEscalations = createServerFn({ method: "GET" })
+  .middleware([requireRole("superviseur")])
+  .inputValidator((data: unknown) => ListInput.parse(data))
+  .handler(async ({ data, context }) => {
+    return businessApi<EscalationList>("/api/v1/escalations", {
+      method: "GET",
+      query: { status: data.scope },
+      role: context.session.role,
+    });
+  });
