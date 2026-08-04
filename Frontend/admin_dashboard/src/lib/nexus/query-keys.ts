@@ -100,3 +100,11 @@ export const escalationKeys = {
   all: ["escalations"] as const,
   list: (scope: string) => ["escalations", "list", scope] as const,
 };
+
+/* Feature 8 — decisions & actions ledger. Read-only. verdict is in the key so each filtered
+ * view is its own cache; the header distribution is a separate, static telemetry read. */
+export const decisionKeys = {
+  all: ["decisions"] as const,
+  list: (verdict: string) => ["decisions", "list", verdict] as const,
+  distribution: () => [...decisionKeys.all, "distribution"] as const,
+};

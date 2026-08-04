@@ -16,6 +16,7 @@ import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as CallbacksRouteImport } from './routes/callbacks'
 import { Route as CallsRouteImport } from './routes/calls'
 import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as DecisionsRouteImport } from './routes/decisions'
 import { Route as EscalationsRouteImport } from './routes/escalations'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoginRouteImport } from './routes/login'
@@ -58,6 +59,11 @@ const CallsRoute = CallsRouteImport.update({
 const CustomersRoute = CustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DecisionsRoute = DecisionsRouteImport.update({
+  id: '/decisions',
+  path: '/decisions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EscalationsRoute = EscalationsRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
   '/customers': typeof CustomersRoute
+  '/decisions': typeof DecisionsRoute
   '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
   '/customers': typeof CustomersRoute
+  '/decisions': typeof DecisionsRoute
   '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
@@ -144,6 +152,7 @@ export interface FileRoutesById {
   '/callbacks': typeof CallbacksRoute
   '/calls': typeof CallsRoute
   '/customers': typeof CustomersRoute
+  '/decisions': typeof DecisionsRoute
   '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
@@ -163,6 +172,7 @@ export interface FileRouteTypes {
     | '/callbacks'
     | '/calls'
     | '/customers'
+    | '/decisions'
     | '/escalations'
     | '/knowledge'
     | '/login'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/callbacks'
     | '/calls'
     | '/customers'
+    | '/decisions'
     | '/escalations'
     | '/knowledge'
     | '/login'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/callbacks'
     | '/calls'
     | '/customers'
+    | '/decisions'
     | '/escalations'
     | '/knowledge'
     | '/login'
@@ -215,6 +227,7 @@ export interface RootRouteChildren {
   CallbacksRoute: typeof CallbacksRoute
   CallsRoute: typeof CallsRoute
   CustomersRoute: typeof CustomersRoute
+  DecisionsRoute: typeof DecisionsRoute
   EscalationsRoute: typeof EscalationsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LoginRoute: typeof LoginRoute
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/customers'
       fullPath: '/customers'
       preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/decisions': {
+      id: '/decisions'
+      path: '/decisions'
+      fullPath: '/decisions'
+      preLoaderRoute: typeof DecisionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/escalations': {
@@ -343,6 +363,7 @@ const rootRouteChildren: RootRouteChildren = {
   CallbacksRoute: CallbacksRoute,
   CallsRoute: CallsRoute,
   CustomersRoute: CustomersRoute,
+  DecisionsRoute: DecisionsRoute,
   EscalationsRoute: EscalationsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LoginRoute: LoginRoute,

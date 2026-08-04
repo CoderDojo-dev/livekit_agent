@@ -105,6 +105,22 @@ def verdicts(session_id: str, session: DbSession, role: SuperviseurRole) -> dict
     return {"verdicts": SupervisionRepository(session).verdicts(session_id)}
 
 
+@app.get("/api/v1/decisions")
+def decisions(
+    session: DbSession,
+    role: SuperviseurRole,
+    verdict: str | None = None,
+    session_id: str | None = None,
+    limit: int = 100,
+) -> dict:
+    """Policy decisions newest-first with the actions they authorized (supervision review)."""
+    return {
+        "decisions": SupervisionRepository(session).decision_ledger(
+            verdict=verdict, session_id=session_id, limit=limit
+        )
+    }
+
+
 @app.get("/api/v1/actions")
 def actions(session: DbSession, role: SuperviseurRole, status: str = "failed") -> dict:
     """Failed / retrying actions from the action ledger."""

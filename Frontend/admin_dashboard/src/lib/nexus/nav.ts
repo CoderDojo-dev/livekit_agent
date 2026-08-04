@@ -12,6 +12,7 @@ import {
   PhoneOutgoing,
   CalendarClock,
   BarChart3,
+  Scale,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -123,6 +124,14 @@ export const NAV: readonly NavItem[] = [
     badgeVariant: "count",
   },
   {
+    id: "decisions",
+    label: "Decisions",
+    href: "/decisions",
+    icon: Scale,
+    section: "INSIGHTS",
+    shortcut: "G J",
+  },
+  {
     id: "analytics",
     label: "Analytics",
     href: "/analytics",
@@ -192,6 +201,10 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/callbacks": {
     title: "Callbacks",
     subtitle: "Scheduled return calls awaiting an advisor.",
+  },
+  "/decisions": {
+    title: "Decisions",
+    subtitle: "Every policy verdict and the actions it authorized.",
   },
   "/analytics": {
     title: "Analytics",

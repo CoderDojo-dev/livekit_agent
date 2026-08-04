@@ -271,6 +271,72 @@ class SupervisionRepository:
             for a in rows
         ]
 
+    def decision_ledger(
+        self,
+        *,
+        verdict: str | None = None,
+        session_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Verdicts newest-first, each with the actions it authorized. Read-only.
+
+        C8: exposes the verdict -> actions parent/child chain (execution.action_ledger's
+        policy_verdict_id FK is mandatory, so every action belongs to exactly one verdict).
+        One verdict query + one batched action query — no N+1. Additive; verdicts() and
+        actions() keep their exact projections for their existing consumers.
+        """
+        stmt = select(PolicyVerdict).order_by(PolicyVerdict.created_at.desc()).limit(limit)
+
+        if verdict:
+            stmt = stmt.where(PolicyVerdict.verdict == verdict)
+
+        sid = to_uuid(session_id) if session_id else None
+        if session_id and sid is None:
+            # Mirrors verdicts(): an explicitly-supplied malformed id is a miss, not a 500.
+            return []
+        if sid is not None:
+            stmt = stmt.where(PolicyVerdict.session_id == sid)
+
+        rows = self._s.scalars(stmt).all()
+
+        actions_by_verdict: dict = {}
+        if rows:
+            ids = [v.id for v in rows]
+            action_rows = self._s.scalars(
+                select(ActionLedger).where(ActionLedger.policy_verdict_id.in_(ids))
+            ).all()
+            for a in action_rows:
+                actions_by_verdict.setdefault(str(a.policy_verdict_id), []).append({
+                    "id": str(a.id),
+                    "action_type": a.action_type,
+                    "target_domain": a.target_domain,
+                    "status": a.status,
+                    "attempt_count": a.attempt_count,
+                    "idempotency_key": a.idempotency_key,
+                    "reference": a.adapter_reference,
+                    "error_message": a.error_message,
+                    "parameters": a.parameters,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                    "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+                })
+
+        return [
+            {
+                "id": str(v.id),
+                "session_id": str(v.session_id),
+                "customer_id": str(v.customer_id) if v.customer_id else None,
+                "action": v.requested_action,
+                "direction": v.direction,
+                "verdict": v.verdict,
+                "rule_id": v.rule_id,
+                "justification": v.justification,
+                "inputs_snapshot": v.inputs_snapshot,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+                "actions": actions_by_verdict.get(str(v.id), []),
+            }
+            for v in rows
+        ]
+
     def business_rules(self) -> list[dict]:
         rows = self._s.scalars(select(BusinessRule).order_by(BusinessRule.domain, BusinessRule.rule_id)).all()
         return [
