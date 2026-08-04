@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from business_api.kpis import Kpis, compute_kpis
@@ -45,6 +45,72 @@ class SupervisionRepository:
                 for i in invoices if i.status != "paid"
             ],
             "tickets": [{"glpi_id": t.glpi_ticket_id, "status": t.status, "subject": t.subject} for t in tickets],
+        }
+
+    def customer_list(
+        self,
+        search: str = "",
+        status: str = "",
+        limit: int = 25,
+        offset: int = 0,
+    ) -> dict:
+        """Paginated CRM registry for the admin dashboard (read-only).
+
+        Deliberately does not select ``national_id``: the CIN is tokenised elsewhere
+        (audit.pii_token_map) and must never reach a browser. Search therefore matches
+        name / email / phone only.
+        """
+        limit = max(1, min(int(limit), 100))
+        offset = max(0, int(offset))
+
+        conditions = []
+        conditions.append(Customer.deleted_at.is_(None))
+
+        if status:
+            conditions.append(Customer.status == status)
+
+        if search:
+            pattern = f"%{search.strip()}%"
+            conditions.append(
+                or_(
+                    Customer.first_name.ilike(pattern),
+                    Customer.last_name.ilike(pattern),
+                    Customer.email.ilike(pattern),
+                    Customer.contact_number.ilike(pattern),
+                )
+            )
+
+        total = self._s.scalar(
+            select(func.count()).select_from(Customer).where(*conditions)
+        ) or 0
+
+        rows = self._s.scalars(
+            select(Customer)
+            .where(*conditions)
+            .order_by(Customer.last_name.asc(), Customer.first_name.asc())
+            .limit(limit)
+            .offset(offset)
+        ).all()
+
+        return {
+            "customers": [
+                {
+                    "customer_id": str(c.id),
+                    "name": f"{c.first_name} {c.last_name}".strip(),
+                    "email": c.email,
+                    "contact_number": c.contact_number,
+                    "preferred_language": c.preferred_language,
+                    "segment": c.segment,
+                    "vip": bool(c.vip_flag),
+                    "fraud_suspected": bool(c.fraud_suspected),
+                    "status": c.status,
+                    "city": c.city,
+                }
+                for c in rows
+            ],
+            "total": int(total),
+            "limit": limit,
+            "offset": offset,
         }
 
     def ticket_list(

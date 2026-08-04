@@ -44,6 +44,19 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/api/v1/customers")
+def list_customers(
+    session: DbSession,
+    role: ConseillerRole,
+    search: str = "",
+    status: str = "",
+    limit: int = 25,
+    offset: int = 0,
+) -> dict:
+    """Paginated CRM customer registry (admin dashboard lookup)."""
+    return SupervisionRepository(session).customer_list(search, status, limit, offset)
+
+
 @app.get("/api/v1/customers/{customer_id}/360")
 def customer_360(customer_id: str, session: DbSession, role: ConseillerRole) -> dict:
     """Full Customer-360 (profile + subscriptions + open invoices + tickets)."""

@@ -125,3 +125,12 @@ export const auditKeys = {
   all: ["audit"] as const,
   entries: (eventType?: string) => [...auditKeys.all, "entries", eventType ?? ""] as const,
 };
+
+/* Feature 11 — customer registry & 360. Every filter is part of the list key, so paging and
+ * searching cache independently and going back a page is instant. */
+export const customerKeys = {
+  all: ["customers"] as const,
+  list: (search: string, status: string, limit: number, offset: number) =>
+    ["customers", "list", search, status, limit, offset] as const,
+  detail: (customerId: string) => ["customers", "detail", customerId] as const,
+};
