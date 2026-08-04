@@ -49,23 +49,6 @@ export function resolutionLabel(resolution: string | null): string {
   return resolution.replace(/[_-]+/g, " ");
 }
 
-/** Batch 1 / C13 — created_at is now on the wire; render a compact relative/instant string. */
-export function createdLabel(createdAt: string | null): string {
-  if (!createdAt) return "—";
-  try {
-    const date = new Date(createdAt);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "—";
-  }
-}
-
 export type DossierEntry = { key: string; label: string; value: string; long: boolean };
 
 /**

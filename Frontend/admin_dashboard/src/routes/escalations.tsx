@@ -15,7 +15,6 @@ import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState } from "@/components/nexus/states";
 import { listEscalations, type Escalation } from "@/lib/api/escalations.server";
 import {
-  createdLabel,
   dossierEntries,
   escalationMatches,
   escalationStatusKey,
@@ -24,6 +23,7 @@ import {
   triggerLabel,
 } from "@/lib/nexus/escalation-view";
 import { escalationKeys } from "@/lib/nexus/query-keys";
+import { formatInstant } from "@/lib/nexus/audit-view";
 import { cn } from "@/lib/utils";
 
 const SCOPE_OPTIONS = [
@@ -176,7 +176,9 @@ function EscalationsPage() {
             {/* Batch 1 / C13 — created_at is now on the wire. */}
             <div className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-7 py-sp-5">
               <span className="t-label text-ink-3">Raised</span>
-              <span className="t-mono ml-auto text-ink-3">{createdLabel(current.created_at)}</span>
+              <span className="t-mono ml-auto text-ink-3">
+                {current.created_at ? formatInstant(current.created_at) : "\u2014"}
+              </span>
             </div>
 
             <div className="mt-sp-7 px-sp-7">

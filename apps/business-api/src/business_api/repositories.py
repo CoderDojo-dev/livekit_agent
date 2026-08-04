@@ -311,6 +311,8 @@ class SupervisionRepository:
                 # Batch 1 / C13: expose created_at (the query already orders by it) and
                 # customer_id (present on the model, one join from Customer 360). Additive keys —
                 # consumed by the admin dashboard only; supervisor-dashboard ignores them.
+                # APPROVED in the C13 audit follow-up (2026-08-04): JSON-additive and nullable-safe;
+                # Cookbook 13 §8.1/§8.3 originally deferred both pending sign-off.
                 "created_at": case.created_at.isoformat() if case.created_at else None,
                 "customer_id": str(case.customer_id) if case.customer_id else None,
             })
