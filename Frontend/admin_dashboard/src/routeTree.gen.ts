@@ -23,7 +23,7 @@ import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PoliciesRouteImport } from './routes/policies'
-import { Route as RulesRouteImport } from './routes/rules'
+import { Route as ReferenceRouteImport } from './routes/reference'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TicketsRouteImport } from './routes/tickets'
 
@@ -97,9 +97,9 @@ const PoliciesRoute = PoliciesRouteImport.update({
   path: '/policies',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RulesRoute = RulesRouteImport.update({
-  id: '/rules',
-  path: '/rules',
+const ReferenceRoute = ReferenceRouteImport.update({
+  id: '/reference',
+  path: '/reference',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -128,7 +128,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
-  '/rules': typeof RulesRoute
+  '/reference': typeof ReferenceRoute
   '/settings': typeof SettingsRoute
   '/tickets': typeof TicketsRoute
 }
@@ -147,7 +147,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
-  '/rules': typeof RulesRoute
+  '/reference': typeof ReferenceRoute
   '/settings': typeof SettingsRoute
   '/tickets': typeof TicketsRoute
 }
@@ -167,7 +167,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
-  '/rules': typeof RulesRoute
+  '/reference': typeof ReferenceRoute
   '/settings': typeof SettingsRoute
   '/tickets': typeof TicketsRoute
 }
@@ -188,7 +188,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/overview'
     | '/policies'
-    | '/rules'
+    | '/reference'
     | '/settings'
     | '/tickets'
   fileRoutesByTo: FileRoutesByTo
@@ -207,7 +207,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/overview'
     | '/policies'
-    | '/rules'
+    | '/reference'
     | '/settings'
     | '/tickets'
   id:
@@ -226,7 +226,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/overview'
     | '/policies'
-    | '/rules'
+    | '/reference'
     | '/settings'
     | '/tickets'
   fileRoutesById: FileRoutesById
@@ -246,7 +246,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OverviewRoute: typeof OverviewRoute
   PoliciesRoute: typeof PoliciesRoute
-  RulesRoute: typeof RulesRoute
+  ReferenceRoute: typeof ReferenceRoute
   SettingsRoute: typeof SettingsRoute
   TicketsRoute: typeof TicketsRoute
 }
@@ -351,11 +351,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PoliciesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/rules': {
-      id: '/rules'
-      path: '/rules'
-      fullPath: '/rules'
-      preLoaderRoute: typeof RulesRouteImport
+    '/reference': {
+      id: '/reference'
+      path: '/reference'
+      fullPath: '/reference'
+      preLoaderRoute: typeof ReferenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -390,7 +390,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OverviewRoute: OverviewRoute,
   PoliciesRoute: PoliciesRoute,
-  RulesRoute: RulesRoute,
+  ReferenceRoute: ReferenceRoute,
   SettingsRoute: SettingsRoute,
   TicketsRoute: TicketsRoute,
 }

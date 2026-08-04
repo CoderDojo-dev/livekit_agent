@@ -141,3 +141,10 @@ export const agentKeys = {
   all: ["agents"] as const,
   activity: (days: number) => ["agents", "activity", days] as const,
 };
+
+/* Feature 14 — reference catalogs. Catalog + search are both in the key so
+ * switching tabs or typing never serves a stale term against another table. */
+export const referenceKeys = {
+  all: ["reference"] as const,
+  catalog: (catalog: string, search: string) => ["reference", "catalog", catalog, search] as const,
+};

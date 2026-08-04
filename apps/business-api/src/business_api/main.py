@@ -204,6 +204,20 @@ def business_rules(session: DbSession, role: AdministrateurRole) -> dict:
     return {"rules": policy_view.overlay(rows)}
 
 
+@app.get("/api/v1/reference/catalogs/{catalog}")
+def reference_catalog(
+    catalog: str,
+    db: DbSession,
+    _role: AdministrateurRole,
+    search: str = "",
+    limit: int = 200,
+) -> list[dict]:
+    """Read one admin-managed reference catalog (spec section 13.1). Read-only."""
+    if catalog not in {"errors", "products", "recharges", "areas"}:
+        raise HTTPException(status_code=404, detail="unknown catalog")
+    return SupervisionRepository(db).reference_catalog(catalog, search, limit)
+
+
 @app.get("/api/v1/jobs/integrity")
 def integrity(session: DbSession, role: AdministrateurRole) -> dict:
     """Cross-domain referential integrity + audit-chain verification (spec section 20.4)."""

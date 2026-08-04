@@ -83,9 +83,9 @@ export const NAV: readonly NavItem[] = [
     shortcut: "G P",
   },
   {
-    id: "rules",
-    label: "Rules",
-    href: "/rules",
+    id: "reference",
+    label: "Reference",
+    href: "/reference",
     icon: GitBranch,
     section: "KNOWLEDGE",
     shortcut: "G R",
@@ -191,9 +191,9 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
     title: "Policies",
     subtitle: "Governance thresholds enforced at runtime.",
   },
-  "/rules": {
-    title: "Rules",
-    subtitle: "Automations that route, escalate and act.",
+  "/reference": {
+    title: "Reference",
+    subtitle: "Admin-managed catalogs the agent reads at runtime.",
   },
   "/calls": {
     title: "Calls & Transcripts",

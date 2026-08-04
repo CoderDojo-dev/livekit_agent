@@ -12,7 +12,7 @@ from persistence.models.conversation import CallSession, EscalationCase, Sentime
 from persistence.models.crm import Customer, Subscription
 from persistence.models.execution import ActionLedger
 from persistence.models.policy import PolicyVerdict
-from persistence.models.reference import BusinessRule
+from persistence.models.reference import BusinessRule, ErrorCatalog, GeoArea, Product, RechargeCatalog
 from persistence.models.ticketing import Ticket
 from persistence.util import to_uuid
 
@@ -412,6 +412,63 @@ class SupervisionRepository:
              "description": r.description, "definition": r.definition_json}
             for r in rows
         ]
+
+    def reference_catalog(self, catalog: str, search: str = "", limit: int = 200) -> list[dict]:
+        """Read one admin-managed reference catalog (spec section 13.1). Read-only."""
+        limit = max(1, min(limit, 500))
+        term = f"%{search.strip().lower()}%" if search and search.strip() else None
+
+        if catalog == "errors":
+            stmt = select(ErrorCatalog).order_by(ErrorCatalog.domain, ErrorCatalog.code)
+            if term is not None:
+                stmt = stmt.where(
+                    func.lower(ErrorCatalog.code).like(term)
+                    | func.lower(func.coalesce(ErrorCatalog.message_fr, "")).like(term)
+                )
+            return [
+                {"code": r.code, "domain": r.domain, "message_fr": r.message_fr,
+                 "message_ar": r.message_ar, "message_en": r.message_en}
+                for r in self._s.scalars(stmt.limit(limit)).all()
+            ]
+
+        if catalog == "products":
+            stmt = select(Product).order_by(Product.plan_type, Product.product_code)
+            if term is not None:
+                stmt = stmt.where(
+                    func.lower(Product.product_code).like(term) | func.lower(Product.name).like(term)
+                )
+            return [
+                {"product_code": r.product_code, "name": r.name,
+                 "plan_type": r.plan_type, "active": r.active}
+                for r in self._s.scalars(stmt.limit(limit)).all()
+            ]
+
+        if catalog == "recharges":
+            stmt = select(RechargeCatalog).order_by(RechargeCatalog.amount)
+            if term is not None:
+                stmt = stmt.where(func.lower(RechargeCatalog.code).like(term))
+            return [
+                {"code": r.code, "amount": float(r.amount),
+                 "bonus_amount": float(r.bonus_amount)}
+                for r in self._s.scalars(stmt.limit(limit)).all()
+            ]
+
+        if catalog == "areas":
+            stmt = select(GeoArea).order_by(GeoArea.area_type, GeoArea.name_fr)
+            if term is not None:
+                stmt = stmt.where(
+                    func.lower(GeoArea.area_code).like(term)
+                    | func.lower(GeoArea.name_fr).like(term)
+                    | func.lower(func.coalesce(GeoArea.name_ar, "")).like(term)
+                )
+            return [
+                {"area_code": r.area_code, "name_fr": r.name_fr, "name_ar": r.name_ar,
+                 "name_en": r.name_en, "area_type": r.area_type,
+                 "parent_code": r.parent_code, "active": r.active}
+                for r in self._s.scalars(stmt.limit(limit)).all()
+            ]
+
+        return []
 
     def kpis(self) -> Kpis:
         total = self._s.scalar(select(func.count()).select_from(CallSession)) or 0
