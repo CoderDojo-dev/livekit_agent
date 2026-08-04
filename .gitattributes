@@ -1,0 +1,27 @@
+# Normalize line endings to LF for source files (prettier/ruff require LF).
+# eol=lf forces LF in the working tree on every OS, overriding core.autocrlf.
+* text=auto
+
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.less  text eol=lf
+*.html  text eol=lf
+*.json  text eol=lf
+*.jsonc text eol=lf
+*.md    text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.toml  text eol=lf
+*.py    text eol=lf
+*.sql   text eol=lf
+*.sh    text eol=lf
+*.ps1   text eol=lf
+*.env   text eol=lf
+Makefile text eol=lf
+Dockerfile text eol=lf
+*.gitattributes text eol=lf
