@@ -118,3 +118,10 @@ export const analyticsKeys = {
   verdicts: () => [...analyticsKeys.all, "verdicts"] as const,
   trend: (days: number) => [...analyticsKeys.all, "trend", days] as const,
 };
+
+/* Feature 10 — audit ledger browse. Only the list is a query; verify, integrity and retention
+ * are mutations and hold no cache key. */
+export const auditKeys = {
+  all: ["audit"] as const,
+  entries: (eventType?: string) => [...auditKeys.all, "entries", eventType ?? ""] as const,
+};

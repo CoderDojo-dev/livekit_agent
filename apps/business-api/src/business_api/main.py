@@ -165,6 +165,15 @@ def audit_verify(
     return {"intact": ledger.verify(), "entries": ledger.count()}
 
 
+@app.get("/api/v1/audit/entries")
+def audit_entries(session: DbSession, role: AdministrateurRole, limit: int = 50,
+                  before_seq: int | None = None, event_type: str | None = None) -> dict:
+    """Browse the append-only audit ledger, newest first (read-only)."""
+    if limit < 1 or limit > 200:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
+    return SupervisionRepository(session).audit_entries(limit, before_seq, event_type)
+
+
 @app.get("/api/v1/reference/business-rules")
 def business_rules(session: DbSession, role: AdministrateurRole) -> dict:
     """List the versioned Policy rule registry with the LIVE enforced thresholds.

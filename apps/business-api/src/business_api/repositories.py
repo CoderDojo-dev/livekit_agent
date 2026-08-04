@@ -473,3 +473,36 @@ class SupervisionRepository:
             "previous": _bundle(previous_start, current_start).__dict__,
             "daily": daily,
         }
+
+    def audit_entries(self, limit: int = 50, before_seq: int | None = None,
+                      event_type: str | None = None) -> dict:
+        """Most recent audit ledger entries, newest first. Read-only; keyset paging on seq."""
+        from persistence.models.audit import AuditLedgerEntry
+
+        stmt = select(AuditLedgerEntry).order_by(AuditLedgerEntry.seq.desc()).limit(limit + 1)
+        if before_seq is not None:
+            stmt = stmt.where(AuditLedgerEntry.seq < before_seq)
+        if event_type:
+            stmt = stmt.where(AuditLedgerEntry.event_type == event_type)
+
+        rows = list(self._s.scalars(stmt))
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+
+        return {
+            "entries": [
+                {
+                    "seq": r.seq,
+                    "event_type": r.event_type,
+                    "entity_reference": r.entity_reference,
+                    "session_id": str(r.session_id) if r.session_id else None,
+                    "entry_hash": r.entry_hash,
+                    "previous_hash": r.previous_hash,
+                    "created_at": r.created_at.isoformat(),
+                    "payload": r.payload,
+                }
+                for r in rows
+            ],
+            "has_more": has_more,
+            "next_before_seq": rows[-1].seq if rows and has_more else None,
+        }

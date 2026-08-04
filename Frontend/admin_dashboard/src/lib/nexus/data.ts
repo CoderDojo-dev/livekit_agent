@@ -126,19 +126,3 @@ export const RULES = [
     status: "disabled",
   },
 ];
-
-export const SETTINGS_SECTIONS = [
-  {
-    name: "General",
-    description: "Workspace name, locale, timezone and retention.",
-  },
-  { name: "Members", description: "People with access to this workspace." },
-  { name: "Roles", description: "Permission sets granted to members." },
-  { name: "API keys", description: "Server credentials for the public API." },
-  {
-    name: "Notifications",
-    description: "Delivery channels and alert thresholds.",
-  },
-  { name: "Audit", description: "Every privileged action, immutable." },
-  { name: "Danger zone", description: "Irreversible workspace operations." },
-];
