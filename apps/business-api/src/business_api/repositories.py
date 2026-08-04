@@ -540,6 +540,48 @@ class SupervisionRepository:
             "daily": daily,
         }
 
+    def agent_activity(self, days: int = 30) -> dict:
+        """Per-persona activity aggregated from conversation.turns.active_agent.
+
+        Read-only. Windows on CallSession.start_time (confirmed present),
+        joining turns to their session rather than relying on a Turn timestamp.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        window_days = max(1, min(int(days or 30), 365))
+        since = datetime.now(UTC) - timedelta(days=window_days)
+
+        rows = self._s.execute(
+            select(
+                Turn.active_agent.label("agent"),
+                func.count(Turn.id).label("turn_count"),
+                func.count(func.distinct(Turn.session_id)).label("session_count"),
+                func.max(CallSession.start_time).label("last_seen"),
+            )
+            .join(CallSession, CallSession.id == Turn.session_id)
+            .where(CallSession.start_time >= since)
+            .where(Turn.active_agent.isnot(None))
+            .where(Turn.active_agent != "")
+            .group_by(Turn.active_agent)
+            .order_by(func.count(Turn.id).desc())
+        ).all()
+
+        agents = [
+            {
+                "agent": row.agent,
+                "turns": int(row.turn_count or 0),
+                "sessions": int(row.session_count or 0),
+                "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+            }
+            for row in rows
+        ]
+        return {
+            "window_days": window_days,
+            "total_turns": sum(a["turns"] for a in agents),
+            "total_sessions": sum(a["sessions"] for a in agents),
+            "agents": agents,
+        }
+
     def audit_entries(self, limit: int = 50, before_seq: int | None = None,
                       event_type: str | None = None) -> dict:
         """Most recent audit ledger entries, newest first. Read-only; keyset paging on seq."""

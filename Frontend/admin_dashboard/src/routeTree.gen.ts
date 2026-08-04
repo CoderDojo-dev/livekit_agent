@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdvisorsRouteImport } from './routes/advisors'
+import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as CallbacksRouteImport } from './routes/callbacks'
@@ -34,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdvisorsRoute = AdvisorsRouteImport.update({
   id: '/advisors',
   path: '/advisors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -110,6 +116,7 @@ const TicketsRoute = TicketsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/advisors': typeof AdvisorsRoute
+  '/agents': typeof AgentsRoute
   '/analytics': typeof AnalyticsRoute
   '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/advisors': typeof AdvisorsRoute
+  '/agents': typeof AgentsRoute
   '/analytics': typeof AnalyticsRoute
   '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/advisors': typeof AdvisorsRoute
+  '/agents': typeof AgentsRoute
   '/analytics': typeof AnalyticsRoute
   '/availability': typeof AvailabilityRoute
   '/callbacks': typeof CallbacksRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/advisors'
+    | '/agents'
     | '/analytics'
     | '/availability'
     | '/callbacks'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/advisors'
+    | '/agents'
     | '/analytics'
     | '/availability'
     | '/callbacks'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/advisors'
+    | '/agents'
     | '/analytics'
     | '/availability'
     | '/callbacks'
@@ -222,6 +234,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdvisorsRoute: typeof AdvisorsRoute
+  AgentsRoute: typeof AgentsRoute
   AnalyticsRoute: typeof AnalyticsRoute
   AvailabilityRoute: typeof AvailabilityRoute
   CallbacksRoute: typeof CallbacksRoute
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/advisors'
       fullPath: '/advisors'
       preLoaderRoute: typeof AdvisorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -358,6 +378,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdvisorsRoute: AdvisorsRoute,
+  AgentsRoute: AgentsRoute,
   AnalyticsRoute: AnalyticsRoute,
   AvailabilityRoute: AvailabilityRoute,
   CallbacksRoute: CallbacksRoute,

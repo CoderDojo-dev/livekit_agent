@@ -158,6 +158,12 @@ def telemetry_timeline(session: DbSession, role: SuperviseurRole) -> dict:
     return SupervisionRepository(session).telemetry_timeline()
 
 
+@app.get("/api/v1/agents/activity")
+def agent_activity(session: DbSession, role: SuperviseurRole, days: int = 30) -> dict:
+    """Per-persona activity aggregated from conversation turns."""
+    return SupervisionRepository(session).agent_activity(days)
+
+
 @app.get("/api/v1/analytics/trend")
 def analytics_trend(session: DbSession, role: SuperviseurRole, days: int = 7) -> dict:
     """Windowed KPIs versus the preceding equal window, plus daily volume buckets."""

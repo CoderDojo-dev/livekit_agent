@@ -134,3 +134,10 @@ export const customerKeys = {
     ["customers", "list", search, status, limit, offset] as const,
   detail: (customerId: string) => ["customers", "detail", customerId] as const,
 };
+
+/* Feature 12 — persona graph & activity. The window is part of the key so
+ * switching 7d/14d/30d refetches under a distinct cache entry. */
+export const agentKeys = {
+  all: ["agents"] as const,
+  activity: (days: number) => ["agents", "activity", days] as const,
+};

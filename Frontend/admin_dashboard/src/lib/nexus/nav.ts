@@ -14,6 +14,7 @@ import {
   BarChart3,
   Scale,
   Settings,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 
@@ -140,6 +141,14 @@ export const NAV: readonly NavItem[] = [
     shortcut: "G N",
   },
   {
+    id: "agents",
+    label: "Agents",
+    href: "/agents",
+    icon: Bot,
+    section: "INSIGHTS",
+    shortcut: "G G",
+  },
+  {
     id: "settings",
     label: "Settings",
     href: "/settings",
@@ -209,6 +218,10 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/analytics": {
     title: "Analytics",
     subtitle: "Deep metrics across volume, quality and cost.",
+  },
+  "/agents": {
+    title: "Agents",
+    subtitle: "The persona graph and who actually handles traffic.",
   },
   "/settings": {
     title: "Settings",
