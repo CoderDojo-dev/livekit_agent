@@ -2,9 +2,11 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { NAV, NAV_SECTIONS, ACCOUNT_FALLBACK, type AccountInfo } from "@/lib/nexus/nav";
 import { Avatar, PresenceDot } from "@/components/nexus/primitives";
 import { Route as RootRoute } from "@/routes/__root";
-import { ROLE_LABEL } from "@/lib/api/session";
+import { ROLE_LABEL, hasRank } from "@/lib/api/session";
 import { initials as toInitials } from "@/lib/nexus/format";
 import { cn } from "@/lib/utils";
+
+const ADMIN_ONLY_HREFS = new Set(["/policies"]);
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -18,6 +20,9 @@ export function AppSidebar() {
         initials: toInitials((session.sub.split("@")[0] ?? "").replace(/[._-]/g, " ")) || "··",
       }
     : ACCOUNT_FALLBACK;
+
+  const canSee = (href: string) =>
+    !ADMIN_ONLY_HREFS.has(href) || (session !== null && hasRank(session, "administrateur"));
 
   return (
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-[236px] flex-col border-r border-stroke-default bg-surface-1 lg:flex">
@@ -45,6 +50,7 @@ export function AppSidebar() {
             <p className="t-micro-2 mb-sp-4 px-sp-4 text-ink-5">{section}</p>
             <ul className="space-y-[2px]">
               {NAV.filter((item) => item.section === section).map((item) => {
+                if (!canSee(item.href)) return null;
                 const active = pathname === item.href;
                 const Icon = item.icon;
                 return (

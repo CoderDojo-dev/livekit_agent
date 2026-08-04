@@ -108,3 +108,18 @@ d'étendre ou non.
 - `git diff --stat` : 1 fichier modifié côté applicatif (`apps/business-api/src/business_api/main.py`).
 - tsc clean, zero nouveau non-prettier, build à vérifier au batch 1.
 - DB intacte : 129 sessions, aucune purge (dry_run seulement), actions/audit non touchés.
+
+---
+
+## 6. D13 ??" Invariant partage POLICY_* (ajoute au batch 1 / C7)
+
+Verifie dans `infra/docker-compose/docker-compose.apps.yml` : les deux conteneurs qui doivent
+accepter les memes seuils lisent le MEME fichier d''environnement.
+
+- `policy-service`  -> `env_file: [../../.env]`  (ligne 69)
+- `business-api`    -> `env_file: [../../.env]`  (ligne 116)
+
+C''est l''invariant de non-drift de la page `/policies` (FEATURE_07, G7) : si un jour ces deux
+services sont deployes avec des environnements divergents, la page rapportera la vue des seuils de
+`business-api` pendant que le moteur enforce les siens. Tout changement de topology de deploiement
+doit preserver ce partage de `env_file`.

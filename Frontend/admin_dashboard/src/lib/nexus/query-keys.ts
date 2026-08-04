@@ -88,3 +88,9 @@ export const knowledgeKeys = {
   documents: () => [...knowledgeKeys.all, "documents"] as const,
   health: () => [...knowledgeKeys.all, "health"] as const,
 };
+
+/* Feature 7 — policies. Read-only registry; no mutations, so no invalidation anywhere. */
+export const policyKeys = {
+  all: ["policies"] as const,
+  rules: () => [...policyKeys.all, "rules"] as const,
+};

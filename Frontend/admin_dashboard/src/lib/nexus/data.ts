@@ -342,33 +342,6 @@ export const INGESTED_FILES = [
 
 /* ---------------- SECONDARY SCREENS ---------------- */
 
-export const POLICIES = [
-  {
-    name: "Max escalation delay",
-    threshold: "120s",
-    version: "v3.2.1",
-    status: "enabled",
-  },
-  {
-    name: "Identity verification required",
-    threshold: "Always",
-    version: "v2.0.4",
-    status: "enabled",
-  },
-  {
-    name: "Refund approval ceiling",
-    threshold: "$500.00",
-    version: "v1.7.0",
-    status: "enabled",
-  },
-  {
-    name: "Transcript retention",
-    threshold: "180d",
-    version: "v4.1.2",
-    status: "draft",
-  },
-];
-
 export const RULES = [
   {
     name: "Route billing intents to Finance",
