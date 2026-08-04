@@ -1,121 +1,240 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Card, CardHeader, Avatar, StatusChip, PresenceDot } from "@/components/nexus/primitives";
-import { HeroStat, StatCard, LineChart, BarChart, Legend } from "@/components/nexus/blocks";
-import { PageSection } from "@/components/nexus/app-topbar";
+import { useQuery } from "@tanstack/react-query";
+import { Users } from "lucide-react";
 import {
-  OVERVIEW_STATS,
-  CALL_VOLUME_SERIES,
-  RESOLUTION_SERIES,
-  HERO_SPARKLINE,
-  BILLING_ACTIVITY,
-  ADVISOR_TEAM,
-} from "@/lib/nexus/data";
+  Card,
+  CardHeader,
+  Avatar,
+  PresenceDot,
+  Token,
+  EmptyState,
+} from "@/components/nexus/primitives";
+import { HeroStat, StatCard } from "@/components/nexus/blocks";
+import { PageSection } from "@/components/nexus/app-topbar";
+import { CardSkeleton, ErrorState } from "@/components/nexus/states";
+import { getKpis, getSystemOverview } from "@/lib/api/analytics.server";
+import { getVerdictDistribution } from "@/lib/api/decisions.server";
+import { listAdvisors } from "@/lib/api/advisors.server";
+import { analyticsKeys, queryKeys } from "@/lib/nexus/query-keys";
+import { formatRatio, rateContext, verdictShare, verdictTotal } from "@/lib/nexus/analytics-view";
+import { advisorStatusKey, advisorPresenceLabel } from "@/lib/nexus/advisor-view";
+import { formatInteger, formatCompact, initials } from "@/lib/nexus/format";
+import { errorMessage } from "@/lib/api/errors";
 
 export const Route = createFileRoute("/overview")({
   head: () => ({
     meta: [
-      { title: "Overview & Analytics — Nexus" },
+      { title: "Overview — Nexus" },
       {
         name: "description",
-        content: "Call volume, resolution rate, handle time and advisor availability at a glance.",
+        content: "Platform totals, containment KPIs and who is on the floor.",
       },
-      { property: "og:title", content: "Overview & Analytics — Nexus" },
-      {
-        property: "og:description",
-        content: "Platform-wide support performance in a monochrome console.",
-      },
+      { property: "og:title", content: "Overview — Nexus" },
+      { property: "og:description", content: "Current state of the support platform." },
     ],
   }),
   component: OverviewPage,
 });
 
 function OverviewPage() {
-  const { hero, cards } = OVERVIEW_STATS;
+  const kpis = useQuery({ queryKey: analyticsKeys.kpis(), queryFn: () => getKpis() });
+  const system = useQuery({ queryKey: analyticsKeys.system(), queryFn: () => getSystemOverview() });
+  const verdicts = useQuery({
+    queryKey: analyticsKeys.verdicts(),
+    queryFn: () => getVerdictDistribution(),
+  });
+  const advisors = useQuery({
+    queryKey: queryKeys.advisors.list(false),
+    queryFn: () => listAdvisors({ data: { includeInactive: false } }),
+  });
 
   return (
     <>
+      {/* ---- Containment KPIs (all-time; no comparison exists, so no deltas) ---- */}
       <PageSection className="grid gap-sp-6 xl:grid-cols-4">
-        <HeroStat
-          label={hero.label}
-          value={hero.value}
-          delta={hero.delta}
-          context={hero.context}
-          series={HERO_SPARKLINE}
-        />
-        {cards.map((c) => (
-          <StatCard key={c.label} {...c} />
-        ))}
+        {kpis.isPending ? (
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
+        ) : kpis.isError ? (
+          <div className="xl:col-span-4">
+            <ErrorState error={kpis.error} onRetry={() => void kpis.refetch()} />
+          </div>
+        ) : (
+          <>
+            <HeroStat
+              label="Total sessions"
+              value={formatCompact(kpis.data.total_sessions)}
+              context="All sessions ever recorded"
+            />
+            <StatCard
+              label="Containment rate"
+              value={formatRatio(kpis.data.containment_rate)}
+              context={rateContext(kpis.data, "Resolved without escalation")}
+              meta={`${formatInteger(kpis.data.resolved)} resolved`}
+            />
+            <StatCard
+              label="Escalation rate"
+              value={formatRatio(kpis.data.escalation_rate)}
+              context={rateContext(kpis.data, "Handed to an advisor")}
+              meta={`${formatInteger(kpis.data.escalated)} escalated`}
+            />
+            <StatCard
+              label="Avg. frustration"
+              value={kpis.data.avg_frustration.toFixed(2)}
+              context="Mean peak frustration per session"
+            />
+          </>
+        )}
       </PageSection>
 
+      {/* ---- Policy verdict mix (last 100 verdicts) ---- */}
       <PageSection className="grid gap-sp-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader
-            title="Call Volume Over Time"
-            subtitle="Current week compared with the previous week."
-            action={<Legend items={[{ label: "This week", strong: true }, { label: "Last week" }]} />}
-          />
-          <div className="mt-sp-7">
-            <LineChart data={CALL_VOLUME_SERIES} />
+        {verdicts.isPending ? (
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
+        ) : verdicts.isError ? (
+          <div className="xl:col-span-3">
+            <ErrorState error={verdicts.error} onRetry={() => void verdicts.refetch()} />
           </div>
-        </Card>
-
-        <Card>
-          <CardHeader title="Resolution Rates" subtitle="AI-resolved versus advisor-resolved." />
-          <div className="mt-sp-7">
-            <BarChart data={RESOLUTION_SERIES} />
-          </div>
-          <div className="mt-sp-6 border-t border-stroke-subtle pt-sp-5">
-            <Legend items={[{ label: "AI agent", strong: true }, { label: "Advisor" }]} />
-          </div>
-        </Card>
+        ) : (
+          (() => {
+            const mix = verdicts.data.verdict_distribution;
+            const total = verdictTotal(mix);
+            return (
+              <>
+                <StatCard
+                  label="Authorized"
+                  value={formatInteger(mix.authorized)}
+                  context={verdictShare(mix.authorized, total)}
+                />
+                <StatCard
+                  label="Refused"
+                  value={formatInteger(mix.refused)}
+                  context={verdictShare(mix.refused, total)}
+                />
+                <StatCard
+                  label="Escalated"
+                  value={formatInteger(mix.escalated)}
+                  context={verdictShare(mix.escalated, total)}
+                />
+              </>
+            );
+          })()
+        )}
       </PageSection>
 
       <PageSection className="grid gap-sp-6 xl:grid-cols-2">
-        <Card padded={false}>
-          <div className="p-sp-7">
-            <CardHeader title="Billing Activity" subtitle="Latest invoice movements." />
-          </div>
-          <ul>
-            {BILLING_ACTIVITY.map((b) => (
-              <li
-                key={b.email}
-                className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-7 py-sp-5"
-              >
-                <Avatar initials={b.initials} name={b.name} />
-                <div className="min-w-0">
-                  <p className="t-ui truncate text-ink-1">{b.name}</p>
-                  <p className="t-caption truncate text-ink-4">{b.email}</p>
-                </div>
-                <span className="t-mono-l ml-auto text-ink-1">{b.amount}</span>
-                <StatusChip status={b.status} />
-              </li>
-            ))}
-          </ul>
-        </Card>
-
+        {/* ---- Team availability (real: advisor registry) ---- */}
         <Card padded={false}>
           <div className="p-sp-7">
             <CardHeader title="Team Availability" subtitle="Advisors currently on the floor." />
           </div>
-          <ul>
-            {ADVISOR_TEAM.map((a) => (
-              <li
-                key={a.name}
-                className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-7 py-sp-5"
-              >
-                <Avatar initials={a.initials} name={a.name} />
-                <div className="min-w-0">
-                  <p className="t-ui truncate text-ink-1">{a.name}</p>
-                  <p className="t-caption inline-flex items-center gap-sp-3 text-ink-4">
-                    <PresenceDot live={a.online} />
-                    {a.presence}
-                  </p>
-                </div>
-                <span className="t-label ml-auto text-ink-3">{a.role}</span>
-              </li>
-            ))}
-          </ul>
+          {advisors.isPending ? (
+            <div className="px-sp-7 pb-sp-7">
+              <CardSkeleton />
+            </div>
+          ) : advisors.isError ? (
+            <div className="px-sp-7 pb-sp-7">
+              <ErrorState error={advisors.error} onRetry={() => void advisors.refetch()} />
+            </div>
+          ) : advisors.data.length === 0 ? (
+            <div className="px-sp-7 pb-sp-7">
+              <EmptyState
+                icon={Users}
+                title="No advisors"
+                description="Register an advisor to see availability here."
+              />
+            </div>
+          ) : (
+            <ul>
+              {advisors.data.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-7 py-sp-5"
+                >
+                  <Avatar initials={initials(a.full_name)} name={a.full_name} />
+                  <div className="min-w-0">
+                    <p className="t-ui truncate text-ink-1">{a.full_name}</p>
+                    <p className="t-caption inline-flex items-center gap-sp-3 text-ink-4">
+                      <PresenceDot live={advisorStatusKey(a) === "online"} />
+                      {advisorPresenceLabel(a.status)}
+                    </p>
+                  </div>
+                  <span className="t-label ml-auto text-ink-3">{a.language ?? "—"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
+
+        {/* ---- Service inventory. NO status: see Cookbook 9 §0. ---- */}
+        <Card padded={false}>
+          <div className="p-sp-7">
+            <CardHeader
+              title="Service Inventory"
+              subtitle="Deployed services and the domain each owns. Health is not monitored."
+            />
+          </div>
+          {system.isPending ? (
+            <div className="px-sp-7 pb-sp-7">
+              <CardSkeleton />
+            </div>
+          ) : system.isError ? (
+            <div className="px-sp-7 pb-sp-7">
+              <ErrorState error={system.error} onRetry={() => void system.refetch()} />
+            </div>
+          ) : (
+            <ul>
+              {system.data.services.map((s) => (
+                <li
+                  key={`${s.name}-${s.port}`}
+                  className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-7 py-sp-5"
+                >
+                  <div className="min-w-0">
+                    <p className="t-ui truncate text-ink-1">{s.name}</p>
+                    <p className="t-caption truncate text-ink-4">{s.domain}</p>
+                  </div>
+                  <Token className="ml-auto">{s.port}</Token>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </PageSection>
+
+      {/* ---- Platform totals ---- */}
+      <PageSection className="grid gap-sp-6 xl:grid-cols-4">
+        {system.isPending || system.isError ? null : (
+          <>
+            <StatCard
+              label="Customers"
+              value={formatInteger(system.data.metrics.total_customers)}
+              context="Records in the CRM"
+            />
+            <StatCard
+              label="Turns"
+              value={formatCompact(system.data.metrics.total_turns)}
+              context="Transcript turns persisted"
+            />
+            <StatCard
+              label="Actions"
+              value={formatInteger(system.data.metrics.total_actions)}
+              context="Entries in the action ledger"
+            />
+            <StatCard
+              label="Audit entries"
+              value={formatCompact(system.data.metrics.total_audit_entries)}
+              context="Hash-chained audit records"
+            />
+          </>
+        )}
       </PageSection>
     </>
   );

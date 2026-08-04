@@ -108,3 +108,13 @@ export const decisionKeys = {
   list: (verdict: string) => ["decisions", "list", verdict] as const,
   distribution: () => [...decisionKeys.all, "distribution"] as const,
 };
+
+/* Feature 9 — KPIs & analytics. trend is keyed on days so switching the window is a cache hit
+ * on return, consistent with availabilityKeys. */
+export const analyticsKeys = {
+  all: ["analytics"] as const,
+  kpis: () => [...analyticsKeys.all, "kpis"] as const,
+  system: () => [...analyticsKeys.all, "system"] as const,
+  verdicts: () => [...analyticsKeys.all, "verdicts"] as const,
+  trend: (days: number) => [...analyticsKeys.all, "trend", days] as const,
+};

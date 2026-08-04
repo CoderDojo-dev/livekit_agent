@@ -29,6 +29,18 @@ export const ADVISOR_STATUS_OPTIONS: { value: AdvisorStatus; label: string }[] =
   { value: "offline", label: "Offline" },
 ];
 
+/** Human presence label for lines where a raw status read is wanted (Feature 9 team panel). */
+export function advisorPresenceLabel(status: AdvisorStatus): string {
+  switch (status) {
+    case "available":
+      return "Available now";
+    case "busy":
+      return "On a call";
+    default:
+      return "Offline";
+  }
+}
+
 /** "1/2" — live load over configured capacity. */
 export function advisorLoad(
   advisor: Pick<Advisor, "active_calls" | "max_concurrent_calls">,

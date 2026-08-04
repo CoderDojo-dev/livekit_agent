@@ -145,6 +145,14 @@ def telemetry_timeline(session: DbSession, role: SuperviseurRole) -> dict:
     return SupervisionRepository(session).telemetry_timeline()
 
 
+@app.get("/api/v1/analytics/trend")
+def analytics_trend(session: DbSession, role: SuperviseurRole, days: int = 7) -> dict:
+    """Windowed KPIs versus the preceding equal window, plus daily volume buckets."""
+    if days < 1 or days > 90:
+        raise HTTPException(status_code=400, detail="days must be between 1 and 90")
+    return SupervisionRepository(session).analytics_trend(days)
+
+
 @app.get("/api/v1/audit/verify")
 def audit_verify(
     session: DbSession,

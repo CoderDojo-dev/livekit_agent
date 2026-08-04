@@ -1,19 +1,31 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Card, CardHeader } from "@/components/nexus/primitives";
-import { HeroStat, StatCard, LineChart, BarChart, Legend } from "@/components/nexus/blocks";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { BarChart3 } from "lucide-react";
+import { Card, CardHeader, Segmented, EmptyState } from "@/components/nexus/primitives";
+import { HeroStat, StatCard, LineChart, Legend } from "@/components/nexus/blocks";
 import { PageSection } from "@/components/nexus/app-topbar";
+import { CardSkeleton, ErrorState } from "@/components/nexus/states";
+import { getAnalyticsTrend } from "@/lib/api/analytics.server";
+import { analyticsKeys } from "@/lib/nexus/query-keys";
 import {
-  OVERVIEW_STATS,
-  CALL_VOLUME_SERIES,
-  RESOLUTION_SERIES,
-  HERO_SPARKLINE,
-} from "@/lib/nexus/data";
+  dayLabel,
+  deltaPct,
+  deltaPoints,
+  formatRatio,
+  isChartable,
+} from "@/lib/nexus/analytics-view";
+import { formatCompact } from "@/lib/nexus/format";
+import { errorMessage } from "@/lib/api/errors";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({
     meta: [
       { title: "Analytics — Nexus" },
-      { name: "description", content: "Deeper trends on volume, resolution and handling performance." },
+      {
+        name: "description",
+        content: "Windowed volume and containment trends against the previous period.",
+      },
       { property: "og:title", content: "Analytics — Nexus" },
       { property: "og:description", content: "Trend analysis across the support platform." },
     ],
@@ -21,38 +33,129 @@ export const Route = createFileRoute("/analytics")({
   component: AnalyticsPage,
 });
 
+const RANGES = [
+  { id: 7, label: "7d" },
+  { id: 14, label: "14d" },
+  { id: 30, label: "30d" },
+] as const;
+
 function AnalyticsPage() {
-  const { hero, cards } = OVERVIEW_STATS;
+  const [days, setDays] = useState<number>(7);
+
+  const trend = useQuery({
+    queryKey: analyticsKeys.trend(days),
+    queryFn: () => getAnalyticsTrend({ data: { days } }),
+    placeholderData: keepPreviousData,
+  });
+
+  const rangeControl = (
+    <Segmented
+      items={RANGES.map((r) => r.label)}
+      active={RANGES.find((r) => r.id === days)!.label}
+      onSelect={(label) => setDays(RANGES.find((r) => r.label === label)!.id)}
+    />
+  );
+
+  if (trend.isPending) {
+    return (
+      <PageSection className="grid gap-sp-6 xl:grid-cols-4">
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+      </PageSection>
+    );
+  }
+
+  if (trend.isError) {
+    return (
+      <PageSection>
+        <ErrorState error={trend.error} onRetry={() => void trend.refetch()} />
+      </PageSection>
+    );
+  }
+
+  const { current, previous, daily } = trend.data;
+
+  /* exactOptionalPropertyTypes: a present-but-undefined `delta` is a type error, so each
+   * per-card delta is spread conditionally only when it has a value. */
+  const sessionsDelta = deltaPct(current.total_sessions, previous.total_sessions);
+  const containmentDelta = deltaPoints(
+    current.containment_rate,
+    previous.containment_rate,
+    previous.total_sessions,
+  );
+  const escalationDelta = deltaPoints(
+    current.escalation_rate,
+    previous.escalation_rate,
+    previous.total_sessions,
+  );
+  const frustrationDelta = deltaPct(current.avg_frustration, previous.avg_frustration);
+
   return (
     <>
       <PageSection className="grid gap-sp-6 xl:grid-cols-4">
         <HeroStat
-          label={hero.label}
-          value={hero.value}
-          delta={hero.delta}
-          context={hero.context}
-          series={HERO_SPARKLINE}
+          label={`Sessions (${days}d)`}
+          value={formatCompact(current.total_sessions)}
+          {...(sessionsDelta === undefined ? {} : { delta: sessionsDelta })}
+          context={`Compared with the previous ${days} days`}
+          series={daily.map((d) => d.current)}
         />
-        {cards.map((c) => (
-          <StatCard key={c.label} {...c} />
-        ))}
+        <StatCard
+          label="Containment rate"
+          value={formatRatio(current.containment_rate)}
+          {...(containmentDelta === undefined ? {} : { delta: containmentDelta })}
+          good
+          context="Resolved without escalation"
+          meta={`Previous: ${formatRatio(previous.containment_rate)}`}
+        />
+        <StatCard
+          label="Escalation rate"
+          value={formatRatio(current.escalation_rate)}
+          {...(escalationDelta === undefined ? {} : { delta: escalationDelta })}
+          good={false}
+          context="Handed to an advisor"
+          meta={`Previous: ${formatRatio(previous.escalation_rate)}`}
+        />
+        <StatCard
+          label="Avg. frustration"
+          value={current.avg_frustration.toFixed(2)}
+          {...(frustrationDelta === undefined ? {} : { delta: frustrationDelta })}
+          good={false}
+          context="Mean peak frustration per session"
+          meta={`Previous: ${previous.avg_frustration.toFixed(2)}`}
+        />
       </PageSection>
 
-      <PageSection className="grid gap-sp-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+      <PageSection>
+        <Card>
           <CardHeader
             title="Volume Trend"
-            subtitle="Week over week."
-            action={<Legend items={[{ label: "This week", strong: true }, { label: "Last week" }]} />}
+            subtitle={`Daily sessions, ${trend.data.timezone}.`}
+            action={
+              <div className="flex items-center gap-sp-6">
+                <Legend items={[{ label: "This period", strong: true }, { label: "Previous" }]} />
+                {rangeControl}
+              </div>
+            }
           />
           <div className="mt-sp-7">
-            <LineChart data={CALL_VOLUME_SERIES} />
-          </div>
-        </Card>
-        <Card>
-          <CardHeader title="Resolution Mix" subtitle="AI versus advisor share." />
-          <div className="mt-sp-7">
-            <BarChart data={RESOLUTION_SERIES} />
+            {isChartable(daily) ? (
+              <LineChart
+                data={daily.map((d) => ({
+                  day: dayLabel(d.day),
+                  current: d.current,
+                  previous: d.previous,
+                }))}
+              />
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="Not enough data"
+                description={`No sessions were recorded in the last ${days} days.`}
+              />
+            )}
           </div>
         </Card>
       </PageSection>

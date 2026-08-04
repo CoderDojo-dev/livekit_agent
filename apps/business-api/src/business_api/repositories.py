@@ -1,6 +1,8 @@
 """Read-side queries for the supervision endpoints (spec section 17). Read-only; never mutates audit."""
 from __future__ import annotations
 
+import os
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -417,4 +419,57 @@ class SupervisionRepository:
                 "refused": refused,
                 "escalated": escalated,
             },
+        }
+
+    def analytics_trend(self, days: int = 7) -> dict:
+        """Windowed KPI bundle (current vs previous equal window) + daily volume buckets.
+
+        Reuses compute_kpis unchanged; only the time filter is new. Buckets are cut in the
+        business timezone so a "day" on the chart matches a day on the floor.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        tz_name = os.getenv("CALLBACK_TIMEZONE", "Africa/Tunis")
+        now = datetime.now(UTC)
+        current_start = now - timedelta(days=days)
+        previous_start = now - timedelta(days=days * 2)
+
+        def _bundle(start: datetime, end: datetime) -> Kpis:
+            window = (CallSession.created_at >= start, CallSession.created_at < end)
+            total = self._s.scalar(
+                select(func.count()).select_from(CallSession).where(*window)) or 0
+            resolved = self._s.scalar(
+                select(func.count()).select_from(CallSession).where(
+                    *window, CallSession.final_disposition == "resolved")) or 0
+            escalated = self._s.scalar(
+                select(func.count()).select_from(CallSession).where(
+                    *window, CallSession.final_disposition == "escalated")) or 0
+            avg = self._s.scalar(
+                select(func.coalesce(func.avg(CallSession.max_frustration_score), 0)).where(*window))
+            return compute_kpis(total, resolved, escalated, avg)
+
+        local_day = func.date(func.timezone(tz_name, CallSession.created_at))
+        rows = self._s.execute(
+            select(local_day.label("day"), func.count().label("n"))
+            .where(CallSession.created_at >= previous_start)
+            .group_by(local_day)
+        ).all()
+        buckets = {str(r.day): int(r.n) for r in rows}
+
+        daily = []
+        for offset in range(days):
+            cur = (current_start + timedelta(days=offset)).date().isoformat()
+            prev = (previous_start + timedelta(days=offset)).date().isoformat()
+            daily.append({
+                "day": cur,
+                "current": buckets.get(cur, 0),
+                "previous": buckets.get(prev, 0),
+            })
+
+        return {
+            "days": days,
+            "timezone": tz_name,
+            "current": _bundle(current_start, now).__dict__,
+            "previous": _bundle(previous_start, current_start).__dict__,
+            "daily": daily,
         }

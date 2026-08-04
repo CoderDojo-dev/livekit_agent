@@ -11,7 +11,7 @@ export function HeroStat({
 }: {
   label: string;
   value: string;
-  delta: number;
+  delta?: number;
   context: string;
   series?: number[];
 }) {
@@ -19,7 +19,7 @@ export function HeroStat({
     <Card className="flex flex-col justify-between">
       <div className="flex items-start justify-between gap-sp-5">
         <p className="t-micro text-ink-5">{label}</p>
-        <Delta value={delta} />
+        {delta === undefined ? null : <Delta value={delta} />}
       </div>
       <p className="t-metric-xl mt-sp-6 text-ink-1">{value}</p>
       <p className="t-caption mt-sp-2 text-ink-4">{context}</p>
@@ -38,7 +38,7 @@ export function StatCard({
 }: {
   label: string;
   value: string;
-  delta: number;
+  delta?: number;
   good?: boolean | null;
   context: string;
   meta?: string;
@@ -47,7 +47,7 @@ export function StatCard({
     <Card>
       <div className="flex items-start justify-between gap-sp-5">
         <p className="t-micro text-ink-5">{label}</p>
-        <Delta value={delta} good={good ?? null} />
+        {delta === undefined ? null : <Delta value={delta} good={good ?? null} />}
       </div>
       <p className="t-metric-l mt-sp-6 text-ink-1">{value}</p>
       <p className="t-caption mt-sp-2 text-ink-4">{context}</p>
