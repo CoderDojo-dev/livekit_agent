@@ -41,11 +41,7 @@ export function CardHeader({
     <div className="flex items-start justify-between gap-sp-5">
       <div>
         <h2 className="t-title-3 text-ink-1">{title}</h2>
-        {subtitle ? (
-          <p className="t-caption mt-sp-2 max-w-[48ch] text-ink-4">
-            {subtitle}
-          </p>
-        ) : null}
+        {subtitle ? <p className="t-caption mt-sp-2 max-w-[48ch] text-ink-4">{subtitle}</p> : null}
       </div>
       {action}
     </div>
@@ -185,13 +181,7 @@ const LEVEL_TONE: Record<string, string> = {
   inert: "var(--n-8)",
 };
 
-export function StatusChip({
-  status,
-  className,
-}: {
-  status: string;
-  className?: string;
-}) {
+export function StatusChip({ status, className }: { status: string; className?: string }) {
   const def = STATUS[status];
   if (!def) return null;
   const inverted = def.container === "inverted";
@@ -202,8 +192,7 @@ export function StatusChip({
       className={cn(
         "inline-flex h-[22px] items-center gap-sp-2 rounded-r-2 px-sp-4",
         def.container === "soft" && "bg-surface-4 text-ink-2",
-        def.container === "outline" &&
-          "border border-stroke-strong text-ink-2",
+        def.container === "outline" && "border border-stroke-strong text-ink-2",
         def.container === "flat" && "text-ink-4",
         inverted && "bg-n-12 text-n-0",
         className,
@@ -217,19 +206,14 @@ export function StatusChip({
 
 /* ---------- Priority meter (chapter 1.7) ---------- */
 
-export function PriorityMeter({
-  priority,
-}: {
-  priority: "high" | "medium" | "low";
-}) {
+export function PriorityMeter({ priority }: { priority: "high" | "medium" | "low" }) {
   const tones =
     priority === "high"
       ? ["var(--n-12)", "var(--n-12)", "var(--n-12)"]
       : priority === "medium"
         ? ["var(--n-11)", "var(--n-11)", "var(--n-7)"]
         : ["var(--n-10)", "var(--n-7)", "var(--n-7)"];
-  const label =
-    priority === "high" ? "High" : priority === "medium" ? "Medium" : "Low";
+  const label = priority === "high" ? "High" : priority === "medium" ? "Medium" : "Low";
 
   return (
     <span className="inline-flex items-center gap-sp-2">
@@ -249,13 +233,7 @@ export function PriorityMeter({
 
 /* ---------- Presence dot (documented 6px exception) ---------- */
 
-export function PresenceDot({
-  live = true,
-  className,
-}: {
-  live?: boolean;
-  className?: string;
-}) {
+export function PresenceDot({ live = true, className }: { live?: boolean; className?: string }) {
   return (
     <span
       aria-hidden="true"
@@ -569,9 +547,7 @@ export function Segmented({
             aria-pressed={selected}
             className={cn(
               "h-[22px] rounded-r-1 px-sp-5 t-label transition-colors duration-[120ms]",
-              selected
-                ? "bg-surface-5 text-ink-1"
-                : "text-ink-4 hover:text-ink-2",
+              selected ? "bg-surface-5 text-ink-1" : "text-ink-4 hover:text-ink-2",
             )}
           >
             {item}
@@ -618,13 +594,7 @@ export function Checkbox({
 
 /* ---------- Sparkline ---------- */
 
-export function Sparkline({
-  values,
-  className,
-}: {
-  values: number[];
-  className?: string;
-}) {
+export function Sparkline({ values, className }: { values: number[]; className?: string }) {
   const max = Math.max(...values);
   const min = Math.min(...values);
   const step = 100 / (values.length - 1);

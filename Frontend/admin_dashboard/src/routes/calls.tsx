@@ -42,9 +42,7 @@ export const Route = createFileRoute("/calls")({
   // F12 — deep-linkable selection. Does NOT alter routeTree.gen.ts.
   // .catch({}) swallows a malformed ?session (e.g. /calls?session=abc) so the SSR renderer
   // never throws: an invalid value is treated exactly like "no selection", never a crash.
-  validateSearch: z
-    .object({ session: z.string().uuid().optional() })
-    .catch({ session: undefined }),
+  validateSearch: z.object({ session: z.string().uuid().optional() }).catch({ session: undefined }),
   head: () => ({
     meta: [
       { title: "Call History & Transcripts — Nexus" },

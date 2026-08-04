@@ -64,11 +64,18 @@ function timingSafeEqual(a: string, b: string): boolean {
  */
 export async function signSession(session: AdminSession, secret: string): Promise<string> {
   const payload = toBase64Url(new TextEncoder().encode(JSON.stringify(session)));
-  const signature = await crypto.subtle.sign("HMAC", await hmacKey(secret), new TextEncoder().encode(payload));
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    await hmacKey(secret),
+    new TextEncoder().encode(payload),
+  );
   return `${payload}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
-export async function verifySession(token: string | undefined, secret: string): Promise<AdminSession | null> {
+export async function verifySession(
+  token: string | undefined,
+  secret: string,
+): Promise<AdminSession | null> {
   if (!token) return null;
 
   const separator = token.lastIndexOf(".");
@@ -78,7 +85,9 @@ export async function verifySession(token: string | undefined, secret: string): 
   const signature = token.slice(separator + 1);
 
   const expected = toBase64Url(
-    new Uint8Array(await crypto.subtle.sign("HMAC", await hmacKey(secret), new TextEncoder().encode(payload))),
+    new Uint8Array(
+      await crypto.subtle.sign("HMAC", await hmacKey(secret), new TextEncoder().encode(payload)),
+    ),
   );
   if (!timingSafeEqual(signature, expected)) return null;
 

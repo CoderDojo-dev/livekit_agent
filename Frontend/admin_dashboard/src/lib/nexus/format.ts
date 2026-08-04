@@ -2,9 +2,7 @@
 const LOCALE = "en-US";
 
 export function formatInteger(value: number): string {
-  return new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(
-    value,
-  );
+  return new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(value);
 }
 
 export function formatCompact(value: number): string {
