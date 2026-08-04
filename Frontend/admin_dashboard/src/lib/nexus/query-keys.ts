@@ -77,3 +77,14 @@ export const ticketKeys = {
   list: (status: string, category: string, priority: string, search: string, limit: number) =>
     ["tickets", "list", status, category, priority, search, limit] as const,
 };
+
+/* Feature 6 — knowledge base. Standalone export. Mutations invalidate documents() AND health():
+ * an upload changes `points` too, so a stale health strip after a mutation is the kind of quiet
+ * inconsistency this series eliminates. The retrieval probe is deliberately NOT keyed — it is a
+ * user-triggered query whose results must never be cached or replayed, and must never invalidate
+ * the inventory. */
+export const knowledgeKeys = {
+  all: ["knowledge"] as const,
+  documents: () => [...knowledgeKeys.all, "documents"] as const,
+  health: () => [...knowledgeKeys.all, "health"] as const,
+};

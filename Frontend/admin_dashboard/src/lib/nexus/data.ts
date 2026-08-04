@@ -342,33 +342,6 @@ export const INGESTED_FILES = [
 
 /* ---------------- SECONDARY SCREENS ---------------- */
 
-export const KNOWLEDGE_SOURCES = [
-  {
-    name: "policy_terms_2025.pdf",
-    chunks: "1,204",
-    updated: "Mar 12, 2025",
-    status: "indexed",
-  },
-  {
-    name: "faq_knowledge.docx",
-    chunks: "486",
-    updated: "Mar 14, 2025",
-    status: "processing",
-  },
-  {
-    name: "onboarding_guide.md",
-    chunks: "212",
-    updated: "Mar 09, 2025",
-    status: "indexed",
-  },
-  {
-    name: "legacy_export.txt",
-    chunks: "0",
-    updated: "Mar 11, 2025",
-    status: "failed",
-  },
-];
-
 export const POLICIES = [
   {
     name: "Max escalation delay",
