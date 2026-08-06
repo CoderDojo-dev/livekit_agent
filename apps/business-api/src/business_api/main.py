@@ -66,6 +66,24 @@ def customer_360(customer_id: str, session: DbSession, role: ConseillerRole) -> 
     return data
 
 
+@app.get("/api/v1/customers/{customer_id}/ledger")
+def customer_ledger(customer_id: str, session: DbSession, role: ConseillerRole) -> dict:
+    """Payments, deferral plans and consent captures for one customer (read-only)."""
+    data = SupervisionRepository(session).customer_ledger(customer_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="customer not found")
+    return data
+
+
+@app.get("/api/v1/customers/{customer_id}/service-actions")
+def customer_service_actions(customer_id: str, session: DbSession, role: ConseillerRole) -> dict:
+    """Live balances, plan history and service-action projections for one customer (read-only)."""
+    data = SupervisionRepository(session).customer_service_actions(customer_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="customer not found")
+    return data
+
+
 @app.get("/api/v1/tickets")
 def ticket_index(session: DbSession, role: SuperviseurRole, limit: int = 50, offset: int = 0,
                  status: str | None = None, category: str | None = None,
@@ -79,6 +97,20 @@ def ticket_index(session: DbSession, role: SuperviseurRole, limit: int = 50, off
     return SupervisionRepository(session).ticket_list(
         limit=limit, offset=offset, status=status, category=category,
         priority=priority, customer_id=customer_id, search=search,
+    )
+
+
+@app.get("/api/v1/notifications")
+def notification_index(session: DbSession, role: SuperviseurRole, limit: int = 50,
+                       offset: int = 0, channel: str | None = None,
+                       status: str | None = None) -> dict:
+    """Outbound notification sends (billing.notifications), newest first.
+
+    Read-only. The notification-service owns the write path; this endpoint never sends anything
+    and never retries a failed send.
+    """
+    return SupervisionRepository(session).notification_list(
+        limit=limit, offset=offset, channel=channel, status=status,
     )
 
 

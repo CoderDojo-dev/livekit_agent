@@ -21,6 +21,7 @@ import { Route as DecisionsRouteImport } from './routes/decisions'
 import { Route as EscalationsRouteImport } from './routes/escalations'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PoliciesRouteImport } from './routes/policies'
 import { Route as ReferenceRouteImport } from './routes/reference'
@@ -87,6 +88,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OverviewRoute = OverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
   '/reference': typeof ReferenceRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
   '/reference': typeof ReferenceRoute
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   '/escalations': typeof EscalationsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/overview': typeof OverviewRoute
   '/policies': typeof PoliciesRoute
   '/reference': typeof ReferenceRoute
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/escalations'
     | '/knowledge'
     | '/login'
+    | '/notifications'
     | '/overview'
     | '/policies'
     | '/reference'
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/escalations'
     | '/knowledge'
     | '/login'
+    | '/notifications'
     | '/overview'
     | '/policies'
     | '/reference'
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | '/escalations'
     | '/knowledge'
     | '/login'
+    | '/notifications'
     | '/overview'
     | '/policies'
     | '/reference'
@@ -244,6 +256,7 @@ export interface RootRouteChildren {
   EscalationsRoute: typeof EscalationsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LoginRoute: typeof LoginRoute
+  NotificationsRoute: typeof NotificationsRoute
   OverviewRoute: typeof OverviewRoute
   PoliciesRoute: typeof PoliciesRoute
   ReferenceRoute: typeof ReferenceRoute
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/overview': {
       id: '/overview'
       path: '/overview'
@@ -388,6 +408,7 @@ const rootRouteChildren: RootRouteChildren = {
   EscalationsRoute: EscalationsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LoginRoute: LoginRoute,
+  NotificationsRoute: NotificationsRoute,
   OverviewRoute: OverviewRoute,
   PoliciesRoute: PoliciesRoute,
   ReferenceRoute: ReferenceRoute,

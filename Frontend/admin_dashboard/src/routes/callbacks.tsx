@@ -18,6 +18,7 @@ import {
 } from "@/components/nexus/primitives";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { CallbackCancelModal, CallbackOutcomeModal } from "@/components/nexus/callback-outcome";
+import { CallbackLifecycleModal } from "@/components/nexus/callback-lifecycle";
 import { getCoverage } from "@/lib/api/availability.server";
 import { getCallbackStats, listCallbacks, type Callback } from "@/lib/api/callbacks.server";
 import { callbackKeys, availabilityKeys } from "@/lib/nexus/query-keys";
@@ -51,6 +52,7 @@ function CallbacksPage() {
   const [query, setQuery] = useState("");
   const [outcomeFor, setOutcomeFor] = useState<Callback | null>(null);
   const [cancelFor, setCancelFor] = useState<Callback | null>(null);
+  const [detailFor, setDetailFor] = useState<Callback | null>(null);
 
   const { status, overdueOnly } = scopeQuery(scope);
 
@@ -225,16 +227,21 @@ function CallbacksPage() {
                   <StatusChip status={callbackStatusKey(row)} />
                 </Td>
                 <Td>
-                  {row.status === "pending" ? (
-                    <div className="flex items-center justify-end gap-sp-3 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100 focus-within:opacity-100">
-                      <Button size="sm" variant="secondary" onClick={() => setOutcomeFor(row)}>
-                        Outcome
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setCancelFor(row)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : null}
+                  <div className="flex items-center justify-end gap-sp-3 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100 focus-within:opacity-100">
+                    <Button size="sm" variant="ghost" onClick={() => setDetailFor(row)}>
+                      Detail
+                    </Button>
+                    {row.status === "pending" ? (
+                      <>
+                        <Button size="sm" variant="secondary" onClick={() => setOutcomeFor(row)}>
+                          Outcome
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setCancelFor(row)}>
+                          Cancel
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 </Td>
               </tr>
             );
@@ -256,6 +263,11 @@ function CallbacksPage() {
           onClose={() => setCancelFor(null)}
         />
       ) : null}
+      <CallbackLifecycleModal
+        callback={detailFor}
+        timeZone={timeZone}
+        onClose={() => setDetailFor(null)}
+      />
     </PageSection>
   );
 }

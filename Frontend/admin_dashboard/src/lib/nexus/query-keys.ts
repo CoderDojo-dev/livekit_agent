@@ -78,6 +78,14 @@ export const ticketKeys = {
     ["tickets", "list", status, category, priority, search, limit] as const,
 };
 
+/* Feature 18 — notification send log. Standalone export, read-only. channel + status are in
+ * the key so each filtered view is its own cache; limit is in the key for "Load more". */
+export const notificationKeys = {
+  all: ["notifications"] as const,
+  list: (channel: string, status: string, limit: number) =>
+    ["notifications", "list", channel, status, limit] as const,
+};
+
 /* Feature 6 — knowledge base. Standalone export. Mutations invalidate documents() AND health():
  * an upload changes `points` too, so a stale health strip after a mutation is the kind of quiet
  * inconsistency this series eliminates. The retrieval probe is deliberately NOT keyed — it is a
@@ -133,6 +141,8 @@ export const customerKeys = {
   list: (search: string, status: string, limit: number, offset: number) =>
     ["customers", "list", search, status, limit, offset] as const,
   detail: (customerId: string) => ["customers", "detail", customerId] as const,
+  ledger: (customerId: string) => ["customers", "ledger", customerId] as const,
+  serviceActions: (customerId: string) => ["customers", "serviceActions", customerId] as const,
 };
 
 /* Feature 12 — persona graph & activity. The window is part of the key so

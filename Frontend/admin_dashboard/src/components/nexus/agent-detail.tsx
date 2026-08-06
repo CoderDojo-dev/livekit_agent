@@ -26,7 +26,7 @@ export function AgentDetail({ row, onClose }: { row: AgentRow; onClose: () => vo
           <div className="mt-sp-5 grid grid-cols-3 gap-sp-5">
             <div>
               <p className="t-mono-l text-ink-1">{formatInteger(row.turns)}</p>
-              <p className="t-caption text-ink-4">Attributed turns</p>
+              <p className="t-caption text-ink-4">Caller turns</p>
             </div>
             <div>
               <p className="t-mono-l text-ink-1">{sharePercent(row.turnShare)}</p>

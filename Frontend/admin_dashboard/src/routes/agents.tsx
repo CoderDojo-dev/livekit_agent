@@ -53,7 +53,7 @@ function AgentsPage() {
     <>
       <PageSection className="grid gap-sp-6 xl:grid-cols-4">
         <HeroStat
-          label="Attributed turns"
+          label="Caller turns"
           value={formatInteger(totalTurns)}
           context={`Across ${days} days`}
         />
@@ -65,7 +65,7 @@ function AgentsPage() {
         <StatCard
           label="Idle in window"
           value={formatInteger(idle.length)}
-          context="No attributed turns"
+          context="No caller turns"
         />
         <StatCard
           label="Unrecognized"
@@ -87,7 +87,7 @@ function AgentsPage() {
             <tr>
               <Th>Persona</Th>
               <Th>Role in graph</Th>
-              <Th align="right">Attributed turns</Th>
+              <Th align="right">Caller turns</Th>
               <Th align="right">Share</Th>
               <Th align="right">Sessions</Th>
               <Th align="right">Last seen</Th>
@@ -106,7 +106,7 @@ function AgentsPage() {
                 <EmptyState
                   icon={Bot}
                   title="No persona activity"
-                  description="No turns were attributed to a persona in this window."
+                  description="No caller turns were handled by a persona in this window."
                 />
               </td>
             </tr>

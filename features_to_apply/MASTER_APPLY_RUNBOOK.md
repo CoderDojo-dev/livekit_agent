@@ -231,7 +231,7 @@ Ordered by how much they block.
 For completeness — modelled, real, and with no admin surface. None is a gap I invented work to fill; each needs your call on whether it matters.
 
 - `CustomerInteraction`, `Payment`, `PaymentPlan`, `ConsentRecord` (C11 §8.6) — modelled CRM/billing data, no endpoint.
-- `CallbackSchedule` lifecycle fields (`attempts`, `outcome_note`, `completed_at`, `assigned_advisor_id`) — C3 surfaces the schedule, not the outcome. The model comment argues these are the point: *"Without these a scheduled callback is a promise nobody can prove was kept."*
+- `CallbackSchedule` lifecycle fields (`attempts`, `outcome_note`, `completed_at`, `assigned_advisor_id`) — C3 surfaces the schedule, not the outcome. The model comment argues these are the point: *"Without these a scheduled callback is a promise nobody can prove was kept."* **Correction (recorded during FEATURE_15):** `to_dict()` already serialises all of `attempts`, `outcome_note`, `completed_at`, `assigned_advisor_id`, `assigned_advisor_name` and `session_id` on the transport, and `callbacks.server.ts` already types them. The gap was render-only; FEATURE_15's read-only detail modal now surfaces them on `/callbacks`.
 - `reference.geo_aliases` (C14 §6.3) — deliberately unexposed; a resolver probe beats a 10k-row table.
 - The automation engine `/rules` implied (C14 §6.1) — does not exist; unbuilt by design.
 

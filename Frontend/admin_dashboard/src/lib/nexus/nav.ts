@@ -11,6 +11,7 @@ import {
   Headset,
   PhoneOutgoing,
   CalendarClock,
+  Send,
   BarChart3,
   Scale,
   Settings,
@@ -125,6 +126,14 @@ export const NAV: readonly NavItem[] = [
     badgeVariant: "count",
   },
   {
+    id: "notifications",
+    label: "Notifications",
+    href: "/notifications",
+    icon: Send,
+    section: "OPERATIONS",
+    shortcut: "G M",
+  },
+  {
     id: "decisions",
     label: "Decisions",
     href: "/decisions",
@@ -210,6 +219,10 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/callbacks": {
     title: "Callbacks",
     subtitle: "Scheduled return calls awaiting an advisor.",
+  },
+  "/notifications": {
+    title: "Notifications",
+    subtitle: "Written confirmations the platform attempted, and how they landed.",
   },
   "/decisions": {
     title: "Decisions",

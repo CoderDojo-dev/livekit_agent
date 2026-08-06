@@ -7,14 +7,27 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from business_api.kpis import Kpis, compute_kpis
-from persistence.models.billing import Invoice
+from persistence.models.billing import Invoice, Notification, Payment, PaymentPlan
 from persistence.models.conversation import CallSession, EscalationCase, SentimentSample, Turn
-from persistence.models.crm import Customer, Subscription
+from persistence.models.crm import ConsentRecord, Customer, Subscription
 from persistence.models.execution import ActionLedger
+from persistence.models.ocs import BalanceAccount, Recharge
 from persistence.models.policy import PolicyVerdict
+from persistence.models.provisioning import PlanChangeHistory, ProvisioningRequest, SimOrder
 from persistence.models.reference import BusinessRule, ErrorCatalog, GeoArea, Product, RechargeCatalog
+from persistence.models.sim import BlockUnblockCase
 from persistence.models.ticketing import Ticket
 from persistence.util import to_uuid
+
+# Payments, deferral plans and consent captures per customer (FEATURE_16). A hard cap keeps
+# the modal's read cheap; the UI surfaces "latest 50" when a collection is full.
+_LEDGER_LIMIT = 50
+
+# Live balances, plan history and service-action projections per customer (FEATURE_17).
+_SERVICE_LIMIT = 50
+
+# Outbound notification send log (FEATURE_18). A hard cap mirrors ticket_list's own clamp.
+_NOTIFICATION_LIMIT_MAX = 200
 
 
 class SupervisionRepository:
@@ -41,10 +54,368 @@ class SupervisionRepository:
                 for s in subs
             ],
             "open_invoices": [
-                {"invoice": i.invoice_number, "amount": float(i.total_amount), "status": i.status}
+                {
+                    "invoice": i.invoice_number,
+                    "amount": float(i.total_amount),
+                    # FEATURE_21 — additive key (same precedent as the C13 keys on escalations()).
+                    # `amount` is the invoice face value; `outstanding` is what is still owed.
+                    # Both columns are NOT NULL with server_default 0, so neither needs a guard.
+                    "outstanding": float(i.outstanding_amount),
+                    "status": i.status,
+                }
                 for i in invoices if i.status != "paid"
             ],
             "tickets": [{"glpi_id": t.glpi_ticket_id, "status": t.status, "subject": t.subject} for t in tickets],
+        }
+
+    def customer_ledger(self, customer_id: str) -> dict | None:
+        """Payments, deferral plans and consent captures for one customer.
+
+        Deliberately a separate method from `customer_360`: widening that method's
+        return shape would change existing behaviour for every existing caller.
+        Returns None when the customer does not exist, so the route can 404 the
+        same way `/360` does.
+        """
+        cid = to_uuid(customer_id)
+        customer = self._s.execute(
+            select(Customer).where(Customer.id == cid)
+        ).scalar_one_or_none()
+        if customer is None:
+            return None
+
+        payments = (
+            self._s.execute(
+                select(Payment)
+                .where(Payment.customer_id == cid)
+                .order_by(Payment.created_at.desc())
+                .limit(_LEDGER_LIMIT)
+            )
+            .scalars()
+            .all()
+        )
+        plans = (
+            self._s.execute(
+                select(PaymentPlan)
+                .where(PaymentPlan.customer_id == cid)
+                .order_by(PaymentPlan.created_at.desc())
+                .limit(_LEDGER_LIMIT)
+            )
+            .scalars()
+            .all()
+        )
+        consents = (
+            self._s.execute(
+                select(ConsentRecord)
+                .where(ConsentRecord.customer_id == cid)
+                .order_by(ConsentRecord.captured_at.desc())
+                .limit(_LEDGER_LIMIT)
+            )
+            .scalars()
+            .all()
+        )
+
+        # Batched invoice-number lookup, mirroring the `customers = {...}` pattern
+        # used by ticket_list/session_list. Never one query per payment.
+        invoice_ids = {p.invoice_id for p in payments if p.invoice_id is not None}
+        invoice_numbers: dict = {}
+        if invoice_ids:
+            invoice_numbers = {
+                row.id: row.invoice_number
+                for row in self._s.execute(
+                    select(Invoice).where(Invoice.id.in_(invoice_ids))
+                ).scalars()
+            }
+
+        return {
+            "customer_id": str(customer.id),
+            "payments": [
+                {
+                    "payment_id": str(p.id),
+                    "amount": float(p.amount),
+                    "currency_code": p.currency_code,
+                    "method": p.method,
+                    "status": p.status,
+                    "gateway_reference": p.gateway_reference,
+                    "invoice": invoice_numbers.get(p.invoice_id),
+                    "paid_at": p.paid_at.isoformat() if p.paid_at else None,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                }
+                for p in payments
+            ],
+            "payment_plans": [
+                {
+                    "plan_id": str(pl.id),
+                    "total_amount": float(pl.total_amount),
+                    "installment_count": pl.installment_count,
+                    "installment_amount": float(pl.installment_amount),
+                    "deferral_until": pl.deferral_until.isoformat() if pl.deferral_until else None,
+                    "status": pl.status,
+                    "policy_verdict_id": str(pl.policy_verdict_id) if pl.policy_verdict_id else None,
+                    "created_at": pl.created_at.isoformat() if pl.created_at else None,
+                }
+                for pl in plans
+            ],
+            "consents": [
+                {
+                    "consent_id": str(c.id),
+                    "consent_type": c.consent_type,
+                    "granted": bool(c.granted),
+                    "language": c.language,
+                    "session_id": str(c.session_id),
+                    "captured_at": c.captured_at.isoformat() if c.captured_at else None,
+                }
+                for c in consents
+            ],
+        }
+
+    def customer_service_actions(self, customer_id: str) -> dict | None:
+        """Live balances, plan history and service-action projections for one customer.
+
+        Separate from customer_360/customer_ledger for the same reason as FEATURE_16:
+        widening an existing method's return shape changes existing behaviour.
+
+        Two of these tables (sim.block_unblock_cases, provisioning.plan_change_history)
+        carry no customer_id, and two more allow it to be NULL, so everything is scoped
+        through the customer's live subscriptions.
+        """
+        cid = to_uuid(customer_id)
+        customer = self._s.execute(
+            select(Customer).where(Customer.id == cid)
+        ).scalar_one_or_none()
+        if customer is None:
+            return None
+
+        subscriptions = list(
+            self._s.execute(
+                select(Subscription).where(
+                    Subscription.customer_id == cid,
+                    Subscription.deleted_at.is_(None),
+                )
+            ).scalars()
+        )
+        sub_ids = [s.id for s in subscriptions]
+        msisdn_by_sub = {s.id: s.msisdn for s in subscriptions}
+
+        # Tables with a nullable/absent customer_id must also be reachable by line.
+        recharge_scope = Recharge.customer_id == cid
+        sim_order_scope = SimOrder.customer_id == cid
+        provisioning_scope = ProvisioningRequest.customer_id == cid
+        if sub_ids:
+            recharge_scope = or_(recharge_scope, Recharge.subscription_id.in_(sub_ids))
+            sim_order_scope = or_(sim_order_scope, SimOrder.subscription_id.in_(sub_ids))
+            provisioning_scope = or_(
+                provisioning_scope, ProvisioningRequest.subscription_id.in_(sub_ids)
+            )
+
+        balances: list[BalanceAccount] = []
+        plan_changes: list[PlanChangeHistory] = []
+        sim_cases: list[BlockUnblockCase] = []
+        if sub_ids:
+            balances = list(
+                self._s.execute(
+                    select(BalanceAccount)
+                    .where(BalanceAccount.subscription_id.in_(sub_ids))
+                    .order_by(BalanceAccount.balance_type.asc())
+                ).scalars()
+            )
+            plan_changes = list(
+                self._s.execute(
+                    select(PlanChangeHistory)
+                    .where(PlanChangeHistory.subscription_id.in_(sub_ids))
+                    .order_by(PlanChangeHistory.created_at.desc())
+                    .limit(_SERVICE_LIMIT)
+                ).scalars()
+            )
+            sim_cases = list(
+                self._s.execute(
+                    select(BlockUnblockCase)
+                    .where(BlockUnblockCase.subscription_id.in_(sub_ids))
+                    .order_by(BlockUnblockCase.created_at.desc())
+                    .limit(_SERVICE_LIMIT)
+                ).scalars()
+            )
+
+        recharges = list(
+            self._s.execute(
+                select(Recharge)
+                .where(recharge_scope)
+                .order_by(Recharge.created_at.desc())
+                .limit(_SERVICE_LIMIT)
+            ).scalars()
+        )
+        sim_orders = list(
+            self._s.execute(
+                select(SimOrder)
+                .where(sim_order_scope)
+                .order_by(SimOrder.created_at.desc())
+                .limit(_SERVICE_LIMIT)
+            ).scalars()
+        )
+        provisioning_rows = list(
+            self._s.execute(
+                select(ProvisioningRequest)
+                .where(provisioning_scope)
+                .order_by(ProvisioningRequest.requested_at.desc())
+                .limit(_SERVICE_LIMIT)
+            ).scalars()
+        )
+
+        events: list[dict] = []
+        for row in recharges:
+            events.append({
+                "event_id": str(row.id),
+                "source": "recharge",
+                "status": row.status,
+                "occurred_at": row.created_at.isoformat() if row.created_at else None,
+                "subscription_id": str(row.subscription_id),
+                "msisdn": msisdn_by_sub.get(row.subscription_id),
+                "reference": row.transaction_reference,
+                "amount": float(row.amount),
+                "bonus_amount": float(row.bonus_amount),
+                "channel": row.channel,
+            })
+        for row in sim_cases:
+            events.append({
+                "event_id": str(row.id),
+                "source": "sim_case",
+                "status": row.status,
+                "occurred_at": row.created_at.isoformat() if row.created_at else None,
+                "subscription_id": str(row.subscription_id),
+                "msisdn": msisdn_by_sub.get(row.subscription_id),
+                "reference": None,
+                "action": row.action,
+            })
+        for row in sim_orders:
+            events.append({
+                "event_id": str(row.id),
+                "source": "sim_order",
+                "status": row.status,
+                "occurred_at": row.created_at.isoformat() if row.created_at else None,
+                "subscription_id": str(row.subscription_id) if row.subscription_id else None,
+                "msisdn": msisdn_by_sub.get(row.subscription_id) if row.subscription_id else None,
+                "reference": row.tracking_code,
+                "sim_type": row.sim_type,
+            })
+        for row in provisioning_rows:
+            events.append({
+                "event_id": str(row.id),
+                "source": "provisioning",
+                "status": row.status,
+                "occurred_at": row.requested_at.isoformat() if row.requested_at else None,
+                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                "subscription_id": str(row.subscription_id) if row.subscription_id else None,
+                "msisdn": msisdn_by_sub.get(row.subscription_id) if row.subscription_id else None,
+                "reference": None,
+                "action_type": row.action_type,
+            })
+
+        # All four timestamps are tz-aware UTC isoformat strings, so lexicographic
+        # ordering is chronological. Rows with no timestamp sort last.
+        events.sort(key=lambda event: event["occurred_at"] or "", reverse=True)
+
+        return {
+            "customer_id": str(customer.id),
+            "balances": [
+                {
+                    "balance_id": str(b.id),
+                    "subscription_id": str(b.subscription_id),
+                    "msisdn": msisdn_by_sub.get(b.subscription_id),
+                    "balance_type": b.balance_type,
+                    "balance_value": float(b.balance_value),
+                    "balance_unit": b.balance_unit,
+                    "status": b.status,
+                    "expiry_date": b.expiry_date.isoformat() if b.expiry_date else None,
+                    "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+                }
+                for b in balances
+            ],
+            "plan_changes": [
+                {
+                    "change_id": str(c.id),
+                    "subscription_id": str(c.subscription_id) if c.subscription_id else None,
+                    "msisdn": msisdn_by_sub.get(c.subscription_id) if c.subscription_id else None,
+                    "from_plan": c.from_plan,
+                    "to_plan": c.to_plan,
+                    "changed_by": c.changed_by,
+                    "effective_date": c.effective_date.isoformat() if c.effective_date else None,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                }
+                for c in plan_changes
+            ],
+            "events": events[:_SERVICE_LIMIT],
+        }
+
+    def notification_list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        channel: str | None = None,
+        status: str | None = None,
+    ) -> dict:
+        """Outbound notification sends (billing.notifications), newest first.
+
+        Read-only. The notification-service owns the write path and records every attempt,
+        successful or not, so a ``failed`` row is a real refusal rather than a gap.
+
+        ``customer_id`` is nullable by design: notify_advisor() posts an empty customer_id and
+        to_uuid() turns that into NULL, so advisor pages are unattributed rather than missing.
+        The list is therefore never scoped to a customer - doing so would hide them.
+        """
+        stmt = select(Notification)
+        count_stmt = select(func.count()).select_from(Notification)
+
+        def _both(clause):
+            nonlocal stmt, count_stmt
+            stmt = stmt.where(clause)
+            count_stmt = count_stmt.where(clause)
+
+        if channel:
+            _both(Notification.channel == channel)
+        if status:
+            _both(Notification.status == status)
+
+        total = self._s.scalar(count_stmt) or 0
+        limit = max(1, min(limit, _NOTIFICATION_LIMIT_MAX))
+        offset = max(0, offset)
+
+        rows = self._s.scalars(
+            stmt.order_by(Notification.created_at.desc()).limit(limit).offset(offset)
+        ).all()
+
+        customer_ids = {r.customer_id for r in rows if r.customer_id}
+        customers = {}
+        if customer_ids:
+            customers = {
+                c.id: c
+                for c in self._s.scalars(select(Customer).where(Customer.id.in_(customer_ids))).all()
+            }
+
+        counts = {
+            row[0]: row[1]
+            for row in self._s.execute(
+                select(Notification.status, func.count()).group_by(Notification.status)
+            ).all()
+        }
+
+        items = []
+        for r in rows:
+            customer = customers.get(r.customer_id)
+            items.append({
+                "id": str(r.id),
+                "customer_id": str(r.customer_id) if r.customer_id else None,
+                "customer_name": f"{customer.first_name} {customer.last_name}".strip() if customer else None,
+                "customer_vip": bool(customer.vip_flag) if customer else False,
+                "channel": r.channel,
+                "template_code": r.template_code,
+                "status": r.status,
+                "sent_at": r.sent_at.isoformat() if r.sent_at else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            })
+
+        return {
+            "notifications": items, "total": total, "counts": counts,
+            "limit": limit, "offset": offset,
         }
 
     def customer_list(
