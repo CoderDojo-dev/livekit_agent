@@ -257,7 +257,6 @@ docker-compose-postgres-1          0.0.0.0:5432   Up (healthy)
 | Clé | Valeur réelle (racine `.env`) | Commentaire |
 |---|---|---|
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | 2 frontends locaux autorisés |
-| `BUSINESS_API_DEFAULT_ROLE` | `administrateur` | rôle par défaut si aucun header `X-Role` |
 | `INTERNAL_API_KEY` | `(set)` = `dev-key-123` | défini ! → **H-4 actif** : C6 testera bien en 403-branch en local |
 | `CALLBACK_TIMEZONE` | `(unset)` → défaut code `Africa/Tunis` | lu dans `availability.py`, `callbacks.py`, `callback_schedule_task.py` |
 | `CALLBACK_DAY_START_HOUR` / `END_HOUR` | `(unset)` → défauts `8`/`18` | lu `availability.py` |

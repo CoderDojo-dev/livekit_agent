@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalRouteImport } from './routes/_portal'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PortalAboutRouteImport } from './routes/_portal/about'
 import { Route as PortalActivityRouteImport } from './routes/_portal/activity'
 import { Route as PortalAssistantRouteImport } from './routes/_portal/assistant'
@@ -29,6 +31,16 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const PortalRoute = PortalRouteImport.update({
   id: '/_portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortalAboutRoute = PortalAboutRouteImport.update({
@@ -84,6 +96,8 @@ const PortalServicesRoute = PortalServicesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/about': typeof PortalAboutRoute
   '/activity': typeof PortalActivityRoute
   '/assistant': typeof PortalAssistantRoute
@@ -97,6 +111,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/about': typeof PortalAboutRoute
   '/activity': typeof PortalActivityRoute
   '/assistant': typeof PortalAssistantRoute
@@ -112,6 +128,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_portal': typeof PortalRouteWithChildren
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/_portal/about': typeof PortalAboutRoute
   '/_portal/activity': typeof PortalActivityRoute
   '/_portal/assistant': typeof PortalAssistantRoute
@@ -127,6 +145,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
+    | '/signup'
     | '/about'
     | '/activity'
     | '/assistant'
@@ -140,6 +160,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/login'
+    | '/signup'
     | '/about'
     | '/activity'
     | '/assistant'
@@ -154,6 +176,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_portal'
+    | '/login'
+    | '/signup'
     | '/_portal/about'
     | '/_portal/activity'
     | '/_portal/assistant'
@@ -169,6 +193,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PortalRoute: typeof PortalRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -185,6 +211,20 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_portal/about': {
@@ -292,7 +332,19 @@ const PortalRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PortalRoute: PortalRouteWithChildren,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

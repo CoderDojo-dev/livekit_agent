@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { serverConfig } from "./config";
 import { ApiError } from "./errors";
+import { businessApi } from "./business-api";
 import { clearSessionCookie, readSession, writeSessionCookie } from "./session.server";
-import { ROLE_RANK, type AdminSession, type BackendRole } from "./session";
+import type { ClientSession } from "./session";
 
 type LoginResponse = {
   token: string;
@@ -16,7 +17,7 @@ type LoginResponse = {
  * Credentials are verified by business-api against a scrypt hash in auth.portal_accounts.
  * This process no longer holds, compares, or can leak a password.
  */
-async function postJson<T>(path: string, body: unknown, token?: string): Promise<T> {
+async function postCredential<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), serverConfig.requestTimeoutMs());
 
@@ -27,7 +28,6 @@ async function postJson<T>(path: string, body: unknown, token?: string): Promise
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -64,7 +64,7 @@ async function postJson<T>(path: string, body: unknown, token?: string): Promise
 }
 
 export const getSession = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AdminSession | null> => readSession(),
+  async (): Promise<ClientSession | null> => readSession(),
 );
 
 export const login = createServerFn({ method: "POST" })
@@ -74,21 +74,64 @@ export const login = createServerFn({ method: "POST" })
     }
     return { email: data.email.trim().toLowerCase(), password: data.password };
   })
-  .handler(async ({ data }): Promise<AdminSession> => {
-    const result = await postJson<LoginResponse>("/api/v1/auth/login", {
+  .handler(async ({ data }): Promise<ClientSession> => {
+    const result = await postCredential<LoginResponse>("/api/v1/auth/login", {
       email: data.email,
       password: data.password,
     });
 
-    // A client account has no rank in the admin console. Refuse it here rather than issuing a
-    // cookie the backend would reject on every subsequent call.
-    if (!(result.role in ROLE_RANK)) {
-      throw new ApiError(403, "This account cannot access the admin console", "login");
-    }
-
-    const session: AdminSession = {
+    const session: ClientSession = {
       sub: result.email,
-      role: result.role as BackendRole,
+      role: "client",
+      exp: Math.floor(new Date(result.expires_at).getTime() / 1000),
+      token: result.token,
+    };
+
+    await writeSessionCookie(session);
+    return session;
+  });
+
+type SignupResponse = {
+  email: string;
+  kind: string;
+  role: string;
+  token: string;
+  expires_at: string;
+};
+
+export const signup = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { email: string; password: string; cin: string; phone?: string; region?: string }) => {
+      if (
+        typeof data?.email !== "string" ||
+        typeof data?.password !== "string" ||
+        typeof data?.cin !== "string"
+      ) {
+        throw new ApiError(400, "Email, password and CIN are required", "signup");
+      }
+      return {
+        email: data.email.trim().toLowerCase(),
+        password: data.password,
+        cin: data.cin.trim(),
+        phone: typeof data?.phone === "string" ? data.phone.trim() || undefined : undefined,
+        region: typeof data?.region === "string" ? data.region.trim() || undefined : undefined,
+      };
+    },
+  )
+  .handler(async ({ data }): Promise<ClientSession> => {
+    // The KYC record already exists in crm.customers (seeded via BSS import / legacy DB).
+    // business-api links the new portal account to it after proofing the CIN.
+    const result = await postCredential<SignupResponse>("/api/v1/auth/signup", {
+      email: data.email,
+      password: data.password,
+      cin: data.cin,
+      ...(data.phone ? { phone: data.phone } : {}),
+      ...(data.region ? { region: data.region } : {}),
+    });
+
+    const session: ClientSession = {
+      sub: result.email,
+      role: "client",
       exp: Math.floor(new Date(result.expires_at).getTime() / 1000),
       token: result.token,
     };
@@ -101,34 +144,14 @@ export const logout = createServerFn({ method: "POST" }).handler(async (): Promi
   const session = await readSession();
   if (session) {
     // Revoke server-side first so the token dies even if the browser keeps the cookie.
-    // A failure here must not trap the user in a session they asked to leave.
     try {
-      await postJson<{ signed_out: boolean }>("/api/v1/auth/logout", {}, session.token);
+      await businessApi<{ signed_out: boolean }>("/api/v1/auth/logout", {
+        method: "POST",
+        body: {},
+      });
     } catch {
       /* already expired or backend down — clearing the cookie is still correct */
     }
   }
   clearSessionCookie();
 });
-
-export const changePassword = createServerFn({ method: "POST" })
-  .inputValidator((data: { currentPassword: string; newPassword: string }) => {
-    if (typeof data?.currentPassword !== "string" || typeof data?.newPassword !== "string") {
-      throw new ApiError(400, "Both passwords are required", "password");
-    }
-    return { currentPassword: data.currentPassword, newPassword: data.newPassword };
-  })
-  .handler(async ({ data }): Promise<void> => {
-    const session = await readSession();
-    if (!session) throw new ApiError(401, "Not authenticated", "password");
-
-    await postJson<{ changed: boolean }>(
-      "/api/v1/auth/password",
-      { current_password: data.currentPassword, new_password: data.newPassword },
-      session.token,
-    );
-
-    // Changing a password revokes every session including this one. Clear the cookie so the
-    // next navigation lands on /login instead of on a dead token.
-    clearSessionCookie();
-  });

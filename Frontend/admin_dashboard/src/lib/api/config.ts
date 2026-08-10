@@ -27,12 +27,20 @@ export const serverConfig = {
   /** HMAC key for the session cookie. Generate: openssl rand -hex 32 */
   sessionSecret: () => required("ADMIN_SESSION_SECRET"),
 
-  /** Seeded admin credentials — see §8.1, this is the deliberate stop-gap. */
-  adminEmail: () => required("ADMIN_EMAIL"),
-  adminPassword: () => required("ADMIN_PASSWORD"),
-
-  /** Backend role granted on login. One of: conseiller | superviseur | administrateur */
-  adminRole: () => optional("ADMIN_ROLE", "administrateur"),
+  /*
+   * There is deliberately no adminEmail / adminPassword / adminRole here.
+   *
+   * Before P0-1 this process compared the submitted credentials against ADMIN_EMAIL and
+   * ADMIN_PASSWORD and then minted a session with ADMIN_ROLE (defaulting to administrateur).
+   * Since P0-1, login POSTs to /api/v1/auth/login and business-api verifies a scrypt hash in
+   * auth.portal_accounts; the role in the cookie is the role the BACKEND returned. This process
+   * no longer holds, compares, or can leak a password, and it cannot choose a role.
+   *
+   * ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_ROLE still exist — they are read by
+   * business_api.seed_admin to bootstrap that one staff row. They are backend variables. They
+   * are not this application's business, and requiring them here only forced operators to
+   * invent placeholder values to make the app boot.
+   */
 
   /** Session lifetime in seconds. Default 8 h — one shift. */
   sessionTtlSeconds: () => Number(optional("ADMIN_SESSION_TTL", "28800")),

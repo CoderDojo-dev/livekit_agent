@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,14 @@ from business_api import advisors as advisor_repo
 from business_api import availability as availability_repo
 from business_api import callbacks as callback_repo
 from business_api import policy_view
+from business_api import portal_auth
+from business_api.infrastructure.auth import rate_limit
+from business_api.infrastructure.auth.principal import (
+    Principal,
+    bearer_token,
+    current_client,
+    current_principal,
+)
 from business_api.jobs.integrity import run_integrity
 from business_api.jobs.retention import run_retention
 from business_api.repositories import SupervisionRepository
@@ -29,19 +37,184 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5174").split(","),
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "X-Role"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 DbSession = Annotated[Session, Depends(get_session)]
 ConseillerRole = Annotated[str, Depends(require_role("conseiller"))]
 SuperviseurRole = Annotated[str, Depends(require_role("superviseur"))]
 AdministrateurRole = Annotated[str, Depends(require_role("administrateur"))]
+CurrentPrincipal = Annotated[Principal, Depends(current_principal)]
+ClientPrincipal = Annotated[Principal, Depends(current_client)]
 
 
 @app.get("/health")
 async def health() -> dict:
     """Liveness probe."""
     return {"status": "ok"}
+
+
+# ---------------- Authentication (P0-1). One identity layer, two front ends. ----------------
+class LoginPayload(BaseModel):
+    """Credentials for either portal. The role comes from the account, never from the client."""
+
+    email: str
+    password: str
+
+
+class SignupPayload(BaseModel):
+    """A subscriber CLAIMING their existing account. It never creates telecom data."""
+
+    msisdn: str
+    cin_last4: str
+    email: str
+    password: str
+
+
+class PasswordChangePayload(BaseModel):
+    """Rotate your own password. Closes every other session."""
+
+    current_password: str
+    new_password: str
+
+
+_AUTH_STATUS = {
+    "invalid_credentials": 401,
+    "signup_failed": 401,
+    "weak_password": 400,
+    "locked": 429,
+    "rate_limited": 429,
+}
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort caller address for throttling. Never used for authorisation."""
+    return request.client.host if request.client else "unknown"
+
+
+def _auth_http(error: portal_auth.AuthError) -> HTTPException:
+    return HTTPException(
+        status_code=_AUTH_STATUS.get(error.code, 401), detail=error.message
+    )
+
+
+@app.post("/api/v1/auth/login")
+def auth_login(payload: LoginPayload, request: Request, session: DbSession) -> dict:
+    """Exchange credentials for an opaque bearer token. Ungated by design."""
+    bucket = f"login:{_client_ip(request)}"
+    if not rate_limit.check(bucket):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+    try:
+        account = portal_auth.authenticate(session, payload.email, payload.password)
+    except portal_auth.AuthError as error:
+        raise _auth_http(error) from None
+
+    rate_limit.reset(bucket)
+    token, expires_at = portal_auth.open_session(
+        session,
+        account,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    return {
+        "token": token,
+        "expires_at": expires_at.isoformat(),
+        "email": account.email,
+        "role": account.role,
+        "kind": account.kind,
+        "customer_id": str(account.customer_id) if account.customer_id else None,
+    }
+
+
+@app.post("/api/v1/auth/signup")
+def auth_signup(payload: SignupPayload, request: Request, session: DbSession) -> dict:
+    """Create a CLIENT login for an existing subscriber. Staff accounts are never self-served."""
+    bucket = f"signup:{_client_ip(request)}"
+    if not rate_limit.check(bucket, limit=10):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+    try:
+        account = portal_auth.signup_client(
+            session,
+            msisdn=payload.msisdn,
+            cin_last4=payload.cin_last4,
+            email=payload.email,
+            password=payload.password,
+        )
+    except portal_auth.AuthError as error:
+        raise _auth_http(error) from None
+
+    token, expires_at = portal_auth.open_session(
+        session,
+        account,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    return {
+        "token": token,
+        "expires_at": expires_at.isoformat(),
+        "email": account.email,
+        "role": account.role,
+        "kind": account.kind,
+        "customer_id": str(account.customer_id),
+    }
+
+
+@app.post("/api/v1/auth/logout")
+def auth_logout(request: Request, session: DbSession, principal: CurrentPrincipal) -> dict:
+    """Revoke the presented session. Idempotent."""
+    token = bearer_token(request.headers.get("authorization"))
+    if token:
+        portal_auth.revoke_session(session, token)
+    return {"signed_out": True}
+
+
+@app.get("/api/v1/auth/me")
+def auth_me(principal: CurrentPrincipal) -> dict:
+    """Who the presented credential belongs to. The front ends use this to validate a session."""
+    return {
+        "subject": principal.subject,
+        "kind": principal.kind,
+        "role": principal.role,
+        "customer_id": str(principal.customer_id) if principal.customer_id else None,
+    }
+
+
+@app.post("/api/v1/auth/password")
+def auth_change_password(
+    payload: PasswordChangePayload, session: DbSession, principal: CurrentPrincipal
+) -> dict:
+    """Change your own password. Machine principals have no password to change."""
+    if principal.account_id is None:
+        raise HTTPException(status_code=403, detail="requires a user account")
+    try:
+        revoked = portal_auth.change_password(
+            session, principal.account_id, payload.current_password, payload.new_password
+        )
+    except portal_auth.AuthError as error:
+        raise _auth_http(error) from None
+    return {"changed": True, "sessions_revoked": revoked}
+
+
+@app.post("/api/v1/auth/sessions/revoke-all")
+def auth_revoke_all(session: DbSession, principal: CurrentPrincipal) -> dict:
+    """Sign out of all devices. Backs the affordance already rendered on the portal Security page."""
+    if principal.account_id is None:
+        raise HTTPException(status_code=403, detail="requires a user account")
+    return {"sessions_revoked": portal_auth.revoke_all(session, principal.account_id)}
+
+
+# ---------------- Client portal reads. Scoped by the TOKEN, never by the URL. ----------------
+@app.get("/api/v1/me/profile")
+def me_profile(session: DbSession, principal: ClientPrincipal) -> dict:
+    """The signed-in customer's own 360.
+
+    customer_id comes from the authenticated principal, so there is no identifier in the request
+    for a caller to tamper with: client A cannot address customer B's data at all.
+    """
+    data = SupervisionRepository(session).customer_360(str(principal.customer_id))
+    if data is None:
+        raise HTTPException(status_code=404, detail="customer not found")
+    return data
 
 
 @app.get("/api/v1/customers")

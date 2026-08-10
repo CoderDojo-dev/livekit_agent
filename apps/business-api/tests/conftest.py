@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from persistence.engine import get_engine
@@ -61,3 +62,52 @@ def monday_slot(hour: int = 13, minute: int = 0) -> datetime:
     day = (now + timedelta(days=days_ahead)).replace(hour=hour, minute=minute,
                                                      second=0, microsecond=0, tzinfo=UTC)
     return day
+
+
+@pytest.fixture
+def api_client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """HTTP client bound to the rolled-back test transaction.
+
+    get_session is overridden so every request inside a test shares the fixture's session and
+    leaves no trace, exactly like db_session. Imported lazily so collecting this module never
+    requires a database.
+    """
+    from business_api.infrastructure.auth import rate_limit
+    from business_api.main import app
+    from persistence import get_session
+
+    # A shared 32+ char key so cin.digest() is computable in tests without touching the real one.
+    monkeypatch.setenv("AUTH_CIN_HMAC_KEY", "t" * 48)
+    monkeypatch.delenv("INTERNAL_API_KEY", raising=False)
+    rate_limit.clear_all()
+
+    app.dependency_overrides[get_session] = lambda: db_session
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+        rate_limit.clear_all()
+
+
+def make_staff_account(session: Session, *, email: str, password: str, role: str):
+    """A staff login usable by the HTTP tests."""
+    from datetime import UTC, datetime
+
+    from business_api.infrastructure.auth import passwords
+    from persistence.models.portal_identity import PortalAccount
+
+    algorithm, params, encoded = passwords.hash_password(password)
+    account = PortalAccount(
+        kind="staff",
+        email=email.lower(),
+        password_hash=encoded,
+        password_algo=algorithm,
+        password_params=params,
+        role=role,
+        customer_id=None,
+        is_active=True,
+        password_changed_at=datetime.now(UTC),
+    )
+    session.add(account)
+    session.flush()
+    return account

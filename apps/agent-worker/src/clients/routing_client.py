@@ -18,6 +18,7 @@ import httpx
 from config import get_settings
 
 from observability_kit import inject_trace_context
+from service_auth import internal_headers
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,11 @@ class RoutingClient:
     """Claims and releases advisors from the registry."""
 
     def __init__(self, base_url: str, timeout: float = 3.0) -> None:
+        # The worker authenticates as a MACHINE, with the shared internal key business-api maps
+        # to the conseiller rank - the exact rank these routes require. It no longer declares a
+        # role: a caller asserting its own privilege was the P0-1 vulnerability.
         self._client = httpx.AsyncClient(
-            base_url=base_url, timeout=timeout, headers={"X-Role": "conseiller"}
+            base_url=base_url, timeout=timeout, headers=internal_headers()
         )
 
     async def resolve_available_advisor(self, skill_tag: str) -> AdvisorDestination | None:

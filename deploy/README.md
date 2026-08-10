@@ -75,3 +75,43 @@ On Kubernetes, substitute `kubectl exec deploy/<name> -- env`.
 
 If the two lists differ, `/policies` is misreporting enforced policy. Fix the deployment, not
 the dashboard.
+
+---
+
+## P0-2 — the two front ends need two DIFFERENT session secrets, each present on every node
+
+### The rule
+
+Both front ends are server-rendered (TanStack Start). Each seals its session into an httpOnly,
+HMAC-signed cookie that it verifies server-side on every request:
+
+| App | Cookie | Signing key | Template |
+| --- | --- | --- | --- |
+| `Frontend/admin_dashboard` | `nexus_admin_session` | `ADMIN_SESSION_SECRET` | `Frontend/admin_dashboard/.env.example` |
+| `Frontend/customer_portal` | `nexus_portal_session` | `PORTAL_SESSION_SECRET` | `Frontend/customer_portal/.env.example` |
+
+Two rules, both enforced by nothing:
+
+1. **The two keys MUST differ.** One identity layer does not mean one key. A leaked admin key
+   must not forge client sessions, and vice versa.
+2. **Each key MUST be identical on every node serving that app.** A node with a different key
+   rejects every cookie its peers minted. Symptom: users randomly signed out behind a load
+   balancer, with no error anywhere.
+
+### Where it breaks
+
+| Topology | Risk |
+| --- | --- |
+| Single host, one `.env` per app | Safe. |
+| Two replicas with independently generated secrets | **Broken.** Intermittent sign-outs, ~50% per request. |
+| Helm / Kubernetes | **Broken by default** — nothing makes two pods share a generated value. Put each key in a Secret and mount that same Secret into every replica. |
+
+### Verifying it after a deploy
+
+```bash
+# Same app, every replica: identical. Different apps: MUST differ.
+kubectl exec deploy/admin-dashboard  -- printenv ADMIN_SESSION_SECRET  | sha256sum
+kubectl exec deploy/customer-portal  -- printenv PORTAL_SESSION_SECRET | sha256sum
+```
+
+Compare digests, never the raw values.

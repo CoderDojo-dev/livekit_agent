@@ -1,20 +1,12 @@
 import { serverConfig } from "./config";
 import { ApiError } from "./errors";
 import { readSession } from "./session.server";
-import type { BackendRole } from "./session";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   /** Query string params. undefined/null entries are dropped. */
   query?: Record<string, string | number | boolean | undefined | null>;
   body?: unknown;
-  /**
-   * Retained so all 21 existing callers keep compiling unchanged. It is NO LONGER SENT and no
-   * longer grants anything: since P0-1 the backend derives the role from the bearer token it
-   * issued. Kept as documentation of which rank a call expects, and used by requireRole() in
-   * middleware.ts to fail at the edge before a doomed round trip.
-   */
-  role?: BackendRole;
 };
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
@@ -30,14 +22,12 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
 /**
  * Server-only HTTP client for business-api.
  *
- * SECURITY: the role is never sent as a header. Since P0-1 the backend derives the role from
- * the bearer token it issued, so no client code can spoof one.
+ * The bearer token is read from the httpOnly session cookie inside this server-only module.
+ * The browser never sees it and no caller can substitute one.
  */
 export async function businessApi<T>(path: string, options: RequestOptions): Promise<T> {
   const { method = "GET", query, body } = options;
 
-  // The bearer token is read from the httpOnly session cookie inside this server-only module.
-  // The browser never sees it and no caller can substitute one.
   const session = await readSession();
 
   const controller = new AbortController();
@@ -90,7 +80,7 @@ export async function businessApi<T>(path: string, options: RequestOptions): Pro
   }
 }
 
-/** Connectivity probe for the login screen and Settings. Never throws. */
+/** Connectivity probe for the login screen. Never throws. */
 export async function businessApiHealth(): Promise<{ reachable: boolean; detail?: string }> {
   try {
     await businessApi<{ status: string }>("/health", {});

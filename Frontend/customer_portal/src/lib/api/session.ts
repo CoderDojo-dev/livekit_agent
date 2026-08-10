@@ -1,25 +1,14 @@
-export const SESSION_COOKIE = "nexus_admin_session";
+export const SESSION_COOKIE = "nexus_portal_session";
 
-/** Backend role vocabulary — mirrors _ROLE_RANK in business_api/security.py. */
-export type BackendRole = "conseiller" | "superviseur" | "administrateur";
+/** The only role a customer's portal session ever carries. Rank 0: it can pass every client gate. */
+export type ClientRole = "client";
 
-export const ROLE_RANK: Record<BackendRole, number> = {
-  conseiller: 1,
-  superviseur: 2,
-  administrateur: 3,
-};
+export const CLIENT_RANK: Record<ClientRole, number> = { client: 0 };
 
-/** Display labels. The wire value stays French; only the label is translated. */
-export const ROLE_LABEL: Record<BackendRole, string> = {
-  conseiller: "Advisor",
-  superviseur: "Supervisor",
-  administrateur: "Administrator",
-};
-
-export type AdminSession = {
-  /** Subject — the admin's email. */
+export type ClientSession = {
+  /** Subject — the customer's email. */
   sub: string;
-  role: BackendRole;
+  role: ClientRole;
   /** Expiry, epoch seconds. */
   exp: number;
   /**
@@ -68,7 +57,7 @@ function timingSafeEqual(a: string, b: string): boolean {
  * HMAC-SHA-256 sign. `secret` is supplied by the server-only caller so this module stays free of
  * server-only imports and remains importable from the client bundle.
  */
-export async function signSession(session: AdminSession, secret: string): Promise<string> {
+export async function signSession(session: ClientSession, secret: string): Promise<string> {
   const payload = toBase64Url(new TextEncoder().encode(JSON.stringify(session)));
   const signature = await crypto.subtle.sign(
     "HMAC",
@@ -81,7 +70,7 @@ export async function signSession(session: AdminSession, secret: string): Promis
 export async function verifySession(
   token: string | undefined,
   secret: string,
-): Promise<AdminSession | null> {
+): Promise<ClientSession | null> {
   if (!token) return null;
 
   const separator = token.lastIndexOf(".");
@@ -98,15 +87,11 @@ export async function verifySession(
   if (!timingSafeEqual(signature, expected)) return null;
 
   try {
-    const session = JSON.parse(new TextDecoder().decode(fromBase64Url(payload))) as AdminSession;
+    const session = JSON.parse(new TextDecoder().decode(fromBase64Url(payload))) as ClientSession;
     if (typeof session.exp !== "number" || session.exp * 1000 < Date.now()) return null;
-    if (!(session.role in ROLE_RANK)) return null;
+    if (session.role !== "client") return null;
     return session;
   } catch {
     return null;
   }
-}
-
-export function hasRank(session: AdminSession, minimum: BackendRole): boolean {
-  return ROLE_RANK[session.role] >= ROLE_RANK[minimum];
 }

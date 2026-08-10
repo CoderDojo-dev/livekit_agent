@@ -12,6 +12,7 @@ import httpx
 from config import get_settings
 
 from observability_kit import inject_trace_context
+from service_auth import internal_headers
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,9 @@ class CallbackClient:
     """Reads free slots and books one. Failures degrade to 'no slot', never to a fake one."""
 
     def __init__(self, base_url: str, timeout: float = 3.0) -> None:
+        # Machine identity, same shared key as context_client. See routing_client for why.
         self._client = httpx.AsyncClient(
-            base_url=base_url, timeout=timeout, headers={"X-Role": "conseiller"}
+            base_url=base_url, timeout=timeout, headers=internal_headers()
         )
 
     async def free_slots(self, days: int = 2, limit: int = 6, day: str | None = None,

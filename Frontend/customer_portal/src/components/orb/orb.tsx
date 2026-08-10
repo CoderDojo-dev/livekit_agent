@@ -32,8 +32,16 @@ export function Orb({ state, level = 0, size = 320, className }: OrbProps) {
       return;
     }
     handleRef.current = handle;
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      handleRef.current?.destroy();
+      handleRef.current = null;
+      setFallback(true);
+    };
+    canvas.addEventListener("webglcontextlost", onContextLost);
     return () => {
-      handle.destroy();
+      canvas.removeEventListener("webglcontextlost", onContextLost);
+      handleRef.current?.destroy();
       handleRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

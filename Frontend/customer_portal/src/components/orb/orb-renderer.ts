@@ -126,18 +126,26 @@ void main() {
 
   float d = 0.0;
   float hit = 0.0;
+  float closest = 1e9;
+  vec3 pClosest = ro;
   vec3 p = ro;
-  for (int i = 0; i < 72; i++) {
+  for (int i = 0; i < 96; i++) {
     p = ro + rd * d;
     float s = orbSDF(p, t);
+    if (s < closest) { closest = s; pClosest = p; }
     if (s < 0.0012) { hit = 1.0; break; }
     d += s * 0.82;
     if (d > 6.0) break;
   }
 
+  // Couverture anti-aliasee : feathering sur ~1.5 pixel en espace uv.
+  float px = 2.0 / min(u_res.x, u_res.y);
+  float cov = hit > 0.5 ? 1.0 : 1.0 - smoothstep(0.0, px * 1.5, closest);
+
   float l = 0.0;
 
-  if (hit > 0.5) {
+  if (cov > 0.004) {
+    p = (hit > 0.5) ? p : pClosest;
     vec3 n = orbNormal(p, t);
     vec3 v = normalize(ro - p);
     vec3 key = normalize(vec3(-0.45, 0.75, 0.55));
@@ -162,7 +170,7 @@ void main() {
   float dither = (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
   l = clamp(l + dither, 0.0, 1.0);
 
-  float alpha = clamp(max(hit, halo * 5.0), 0.0, 1.0);
+  float alpha = clamp(max(cov, halo * 5.0), 0.0, 1.0);
   fragColor = vec4(vec3(l), alpha);
 }
 `;
@@ -279,10 +287,20 @@ export function createOrbRenderer(
   const start = performance.now();
   let last = start;
 
-  const dpr = Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, 2);
+  // Budget fixe de fragments : jamais plus cher que le pire cas actuel
+  // (orbe 320 px @ DPR 2 = 640x640). Les petits canvas gagnent du DPR natif.
+  const FRAGMENT_BUDGET = 640 * 640;
+  let dpr = 1;
+
+  function effectiveDpr(rect: DOMRect) {
+    const device = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+    const area = Math.max(rect.width * rect.height, 1);
+    return Math.max(1, Math.min(device, Math.sqrt(FRAGMENT_BUDGET / area), 3));
+  }
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
+    dpr = effectiveDpr(rect);
     const w = Math.max(1, Math.round(rect.width * dpr));
     const h = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== w || canvas.height !== h) {
