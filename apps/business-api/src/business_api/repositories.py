@@ -990,6 +990,11 @@ class SupervisionRepository:
             )
             .join(CallSession, CallSession.id == Turn.session_id)
             .where(CallSession.start_time >= since)
+            # P0-3/P1-1 - count CALLER turns only. Before P0-3 every row in
+            # conversation.turns was a caller row, so this predicate was a no-op and
+            # its absence was invisible. The moment agent turns persist, omitting it
+            # would roughly double the number under a column labelled "Caller turns".
+            .where(Turn.speaker == "caller")
             .where(Turn.active_agent.isnot(None))
             .where(Turn.active_agent != "")
             .group_by(Turn.active_agent)

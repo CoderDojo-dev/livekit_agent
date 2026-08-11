@@ -14,14 +14,17 @@ bad()  { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # bare grep would flag intentional lesson text. Every static check below therefore filters out
 # comment lines (content whose first non-blank char is '#' or '*'); an actual reintroduction is a
 # definition/forward/accessor, which never begins with a comment marker and is still caught.
+# P0-3 follow-up (decision logged in the P0-3 results file): docs/versions/version_84.md is a
+# handoff changelog that quotes the removed variable in prose - same class as ':!features_to_apply',
+# so it is excluded too.
 no_comments() { grep -vE '^[^:]+:[0-9]+:[[:space:]]*[#*]'; }
 
 # --- static: nothing may reference an environment-sourced role default -------
 echo "static sweep"
 
-if git grep -n "BUSINESS_API_DEFAULT_ROLE" -- . ':!features_to_apply' ':!scripts/verify_p0_2.sh' ':!apps/business-api/tests/test_no_default_role.py' | no_comments; then
+if git grep -n "BUSINESS_API_DEFAULT_ROLE" -- . ':!features_to_apply' ':!scripts/verify_p0_2.sh' ':!apps/business-api/tests/test_no_default_role.py' ':!docs/versions/version_84.md' | no_comments; then
   bad "1  BUSINESS_API_DEFAULT_ROLE still present:"
-  git grep -n "BUSINESS_API_DEFAULT_ROLE" -- . ':!features_to_apply' ':!scripts/verify_p0_2.sh' ':!apps/business-api/tests/test_no_default_role.py' | no_comments | sed 's/^/        /'
+  git grep -n "BUSINESS_API_DEFAULT_ROLE" -- . ':!features_to_apply' ':!scripts/verify_p0_2.sh' ':!apps/business-api/tests/test_no_default_role.py' ':!docs/versions/version_84.md' | no_comments | sed 's/^/        /'
 else
   ok  "1  BUSINESS_API_DEFAULT_ROLE absent from the repo"
 fi

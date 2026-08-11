@@ -139,6 +139,21 @@ async def entrypoint(ctx: JobContext) -> None:
             logger.info("🎤 Caller: %s", text)
         elif item.role == "assistant":
             logger.info("🤖 Agent: %s", text)
+            # P0-3 - persist the agent half of the transcript. The text is already in
+            # hand here; before this it was logged and discarded, so every stored
+            # conversation was a monologue. Same writer, same queue, same table and
+            # the same enqueue-only contract as the caller side: nothing here touches
+            # the voice path, and a DB outage still degrades to a dropped row.
+            try:
+                persona = type(session.current_agent).__name__
+            except Exception:  # no active agent yet; attribution is optional
+                persona = None
+            writer.record_turn(
+                speaker="agent",
+                text=text,
+                active_agent=persona,
+                language=getattr(user_data, "language", None),
+            )
 
     @session.on("function_tools_executed")
     def _on_function_tools_executed(event: FunctionToolsExecutedEvent):
