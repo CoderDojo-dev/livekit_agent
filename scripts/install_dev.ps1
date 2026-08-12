@@ -46,9 +46,6 @@ Write-Output "========== Installing honcho (process manager) =========="
 pip install honcho --quiet
 
 Write-Output "========== Frontends (npm install) =========="
-Push-Location "$root\apps\supervisor-dashboard"
-npm install
-Pop-Location
 Push-Location "$root\apps\client-widget"
 npm install
 Pop-Location

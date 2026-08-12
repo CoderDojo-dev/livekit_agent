@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-for app in apps/client-widget apps/supervisor-dashboard; do
+for app in apps/client-widget; do
   echo "==> Reinstalling ${app}"
   cd "${ROOT_DIR}/${app}"
   rm -rf node_modules

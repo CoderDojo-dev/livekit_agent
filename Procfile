@@ -12,5 +12,4 @@ knowledge-mcp: ai-knowledge-rag
 ticketing-mcp: ticketing-glpi
 messaging-mcp: messaging-gateway
 worker:        python apps/agent-worker/src/server.py start
-dashboard:     npm --prefix apps/supervisor-dashboard run dev
 widget:        npm --prefix apps/client-widget run dev

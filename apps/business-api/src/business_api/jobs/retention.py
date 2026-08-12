@@ -11,13 +11,21 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from object_storage import get_store
-from sqlalchemy import select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
 from persistence.models.conversation import CallSession, Turn
+from persistence.models.portal_identity import PortalSession
 
 _PURGED = "[purged]"
+
+# P1-2 - auth.portal_sessions is the one table P0-1 added that grows without bound. A row whose
+# expires_at has passed, or which was revoked at logout, can no longer authenticate anything
+# (portal_auth checks both on every request), so removing it changes no behaviour. The grace
+# window keeps a logout or an expiry visible to an investigation for a week first. This is a
+# separate horizon from the conversation retention window on purpose: unrelated lifecycles.
+_SESSION_GRACE_DAYS = 7
 
 
 @dataclass
@@ -28,6 +36,7 @@ class RetentionReport:
     sessions_matched: int
     turns_anonymized: int
     dry_run: bool
+    portal_sessions_purged: int = 0
 
 
 def cutoff_date(retention_days: int, now: datetime | None = None) -> datetime:
@@ -68,7 +77,31 @@ def run_retention(session: Session, retention_days: int = 90, dry_run: bool = Tr
         )
         session.commit()
 
+    portal_sessions_purged = 0
+    if not dry_run:
+        session_cutoff = datetime.now(UTC) - timedelta(days=_SESSION_GRACE_DAYS)
+        purged = session.execute(
+            delete(PortalSession).where(
+                or_(
+                    PortalSession.expires_at < session_cutoff,
+                    PortalSession.revoked_at < session_cutoff,
+                )
+            )
+        )
+        portal_sessions_purged = purged.rowcount or 0
+        if portal_sessions_purged:
+            PgAuditLedger(session).append(
+                None, "data_retention",
+                {
+                    "cutoff": session_cutoff.isoformat(),
+                    "portal_sessions_purged": portal_sessions_purged,
+                },
+                entity_reference="retention_job",
+            )
+        session.commit()
+
     return RetentionReport(
         cutoff=cutoff.isoformat(), sessions_matched=matched,
         turns_anonymized=turns_anonymized, dry_run=dry_run,
+        portal_sessions_purged=portal_sessions_purged,
     )

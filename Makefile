@@ -27,12 +27,14 @@ install:  ## Install packages (correct order) + services + MCP + honcho (editabl
 	$(PIP) install $(addprefix -e ./,$(SERVICES)) $(addprefix -e ./,$(MCP)) -e ./apps/agent-worker
 	@echo "→ frontends: run 'make frontends'"
 
-frontends:  ## npm install both web apps
-	cd apps/supervisor-dashboard && npm install
+frontends:  ## npm install the shipped web apps (admin dashboard + customer portal)
+	cd Frontend/admin_dashboard && npm install
+	cd Frontend/customer_portal && npm install
 	cd apps/client-widget && npm install
 
 frontends-clean:  ## Reinstall frontend deps for the current OS (fixes Rollup optional deps)
-	cd apps/supervisor-dashboard && rm -rf node_modules && npm install
+	cd Frontend/admin_dashboard && rm -rf node_modules && npm install
+	cd Frontend/customer_portal && rm -rf node_modules && npm install
 	cd apps/client-widget && rm -rf node_modules && npm install
 
 infra:  ## Start infrastructure containers (postgres/redis/qdrant/minio/otel)
@@ -47,8 +49,9 @@ create-db:  ## Create the telecom database in Postgres if it does not exist yet
 migrate: create-db  ## Apply DB migrations (alembic upgrade head)
 	cd packages/persistence && $(PYTHON) -m alembic upgrade head
 
-seed:  ## Seed pilot callers + reference catalogs
-	cd packages/persistence && $(PYTHON) -m seed.seed_pilot && $(PYTHON) -m seed.seed_reference
+seed:  ## Seed pilot callers + reference catalogs + the logins P0-1 made mandatory
+	cd packages/persistence && $(PYTHON) -m seed.seed_pilot && $(PYTHON) -m seed.seed_reference && $(PYTHON) -m seed.seed_auth_credentials
+	$(PYTHON) -m business_api.seed_admin
 
 dev: install infra migrate seed  ## ONE COMMAND: install + infra + migrate + seed, then run everything (honcho)
 	@echo "Starting all app processes via honcho (Ctrl-C to stop all)…"

@@ -96,6 +96,29 @@ def _open_conversation(ctx: JobContext, user_data: SessionUserData) -> Conversat
     return writer
 
 
+def _derive_disposition(user_data: SessionUserData) -> str:
+    """How this call ended, in conversation.call_sessions.final_disposition's own vocabulary.
+
+    P1-2 - the column, its CHECK constraint and the writer parameter all existed, but the single
+    shutdown call site never passed a value, so every row was NULL and every disposition-derived
+    read (kpis, analytics_trend, telemetry_timeline, session_detail, the /sessions filter)
+    reported zero or "unknown". This decides nothing new: it reads state the session already
+    maintains and maps it onto the four values the CHECK constraint permits.
+
+    Escalation wins over a graceful close: a completed SIP transfer raises StopResponse and the
+    caller's leg is gone, so end_conversation cannot also have run. "dropped" is the fallback
+    rather than "resolved" - a call that ended without the agent closing it did not demonstrably
+    resolve anything, and guessing otherwise would inflate the very KPI this makes truthful.
+    """
+    if user_data.human_transfer_outcome or user_data.escalation_reason:
+        return "escalated"
+    if user_data.conversation_ending:
+        return "resolved"
+    if user_data.caller_turn_index == 0:
+        return "abandoned"
+    return "dropped"
+
+
 @server.rtc_session(agent_name=settings.livekit_agent_name.strip())
 async def entrypoint(ctx: JobContext) -> None:
     """Assemble and start a Triage voice session for the configured language."""
@@ -117,6 +140,7 @@ async def entrypoint(ctx: JobContext) -> None:
     async def _finish_conversation() -> None:
         history = user_data.sentiment_history or [0.0]
         writer.finish_session(
+            disposition=_derive_disposition(user_data),
             max_frustration=max(0.0, -min(history)),
             recording_consent=user_data.recording_consent,
         )

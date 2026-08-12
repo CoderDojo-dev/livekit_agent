@@ -40,6 +40,11 @@ class SessionUserData:
     human_transfer_in_progress: bool = False
     human_transfer_outcome: str | None = None
     escalation_reason: str | None = None
+    # P1-2 - tools.session_flow_tools.end_conversation already assigns this when the caller
+    # confirms they need nothing else. The dataclass has no slots, so the assignment silently
+    # created an undeclared attribute; declaring it makes the graceful close visible to type
+    # checkers and to _derive_disposition. False = the call did not end through the close tool.
+    conversation_ending: bool = False
     offer_count: int = 0
     user_refused_manager: bool = False
     can_hardfail: bool = True
