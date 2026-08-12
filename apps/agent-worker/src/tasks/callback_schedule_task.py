@@ -19,10 +19,9 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from livekit.agents import AgentTask, RunContext, function_tool
-
 from clients.callback_client import get_callback_client
 from clients.notification_client import get_notification_client
+from livekit.agents import AgentTask, RunContext, function_tool
 
 logger = logging.getLogger(__name__)
 

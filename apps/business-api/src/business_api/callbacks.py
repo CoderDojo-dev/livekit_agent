@@ -17,12 +17,10 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from business_api.availability import BUSINESS_TZ, DAY_END_HOUR, DAY_START_HOUR, ScheduleIndex, load_schedule
 from persistence.models.conversation import CallbackSchedule
 from persistence.models.crm import Customer
 from persistence.models.routing import Advisor
-
-from business_api.availability import (BUSINESS_TZ, DAY_END_HOUR, DAY_START_HOUR,
-                                       ScheduleIndex, load_schedule)
 
 logger = logging.getLogger(__name__)
 

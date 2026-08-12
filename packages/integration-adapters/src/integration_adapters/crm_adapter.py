@@ -13,12 +13,11 @@ import httpx
 from domain_core.entities import Client
 from domain_core.ports.crm import (
     ContactInfo,
-    Customer360,
     CrmPort,
     CrmUnavailable,
+    Customer360,
     SubscriptionLine,
 )
-from integration_adapters._http import get_json, post_json
 
 _TIMEOUT = 8.0
 

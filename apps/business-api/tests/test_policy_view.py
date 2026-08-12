@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import importlib
 
-import pytest
-
 
 def _fresh(monkeypatch, **env):
     """Reload policy_view under a specific POLICY_* environment (module reads os.getenv at call)."""

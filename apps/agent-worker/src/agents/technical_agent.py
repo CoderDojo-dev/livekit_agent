@@ -14,7 +14,6 @@ from tools import outcomes
 from tools.escalation_tools import caller_refused_manager, escalate_to_manager
 from tools.guarded_action import execute_guarded_action
 from tools.guards import ensure_identity_verified
-from tools.voice_flow import active_persona_tts
 from tools.technical_tools import check_network_status, diagnose_data_issue
 from tools.ticket_tools import (
     check_customer_tickets,
@@ -24,6 +23,7 @@ from tools.ticket_tools import (
     mark_ticket_resolved,
     update_support_ticket,
 )
+from tools.voice_flow import active_persona_tts
 
 from agents.base_agent import BaseTelecomAgent
 

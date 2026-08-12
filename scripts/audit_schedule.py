@@ -4,6 +4,7 @@ Run against the live database; the supervisor dashboard renders these, so the SQ
 where the data lives rather than buried in a view nobody can quote.
 """
 from sqlalchemy import text
+
 from persistence.engine import get_engine
 
 WEEKLY_HOURS_PER_ADVISOR = text(

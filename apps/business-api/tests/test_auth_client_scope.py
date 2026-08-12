@@ -4,9 +4,9 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
+from business_api.infrastructure.auth import cin, passwords
 from sqlalchemy.orm import Session
 
-from business_api.infrastructure.auth import cin, passwords
 from persistence.models.auth import CustomerCredential
 from persistence.models.crm import Customer, Subscription
 from persistence.models.portal_identity import PortalAccount

@@ -2,7 +2,10 @@ name: ci
 
 on:
   push:
-    branches: [ main ]
+    # P1-3: work happens on version_NN branches, so main-only meant CI never ran on the code being
+    # written. lint/test/db-migrations now run per push; the build and scan jobs stay main-only via
+    # their own `if:` guards, so this costs no registry pushes.
+    branches: [ main, 'version_*' ]
   pull_request:
 
 env:
@@ -32,6 +35,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install shared packages + tooling
         run: |
           pip install --upgrade pip
@@ -39,16 +43,19 @@ jobs:
                       ./packages/pii-shield ./packages/observability-kit ./packages/service-auth \
                       ./packages/cache ./packages/object-storage ./packages/notification-client \
                       ./packages/integration-adapters
-      - name: Offline test suite
+      # P1-3: run_tests.py sets PYTHONPATH but installs nothing, so every target's third-party
+      # dependencies must be present first. This list mirrors the Makefile `install` target.
+      - name: Install services, MCP servers and apps
         run: |
-          set -e
-          for pkg in packages/audit-trail packages/service-auth packages/cache packages/object-storage \
-                     packages/integration-adapters packages/persistence \
-                     services/context-service services/decision-service services/policy-service \
-                     services/execution-service services/notification-service services/knowledge-service \
-                     apps/business-api ; do
-            echo "== $pkg ==" ; ( cd "$pkg" && pip install -q . && python -m pytest -q ) || exit 1
-          done
+          pip install ./services/context-service ./services/knowledge-service ./services/decision-service \
+                      ./services/policy-service ./services/execution-service ./services/notification-service \
+                      ./apps/token-service ./apps/business-api
+          pip install ./mcp-servers/ai-knowledge-rag ./mcp-servers/ticketing-glpi ./mcp-servers/messaging-gateway
+          pip install ./apps/agent-worker
+      # P1-3: single source of truth. `make test` and CI now run the identical inventory, so the two
+      # can no longer drift. Adding a target in run_tests.py is enough to add it to CI.
+      - name: Offline test suite
+        run: python scripts/run_tests.py
 
   db-migrations:
     runs-on: ubuntu-latest
@@ -84,6 +91,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     strategy:
       matrix:
+        # P1-3: only the six that actually live under services/. token-service, business-api and
+        # agent-worker live under apps/ and are built by docker-build-apps with the correct path;
+        # listing them here built them from a non-existent file and double-pushed the same tags.
         service:
           - context-service
           - decision-service
@@ -91,9 +101,6 @@ jobs:
           - execution-service
           - knowledge-service
           - notification-service
-          - token-service
-          - business-api
-          - agent-worker
     steps:
       - uses: actions/checkout@v4
       - name: Log in to registry

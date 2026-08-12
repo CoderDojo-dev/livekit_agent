@@ -5,7 +5,7 @@ readable — each check is one assertion, not twenty lines of setup.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 

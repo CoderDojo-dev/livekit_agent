@@ -1,4 +1,5 @@
 import pytest
+
 from persistence.engine import session_scope
 from persistence.models.oss import Outage
 

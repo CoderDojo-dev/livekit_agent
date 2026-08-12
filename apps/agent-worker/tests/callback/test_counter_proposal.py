@@ -6,7 +6,6 @@ very instant the business API had just validated.
 import types
 
 import pytest
-
 from tasks.callback_schedule_task import CallbackScheduleTask
 
 

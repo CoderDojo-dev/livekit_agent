@@ -1,6 +1,5 @@
 """Probleme #5 : un composant sans source de donnees ne doit rien affirmer."""
 import pytest
-
 from integration_adapters.nms_adapter import MockNmsAdapter
 
 

@@ -169,7 +169,7 @@ def _patch_stream(tts_module) -> None:
         self._audit_id = next(_IDS)
         self._audit_parts = []
         self._audit_total = 0
-        owner = kwargs.get("tts", None)
+        owner = kwargs.get("tts")
         _emit(
             "stream_opened",
             stream_id=self._audit_id,
@@ -236,7 +236,7 @@ def _patch_chunked(tts_module) -> None:
 
     def audited_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
-        text = kwargs.get("input_text", None)
+        text = kwargs.get("input_text")
         if text is None:
             text = getattr(self, "_input_text", "") or ""
         text = str(text)

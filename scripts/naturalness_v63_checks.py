@@ -1,7 +1,7 @@
 """Static checks for naturalness v63 patch (identity, payment, outcomes)."""
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), os.pardir, "apps", "agent-worker", "src"))
 
@@ -39,7 +39,7 @@ with open(_IDENTITY_PATH, encoding="utf-8") as fh:
     _ID_SRC = fh.read()
 
 # Extract each dict by capturing between _PROMPTS = { ... } etc.
-import ast, re
+import re
 
 # Quick sanity via regex rather than full AST
 _DICT_NAMES = ["_PROMPTS", "_RETRY", "_INVALID", "_SUCCESS", "_FAILURE"]
@@ -130,6 +130,7 @@ check("failed(): garde message param", "message: str | None = None" in _OUT_SRC)
 # ---------------------------------------------------------------------------
 section("E. Non-régression : seuls 3 fichiers touchés")
 import subprocess
+
 result = subprocess.run(
     ["git", "diff", "--name-only"],
     capture_output=True, text=True, cwd=os.path.join(sys.path[0], "..", "..", ".."),

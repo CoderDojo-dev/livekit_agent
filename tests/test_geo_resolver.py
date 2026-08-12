@@ -1,6 +1,5 @@
 """Contrat de normalisation : il doit rester identique au seeder."""
 import pytest
-
 from nms_sim.geo_resolver import normalize, resolve
 
 

@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def _distinct_service_urls(self) -> "Settings":
+    def _distinct_service_urls(self) -> Settings:
         """Deux services ne peuvent pas partager la meme adresse.
 
         Sinon l'agent interroge le mauvais service et recoit une reponse valide

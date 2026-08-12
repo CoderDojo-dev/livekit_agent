@@ -10,10 +10,9 @@ import asyncio
 import logging
 from typing import Any
 
-from livekit.agents.types import NOT_GIVEN, NotGiven, NotGivenOr
-
 from livekit.agents import RunContext
 from livekit.agents.llm.tool_context import StopResponse
+from livekit.agents.types import NOT_GIVEN, NotGiven, NotGivenOr
 
 logger = logging.getLogger(__name__)
 

@@ -8,8 +8,8 @@ Exit code: 0 if all pass, 1 if any fail.
 """
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 # Ensure the agent-worker src is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "agent-worker", "src"))
@@ -17,37 +17,33 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "agent-
 import asyncio
 from typing import Any
 
-# ---------------------------------------------------------------------------
-# Production code under test
-# ---------------------------------------------------------------------------
-from tools.ticket_tools import (
-    _OPEN_STATES,
-    _CLOSED_STATES,
-    _STOP_WORDS,
-    _keywords,
-    _same_problem,
-    _refused_foreign,
-    create_support_ticket,
-    check_customer_tickets,
-    get_ticket_state,
-    mark_ticket_resolved,
-    update_support_ticket,
-    delete_support_ticket,
-    TicketingUnavailable,
-    _unavailable,
-)
-
 from ticket_logic import (
-    FakeContext,
-    FakeCustomer,
-    FakeToolResult,
+    ALL_TICKETS,
     TICKET_A_NETWORK,
     TICKET_A_SAME,
     TICKET_B_BILLING,
     TICKET_C_RESOLVED,
     TICKET_D_CLOSED,
-    TICKET_E_OTHER_CUSTOMER,
-    ALL_TICKETS,
+    FakeContext,
+)
+
+# ---------------------------------------------------------------------------
+# Production code under test
+# ---------------------------------------------------------------------------
+from tools.ticket_tools import (
+    _CLOSED_STATES,
+    _OPEN_STATES,
+    _STOP_WORDS,
+    TicketingUnavailable,
+    _keywords,
+    _refused_foreign,
+    _same_problem,
+    check_customer_tickets,
+    create_support_ticket,
+    delete_support_ticket,
+    get_ticket_state,
+    mark_ticket_resolved,
+    update_support_ticket,
 )
 
 # ---------------------------------------------------------------------------
@@ -98,6 +94,7 @@ async def _fake_mcp_call(tool: str, arguments: dict) -> dict | list | None:
 
 # Apply the patch
 import tools.ticket_tools as tt
+
 tt._mcp_call = _fake_mcp_call  # type: ignore[assignment]
 
 # ---------------------------------------------------------------------------
@@ -106,12 +103,12 @@ tt._mcp_call = _fake_mcp_call  # type: ignore[assignment]
 
 @check("P0.1 — _OPEN_STATES contient open/in_progress/pending")
 def _():
-    assert _OPEN_STATES == {"open", "in_progress", "pending"}
+    assert {"open", "in_progress", "pending"} == _OPEN_STATES
 
 
 @check("P0.2 — _CLOSED_STATES contient resolved/closed")
 def _():
-    assert _CLOSED_STATES == {"resolved", "closed"}
+    assert {"resolved", "closed"} == _CLOSED_STATES
 
 
 @check("P0.3 — _MAX_LISTED vaut 10")
@@ -465,6 +462,7 @@ def _():
 
 from agents.technical_agent import TechnicalAgent
 
+
 @check("P2.1 — TechnicalAgent enregistre delete_support_ticket")
 def _():
     import inspect
@@ -493,6 +491,7 @@ def _():
 # ---------------------------------------------------------------------------
 
 from agents.triage_agent import TriageAgent
+
 
 @check("P3.1 — TriageAgent enregistre check_customer_tickets et get_ticket_state")
 def _():
@@ -547,8 +546,9 @@ def _():
     """Scenario 5.7: le client dit 'mon probleme est resolu' a Triage
     -> Triage a check_customer_tickets + get_ticket_state pour voir,
     et route_to_technical pour ecrire."""
-    from agents.triage_agent import TriageAgent
     import inspect
+
+    from agents.triage_agent import TriageAgent
     src = inspect.getsource(TriageAgent.__init__)
     assert "check_customer_tickets" in src
     assert "route_to_technical" in src

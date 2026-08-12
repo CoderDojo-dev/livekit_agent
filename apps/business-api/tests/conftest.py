@@ -74,6 +74,7 @@ def api_client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> TestClie
     """
     from business_api.infrastructure.auth import rate_limit
     from business_api.main import app
+
     from persistence import get_session
 
     # A shared 32+ char key so cin.digest() is computable in tests without touching the real one.
@@ -94,6 +95,7 @@ def make_staff_account(session: Session, *, email: str, password: str, role: str
     from datetime import UTC, datetime
 
     from business_api.infrastructure.auth import passwords
+
     from persistence.models.portal_identity import PortalAccount
 
     algorithm, params, encoded = passwords.hash_password(password)

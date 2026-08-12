@@ -11,7 +11,6 @@ from collections.abc import Iterable
 
 from conversation.writer import sentiment_label
 from livekit.agents import Agent
-from livekit.agents.types import NotGivenOr
 from sentiment.sentiment_scorer import get_sentiment_scorer
 from tools.escalation_policy import decide
 from tools.session_flow_tools import end_conversation, switch_spoken_language
@@ -27,11 +26,11 @@ from agents.instruction_kit import (
 )
 
 __all__ = [
-    "BaseTelecomAgent",
     "CLOSING_PROTOCOL",
     "KNOWLEDGE_ABSTENTION_RULE",
     "LANGUAGE_SWITCH_POLICY",
     "NO_DEAD_END_MANDATE",
+    "BaseTelecomAgent",
     "merge_instructions",
 ]
 

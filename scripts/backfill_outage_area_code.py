@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import logging
 
+from nms_sim.geo_resolver import resolve
 from sqlalchemy import select
 
-from nms_sim.geo_resolver import resolve
 from persistence.engine import session_scope
 from persistence.models.oss import Outage
 

@@ -9,7 +9,6 @@ sync with the real persona files, so this mirror cannot silently rot.
 from __future__ import annotations
 
 import pytest
-
 from agents.account_services_agent import _CORE as ACCOUNT_CORE
 from agents.billing_agent import _CORE as BILLING_CORE
 from agents.domains import DOMAIN_BY_KEY, DOMAINS, SUPPORTED_LANGUAGES
@@ -195,7 +194,7 @@ def test_tool_names_resolves_every_shape_and_never_raises() -> None:
         name = "top_up"
 
     class WithInfo:  # resolved via .info.name
-        class info:  # noqa: N801
+        class info:
             name = "unblock_sim"
 
     class Opaque:  # MCP toolset stand-in: no resolvable name, must be skipped

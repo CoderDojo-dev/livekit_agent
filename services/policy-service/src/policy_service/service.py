@@ -119,7 +119,7 @@ class PolicyService:
             )
             self._session.commit()
             return str(verdict.id)
-        except Exception as exc:  # noqa: BLE001 - a storage defect must never rewrite a verdict
+        except Exception as exc:
             self._session.rollback()
             logger.error(
                 "policy verdict persistence failed (action=%s verdict=%s rule=%s): %s",

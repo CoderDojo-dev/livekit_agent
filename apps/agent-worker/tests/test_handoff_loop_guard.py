@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 import pytest
 from livekit.agents.llm.tool_context import StopResponse
-
 from tools.voice_flow import MAX_HANDOFFS_PER_CALL, handoff_with_message
 
 

@@ -5,7 +5,6 @@ import hashlib
 import hmac
 
 import pytest
-
 from business_api.infrastructure.auth import cin
 
 _KEY = "k" * 48

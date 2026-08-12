@@ -3,8 +3,6 @@ import asyncio
 import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tools.escalation_policy import EscalationPolicy
-
 
 class _Session:
     def __init__(self):

@@ -2,11 +2,36 @@
 [tool.ruff]
 target-version = "py312"
 line-length = 110
-extend-exclude = ["**/alembic/versions/*", "**/node_modules/**", "**/dist/**", "fixes/**"]
+extend-exclude = ["**/alembic/versions/*", "**/node_modules/**", "**/dist/**", "fixes/**",
+                  # P1-3: ad-hoc local verification scratch (not part of the repo / CI tree),
+                  # treated like fixes/** above.
+                  "fix_ticketing/**", "patche_zones/**", "tts_patch_audit/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 ignore = ["E501"]  # line length handled by the formatter; docstrings can run long
+
+[tool.ruff.lint.per-file-ignores]
+# P1-3 ratchet: pre-existing violations grandfathered per-file so `ruff check .` is green and CI can
+# run. New files get no entry here and are held to the full rule set, so this list can only shrink.
+# Burn-down tracked in the P1-3 results document. Remove an entry when its file is cleaned.
+# server.py: E402 is the deliberate mid-file import after install_pii_masking().
+"apps/agent-worker/src/server.py" = ["E402"]
+"apps/agent-worker/src/tasks/callback_schedule_task.py" = ["C408"]
+"apps/agent-worker/src/tools/clarification_tools.py" = ["SIM102"]
+# voice_flow.py: B010 kept as setattr on purpose — session_state is duck-typed (Any), and the
+# attribute may not exist yet; assignment would be identical today but the guard is deliberate.
+"apps/agent-worker/src/tools/voice_flow.py" = ["B010"]
+"apps/agent-worker/tests/callback/test_counter_proposal.py" = ["C408"]
+"apps/agent-worker/tests/keyterms/test_keyterms.py" = ["C401"]
+"apps/business-api/src/business_api/availability.py" = ["B905", "RUF007"]
+"apps/business-api/src/business_api/main.py" = ["B904"]
+"apps/business-api/tests/test_reserve_assigns_advisor.py" = ["F811", "F841"]
+"scripts/manager_v62_checks.py" = ["RUF005", "B007"]
+"scripts/naturalness_v63_checks.py" = ["E402"]
+"scripts/ticketing_v61_checks.py" = ["E402", "F841"]
+"services/nms-sim/src/nms_sim/incidents.py" = ["SIM103"]
+"services/provisioning-sim/src/provisioning_sim/main.py" = ["B904"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
@@ -21,3 +46,27 @@ warn_redundant_casts = true
 ignore_missing_imports = true          # third-party stubs (livekit, mcp, qdrant) not always present
 disallow_untyped_defs = false          # pragmatic: enable per-package as coverage grows
 exclude = "(alembic/versions|node_modules|dist|/tests/)"
+
+[[tool.mypy.overrides]]
+# P1-3 ratchet (user-approved): 14 modules with 52 pre-existing type errors. Grandfathered with
+# ignore_errors so `mypy packages/ services/ apps/` is green and the CI lint job can run. These are
+# documented debt, listed per-module so the burn-down is auditable; mypy still checks every other
+# source file with full strictness. Remove a line when its module is cleaned.
+# Burn-down tracked in the P1-3 results document.
+module = [
+  "business_api.availability",
+  "business_api.callbacks",
+  "business_api.repositories",
+  "context_service.repositories",
+  "policy_service.service",
+  "agents.manager_agent",
+  "clients.callback_client",
+  "providers.stt",
+  "providers.tts_audit",
+  "tasks.callback_schedule_task",
+  "tasks.consent_task",
+  "tasks.identity_verification_task",
+  "tasks.sim_replacement_task_group",
+  "tools.ticket_tools",
+]
+ignore_errors = true

@@ -5,9 +5,8 @@ that was the vulnerability.
 """
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
-
 from conftest import make_staff_account
+from sqlalchemy.orm import Session
 
 ADMIN = ("admin@test.local", "a-long-enough-password")
 ADVISOR = ("advisor@test.local", "another-long-password")

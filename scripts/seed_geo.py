@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import logging
 
+from nms_sim.geo_resolver import normalize
 from sqlalchemy import text
 
-from nms_sim.geo_resolver import normalize
 from persistence.engine import session_scope
 
 logging.basicConfig(level=logging.INFO)

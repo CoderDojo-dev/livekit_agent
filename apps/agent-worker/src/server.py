@@ -37,6 +37,7 @@ if not root_logger.handlers:
     logging.basicConfig(level=logging.INFO)
 install_pii_masking()
 from providers.tts_audit import install_tts_audit
+
 install_tts_audit()
 
 logger = logging.getLogger("agent-worker")

@@ -2,7 +2,6 @@
 
 Chaque test correspond a un defaut reellement constate en v58.
 """
-import pytest
 
 from nms_sim import incidents
 

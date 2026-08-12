@@ -1,7 +1,6 @@
 """A reservation must name a real, working advisor from the moment it is written.
 An unassigned promise ("an advisor will call you") is what this queue was built to stop."""
 from business_api.callbacks import reserve
-
 from conftest import db_session, make_advisor, monday_slot  # noqa: F401
 
 

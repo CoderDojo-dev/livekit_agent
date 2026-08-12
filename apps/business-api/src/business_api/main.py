@@ -10,14 +10,14 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
 from business_api import advisors as advisor_repo
 from business_api import availability as availability_repo
 from business_api import callbacks as callback_repo
-from business_api import policy_view
-from business_api import portal_auth
+from business_api import policy_view, portal_auth
 from business_api.infrastructure.auth import rate_limit
 from business_api.infrastructure.auth.principal import (
     Principal,
@@ -29,7 +29,6 @@ from business_api.jobs.integrity import run_integrity
 from business_api.jobs.retention import run_retention
 from business_api.repositories import SupervisionRepository
 from business_api.security import require_role
-from pydantic import BaseModel
 from persistence import get_session
 
 app = FastAPI(title="business-api")

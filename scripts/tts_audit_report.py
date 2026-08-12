@@ -25,7 +25,7 @@ BAR = "-" * 74
 
 def load(path):
     rows = []
-    with open(path, "r", encoding="utf-8") as handle:
+    with open(path, encoding="utf-8") as handle:
         for raw in handle:
             raw = raw.strip()
             if not raw:
