@@ -43,6 +43,11 @@ jobs:
                       ./packages/pii-shield ./packages/observability-kit ./packages/service-auth \
                       ./packages/cache ./packages/object-storage ./packages/notification-client \
                       ./packages/integration-adapters
+      # Mirrors services/knowledge-service/Dockerfile: install torch CPU-only FIRST so pip resolves
+      # sentence-transformers' dependency to the light (~118 MB) CPU wheel instead of ~2 GB of CUDA
+      # libs. Same pin as the image (2.2.2 is load-bearing for the numpy 1.x ABI).
+      - name: Install torch (CPU-only) before service deps
+        run: pip install --retries 10 --timeout 120 torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu
       # P1-3: run_tests.py sets PYTHONPATH but installs nothing, so every target's third-party
       # dependencies must be present first. This list mirrors the Makefile `install` target.
       - name: Install services, MCP servers and apps

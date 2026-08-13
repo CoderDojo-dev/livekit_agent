@@ -146,13 +146,17 @@ function ProfilePage() {
             </div>
             <Divider className="mt-sp-7" />
             <FieldRow label={copy.profile.fields.fullName} value={me.full_name} />
-            <Divider />
-            <FieldRow
-              label={copy.profile.fields.reference}
-              value={me.account_number ?? "\u2014"}
-              mono
-              hint={copy.profile.locked}
-            />
+            {me.account_number ? (
+              <>
+                <Divider />
+                <FieldRow
+                  label={copy.profile.fields.reference}
+                  value={me.account_number}
+                  mono
+                  hint={copy.profile.locked}
+                />
+              </>
+            ) : null}
           </Card>
         ) : null}
 
