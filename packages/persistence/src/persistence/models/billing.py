@@ -153,6 +153,10 @@ class Notification(UUIDPrimaryKey, Base):
     __table_args__ = (
         CheckConstraint("channel IN ('sms','whatsapp','email')", name="channel"),
         CheckConstraint("status IN ('queued','sent','failed')", name="status"),
+        CheckConstraint(
+            "failure_reason IS NULL OR status = 'failed'",
+            name="failure_reason_only_when_failed",
+        ),
         {"schema": "billing"},
     )
 
@@ -162,6 +166,7 @@ class Notification(UUIDPrimaryKey, Base):
     channel: Mapped[str] = mapped_column(String(20), nullable=False)
     template_code: Mapped[str | None] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'sent'"))
+    failure_reason: Mapped[str | None] = mapped_column(String(200))
     sent_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

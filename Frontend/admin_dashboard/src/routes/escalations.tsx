@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
 import {
+  Button,
   Card,
   CardHeader,
   EmptyState,
@@ -13,7 +14,13 @@ import {
 } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState } from "@/components/nexus/states";
-import { listEscalations, type Escalation } from "@/lib/api/escalations.server";
+import { errorMessage } from "@/lib/api/errors";
+import {
+  closeEscalation,
+  listEscalations,
+  type Escalation,
+  type EscalationResolution,
+} from "@/lib/api/escalations.server";
 import {
   dossierEntries,
   escalationMatches,
@@ -29,6 +36,13 @@ import { cn } from "@/lib/utils";
 const SCOPE_OPTIONS = [
   { id: "open", label: "Open" },
   { id: "all", label: "All" },
+];
+
+const RESOLUTIONS: { id: EscalationResolution; label: string }[] = [
+  { id: "transferred", label: "Transferred" },
+  { id: "queued", label: "Queued" },
+  { id: "callback_scheduled", label: "Callback scheduled" },
+  { id: "resolved", label: "Resolved" },
 ];
 
 export const Route = createFileRoute("/escalations")({
@@ -55,6 +69,16 @@ function EscalationsPage() {
   const query = useQuery({
     queryKey: escalationKeys.list(scope),
     queryFn: () => listEscalations({ data: { scope } }),
+  });
+
+  const queryClient = useQueryClient();
+
+  const close = useMutation({
+    mutationFn: (vars: { id: string; resolution: EscalationResolution }) =>
+      closeEscalation({ data: vars }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: escalationKeys.list(scope) });
+    },
   });
 
   const rows = useMemo(
@@ -162,11 +186,32 @@ function EscalationsPage() {
 
             <div className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-7 py-sp-5">
               <span className="t-label text-ink-3">Outcome</span>
-              <span className="ml-auto flex items-center gap-sp-4">
-                <span className="t-ui text-ink-2">{resolutionLabel(current.resolution)}</span>
-                <StatusChip status={escalationStatusKey(current.resolution)} />
-              </span>
+              {current.resolution ? (
+                <span className="ml-auto flex items-center gap-sp-4">
+                  <span className="t-ui text-ink-2">{resolutionLabel(current.resolution)}</span>
+                  <StatusChip status={escalationStatusKey(current.resolution)} />
+                </span>
+              ) : (
+                <span className="ml-auto flex flex-wrap items-center justify-end gap-sp-3">
+                  {RESOLUTIONS.map((r) => (
+                    <Button
+                      key={r.id}
+                      size="sm"
+                      variant="secondary"
+                      disabled={close.isPending}
+                      onClick={() => close.mutate({ id: current.id, resolution: r.id })}
+                    >
+                      {r.label}
+                    </Button>
+                  ))}
+                </span>
+              )}
             </div>
+            {close.isError ? (
+              <p role="alert" className="t-caption px-sp-7 pb-sp-5 text-ink-2">
+                {errorMessage(close.error)}
+              </p>
+            ) : null}
 
             <div className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-7 py-sp-5">
               <span className="t-label text-ink-3">Session</span>

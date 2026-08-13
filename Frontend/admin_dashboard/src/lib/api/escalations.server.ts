@@ -41,3 +41,27 @@ export const listEscalations = createServerFn({ method: "GET" })
       role: context.session.role,
     });
   });
+
+export const escalationResolution = z.enum([
+  "transferred",
+  "queued",
+  "callback_scheduled",
+  "resolved",
+]);
+export type EscalationResolution = z.infer<typeof escalationResolution>;
+
+const CloseInput = z.object({
+  id: z.string().min(1),
+  resolution: escalationResolution,
+});
+
+export const closeEscalation = createServerFn({ method: "POST" })
+  .middleware([requireRole("superviseur")])
+  .inputValidator((data: unknown) => CloseInput.parse(data))
+  .handler(async ({ data, context }) => {
+    return businessApi<Escalation>(`/api/v1/escalations/${data.id}/close`, {
+      method: "POST",
+      body: { resolution: data.resolution },
+      role: context.session.role,
+    });
+  });

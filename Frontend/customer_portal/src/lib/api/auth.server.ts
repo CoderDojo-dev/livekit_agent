@@ -100,33 +100,34 @@ type SignupResponse = {
 };
 
 export const signup = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: { email: string; password: string; cin: string; phone?: string; region?: string }) => {
-      if (
-        typeof data?.email !== "string" ||
-        typeof data?.password !== "string" ||
-        typeof data?.cin !== "string"
-      ) {
-        throw new ApiError(400, "Email, password and CIN are required", "signup");
-      }
-      return {
-        email: data.email.trim().toLowerCase(),
-        password: data.password,
-        cin: data.cin.trim(),
-        phone: typeof data?.phone === "string" ? data.phone.trim() || undefined : undefined,
-        region: typeof data?.region === "string" ? data.region.trim() || undefined : undefined,
-      };
-    },
-  )
+  .inputValidator((data: { email: string; password: string; cin: string; msisdn: string }) => {
+    if (
+      typeof data?.email !== "string" ||
+      typeof data?.password !== "string" ||
+      typeof data?.cin !== "string" ||
+      typeof data?.msisdn !== "string"
+    ) {
+      throw new ApiError(400, "Email, password, CIN and phone number are required", "signup");
+    }
+    const cin = data.cin.replace(/\D/g, "");
+    if (cin.length < 4) {
+      throw new ApiError(400, "Enter at least the last four digits of your CIN", "signup");
+    }
+    return {
+      email: data.email.trim().toLowerCase(),
+      password: data.password,
+      cin_last4: cin.slice(-4),
+      msisdn: data.msisdn.replace(/\s/g, ""),
+    };
+  })
   .handler(async ({ data }): Promise<ClientSession> => {
-    // The KYC record already exists in crm.customers (seeded via BSS import / legacy DB).
-    // business-api links the new portal account to it after proofing the CIN.
+    // The KYC record already exists in crm.customers. business-api links the new portal account
+    // to it by matching the MSISDN on crm.subscriptions and proofing the last four CIN digits.
     const result = await postCredential<SignupResponse>("/api/v1/auth/signup", {
       email: data.email,
       password: data.password,
-      cin: data.cin,
-      ...(data.phone ? { phone: data.phone } : {}),
-      ...(data.region ? { region: data.region } : {}),
+      cin_last4: data.cin_last4,
+      msisdn: data.msisdn,
     });
 
     const session: ClientSession = {

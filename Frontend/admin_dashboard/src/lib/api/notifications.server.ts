@@ -11,6 +11,7 @@ export type NotificationRow = {
   channel: string;
   template_code: string | null;
   status: string;
+  failure_reason: string | null;
   sent_at: string | null;
   created_at: string | null;
 };

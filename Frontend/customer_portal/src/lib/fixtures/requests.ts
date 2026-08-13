@@ -59,7 +59,7 @@ export const requests: readonly CustomerRequest[] = [
     id: "req_2038",
     ref: "REQ-2038",
     title: "Invoice address on PDF is out of date",
-    summary: "The February PDF still shows the old Bramley Road flat number.",
+    summary: "The February PDF still shows the old flat number.",
     status: "open",
     opened: "14 March",
     updated: "14 March, 09:20",
@@ -111,7 +111,13 @@ export const requests: readonly CustomerRequest[] = [
     updated: "19 February, 08:30",
     needsYou: false,
     events: [
-      { id: "ev_1", label: "Request received", body: null, at: "18 February, 15:02", author: "you" },
+      {
+        id: "ev_1",
+        label: "Request received",
+        body: null,
+        at: "18 February, 15:02",
+        author: "you",
+      },
       {
         id: "ev_2",
         label: "Closed",

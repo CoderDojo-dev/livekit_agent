@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Bell, Search, Lock, ChevronDown } from "lucide-react";
 import { PAGE_HEAD } from "@/lib/nav";
 import { copy } from "@/lib/copy";
-import { customer, notifications } from "@/lib/fixtures/customer";
+import { notifications } from "@/lib/fixtures/customer";
+import { fetchProfileDetail } from "@/lib/api/me.server";
 import { IconButton, StatusChip } from "@/components/portal/primitives";
 import { cn } from "@/lib/utils";
 
@@ -17,14 +19,18 @@ export function PortalTopbar() {
   const head = PAGE_HEAD[base] ?? { title: "Assistant", subtitle: null };
   const [openTray, setOpenTray] = useState(false);
   const unread = notifications.filter((n) => n.unread).length;
+  const profile = useQuery({
+    queryKey: ["me", "profile", "detail"],
+    queryFn: () => fetchProfileDetail(),
+  });
+  const me = profile.data;
+  const initials = me ? `${me.first_name.charAt(0)}${me.last_name.charAt(0)}`.toUpperCase() : "";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-sp-6 border-b border-stroke-subtle bg-surface-0/85 px-sp-8 backdrop-blur-md">
       <div className="min-w-0 flex-1">
         <h1 className="t-title-2 truncate text-ink-1">{head.title}</h1>
-        {head.subtitle ? (
-          <p className="t-caption truncate text-ink-4">{head.subtitle}</p>
-        ) : null}
+        {head.subtitle ? <p className="t-caption truncate text-ink-4">{head.subtitle}</p> : null}
       </div>
 
       <div className="hidden items-center gap-sp-4 md:flex">
@@ -39,10 +45,7 @@ export function PortalTopbar() {
       </IconButton>
 
       <div className="relative">
-        <IconButton
-          label={copy.shell.notifications}
-          onClick={() => setOpenTray((v) => !v)}
-        >
+        <IconButton label={copy.shell.notifications} onClick={() => setOpenTray((v) => !v)}>
           <Bell size={16} strokeWidth={1.5} />
           {unread > 0 && (
             <span className="absolute right-sp-2 top-sp-2 h-1.5 w-1.5 rounded-r-1 bg-n-12" />
@@ -82,11 +85,9 @@ export function PortalTopbar() {
 
       <button className="focus-ring ml-sp-2 flex h-9 items-center gap-sp-4 rounded-r-2 border border-stroke-subtle bg-surface-2 pl-sp-3 pr-sp-5 transition-colors duration-200 hover:border-stroke-default">
         <span className="flex h-6 w-6 items-center justify-center rounded-r-1 border border-stroke-strong bg-surface-4">
-          <span className="t-micro-2 text-ink-2">{customer.initials}</span>
+          <span className="t-micro-2 text-ink-2">{initials}</span>
         </span>
-        <span className="t-label hidden text-ink-2 sm:inline">
-          {customer.preferredName}
-        </span>
+        <span className="t-label hidden text-ink-2 sm:inline">{me?.first_name ?? "Account"}</span>
         <ChevronDown size={14} strokeWidth={1.5} className="text-ink-5" />
       </button>
     </header>

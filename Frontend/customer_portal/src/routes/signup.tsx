@@ -39,7 +39,7 @@ function SignupPage() {
           email,
           password,
           cin,
-          ...(phone ? { phone } : {}),
+          msisdn: phone,
         },
       });
       await router.invalidate();
@@ -76,12 +76,13 @@ function SignupPage() {
             />
           </label>
           <label className="flex flex-col gap-sp-3">
-            <span className="t-label text-ink-4">CIN number</span>
+            <span className="t-label text-ink-4">Last 4 digits of your CIN</span>
             <input
               type="text"
               value={cin}
               onChange={(event) => setCin(event.target.value)}
               autoComplete="off"
+              inputMode="numeric"
               required
               className={inputClass}
             />
@@ -111,12 +112,13 @@ function SignupPage() {
             />
           </label>
           <label className="flex flex-col gap-sp-3">
-            <span className="t-label text-ink-4">Phone (optional)</span>
+            <span className="t-label text-ink-4">Phone number on the account</span>
             <input
               type="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               autoComplete="tel"
+              required
               className={inputClass}
             />
           </label>

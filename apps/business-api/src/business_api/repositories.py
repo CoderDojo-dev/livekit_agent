@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from business_api.kpis import Kpis, compute_kpis
-from persistence.models.billing import Invoice, Notification, Payment, PaymentPlan
+from persistence.models.billing import Account, Invoice, Notification, Payment, PaymentPlan
 from persistence.models.conversation import CallSession, EscalationCase, SentimentSample, Turn
 from persistence.models.crm import ConsentRecord, Customer, Subscription
 from persistence.models.execution import ActionLedger
@@ -166,6 +166,56 @@ class SupervisionRepository:
                 }
                 for c in consents
             ],
+        }
+
+    def me_profile_detail(self, customer_id: str) -> dict:
+        """Profile fields for the signed-in client's own record.
+
+        Deliberately a separate method from `customer_360`: widening that method's return shape
+        would change existing behaviour for every existing caller. `national_id` is never
+        selected - the CIN is tokenised in audit.pii_token_map and must not reach a browser.
+        """
+        cid = to_uuid(customer_id)
+        customer = self._s.get(Customer, cid) if cid else None
+        if customer is None:
+            return {}
+
+        account_number = self._s.scalar(
+            select(Account.account_number)
+            .where(Account.customer_id == customer.id, Account.deleted_at.is_(None))
+            .order_by(Account.created_at)
+            .limit(1)
+        )
+        subscription = self._s.scalar(
+            select(Subscription)
+            .where(Subscription.customer_id == customer.id, Subscription.deleted_at.is_(None))
+            .order_by(Subscription.created_at)
+            .limit(1)
+        )
+
+        address_lines = [
+            line.strip()
+            for line in [*(customer.address or "").splitlines(), customer.city, customer.region]
+            if line and line.strip()
+        ]
+
+        return {
+            "customer_id": str(customer.id),
+            "first_name": customer.first_name,
+            "last_name": customer.last_name,
+            "full_name": f"{customer.first_name} {customer.last_name}",
+            "email": customer.email,
+            "phone": customer.contact_number,
+            "preferred_language": customer.preferred_language,
+            "region": customer.region,
+            "city": customer.city,
+            "address_lines": address_lines,
+            "account_number": account_number,
+            "customer_since": customer.created_at.isoformat() if customer.created_at else None,
+            "vip": customer.vip_flag,
+            "status": customer.status,
+            "plan": (subscription.plan_code or subscription.plan_type) if subscription else None,
+            "msisdn": subscription.msisdn if subscription else None,
         }
 
     def customer_service_actions(self, customer_id: str) -> dict | None:
@@ -409,6 +459,7 @@ class SupervisionRepository:
                 "channel": r.channel,
                 "template_code": r.template_code,
                 "status": r.status,
+                "failure_reason": r.failure_reason,
                 "sent_at": r.sent_at.isoformat() if r.sent_at else None,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             })
@@ -689,6 +740,33 @@ class SupervisionRepository:
             })
         return out
 
+    _ESCALATION_RESOLUTIONS = ("transferred", "queued", "callback_scheduled", "resolved")
+
+    def close_escalation(self, escalation_id: str, resolution: str) -> dict:
+        """Set the outcome on an open handoff. Idempotent per row: a case that already carries a
+        resolution is returned unchanged rather than overwritten.
+        """
+        if resolution not in self._ESCALATION_RESOLUTIONS:
+            raise ValueError(f"unsupported resolution: {resolution}")
+
+        case = self._s.get(EscalationCase, to_uuid(escalation_id))
+        if case is None:
+            return {}
+        if case.resolution is None:
+            case.resolution = resolution
+            self._s.flush()
+
+        return {
+            "id": str(case.id),
+            "session_id": str(case.session_id),
+            "trigger": case.trigger,
+            "target": case.target,
+            "resolution": case.resolution,
+            "dossier": case.dossier,
+            "created_at": case.created_at.isoformat() if case.created_at else None,
+            "customer_id": str(case.customer_id) if case.customer_id else None,
+        }
+
     def verdicts(self, session_id: str) -> list[dict]:
         sid = to_uuid(session_id)
         if sid is None:
@@ -866,17 +944,17 @@ class SupervisionRepository:
         total_escalations = self._s.scalar(select(func.count()).select_from(EscalationCase)) or 0
 
         services = [
-            {"name": "context-service", "port": 8101, "domain": "Customer 360 & Auth", "status": "online"},
-            {"name": "knowledge-service", "port": 8102, "domain": "Semantic RAG & Documents", "status": "online"},
-            {"name": "decision-service", "port": 8103, "domain": "Risk Scoring & Candidate Ranking", "status": "online"},
-            {"name": "policy-service", "port": 8104, "domain": "Phase 0 Deterministic Gate", "status": "online"},
-            {"name": "execution-service", "port": 8105, "domain": "Idempotent Action Ledger", "status": "online"},
-            {"name": "notification-service", "port": 8106, "domain": "Multi-channel Messaging", "status": "online"},
-            {"name": "token-service", "port": 8107, "domain": "LiveKit JWT Auth", "status": "online"},
-            {"name": "business-api", "port": 8108, "domain": "Supervisor & Admin API", "status": "online"},
-            {"name": "ai-knowledge-rag", "port": 8201, "domain": "Qdrant Vector Search MCP", "status": "online"},
-            {"name": "ticketing-glpi", "port": 8202, "domain": "GLPI Ticketing MCP", "status": "online"},
-            {"name": "messaging-gateway", "port": 8203, "domain": "SMS/Email Gateway MCP", "status": "online"},
+            {"name": "context-service", "port": 8101, "domain": "Customer 360 & Auth"},
+            {"name": "knowledge-service", "port": 8102, "domain": "Semantic RAG & Documents"},
+            {"name": "decision-service", "port": 8103, "domain": "Risk Scoring & Candidate Ranking"},
+            {"name": "policy-service", "port": 8104, "domain": "Phase 0 Deterministic Gate"},
+            {"name": "execution-service", "port": 8105, "domain": "Idempotent Action Ledger"},
+            {"name": "notification-service", "port": 8106, "domain": "Multi-channel Messaging"},
+            {"name": "token-service", "port": 8107, "domain": "LiveKit JWT Auth"},
+            {"name": "business-api", "port": 8108, "domain": "Supervisor & Admin API"},
+            {"name": "ai-knowledge-rag", "port": 8201, "domain": "Qdrant Vector Search MCP"},
+            {"name": "ticketing-glpi", "port": 8202, "domain": "GLPI Ticketing MCP"},
+            {"name": "messaging-gateway", "port": 8203, "domain": "SMS/Email Gateway MCP"},
         ]
         return {
             "metrics": {

@@ -29,7 +29,7 @@ from business_api.jobs.integrity import run_integrity
 from business_api.jobs.retention import run_retention
 from business_api.repositories import SupervisionRepository
 from business_api.security import require_role
-from persistence import get_session
+from persistence import get_session, session_scope
 
 app = FastAPI(title="business-api")
 app.add_middleware(
@@ -216,6 +216,17 @@ def me_profile(session: DbSession, principal: ClientPrincipal) -> dict:
     return data
 
 
+@app.get("/api/v1/me/profile/detail")
+def me_profile_detail(session: DbSession, principal: ClientPrincipal) -> dict:
+    """Profile fields for the signed-in client's own record.
+
+    customer_id comes from the authenticated principal, so there is no identifier in the request
+    for a caller to tamper with: client A cannot address customer B's data at all. National id is
+    never selected — the CIN is tokenised in audit.pii_token_map and must not reach a browser.
+    """
+    return SupervisionRepository(session).me_profile_detail(str(principal.customer_id))
+
+
 @app.get("/api/v1/customers")
 def list_customers(
     session: DbSession,
@@ -314,6 +325,29 @@ def session_detail(session_id: str, session: DbSession, role: ConseillerRole) ->
 def escalations(session: DbSession, role: SuperviseurRole, status: str = "open") -> dict:
     """Escalation queue with dossiers."""
     return {"escalations": SupervisionRepository(session).escalations(status)}
+
+
+class EscalationClosePayload(BaseModel):
+    resolution: str
+
+
+@app.post("/api/v1/escalations/{escalation_id}/close")
+def close_escalation(
+    escalation_id: str,
+    payload: EscalationClosePayload,
+    role: SuperviseurRole,
+) -> dict:
+    """Set the outcome on an open handoff (idempotent)."""
+    with session_scope() as session:
+        try:
+            closed = SupervisionRepository(session).close_escalation(
+                escalation_id, payload.resolution
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not closed:
+        raise HTTPException(status_code=404, detail="escalation not found")
+    return closed
 
 
 @app.get("/api/v1/policy/verdicts")

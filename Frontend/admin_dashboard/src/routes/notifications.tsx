@@ -194,7 +194,12 @@ function NotificationsPage() {
                   <span className="t-ui truncate text-ink-1">{templateLabel(n.template_code)}</span>
                 </Td>
                 <Td>
-                  <StatusChip status={notificationStatusKey(n.status)} />
+                  <div className="flex flex-col items-start gap-sp-2">
+                    <StatusChip status={notificationStatusKey(n.status)} />
+                    {n.status === "failed" && n.failure_reason ? (
+                      <span className="t-caption text-ink-5">{n.failure_reason}</span>
+                    ) : null}
+                  </div>
                 </Td>
                 <Td align="right">
                   <span className="t-mono text-ink-3">
