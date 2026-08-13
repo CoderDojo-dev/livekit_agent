@@ -1,7 +1,8 @@
 """NotificationService: render -> send -> record. Durable log to billing.notifications (spec 5.2).
 
 Live-only, no mock fallback. If a channel is unconfigured or the provider rejects the message,
-sent=False is returned with the actual reason. The DB record is written with status='failed'.
+sent=False is returned with the actual reason. The DB record is written with status='failed'
+and that same reason in failure_reason (truncated to the column width).
 
 Contact resolution is centralised here: callers pass a customer_id, never a phone/email.
 The notification-service maps customer_id -> the right handle for each channel from crm.customers,
@@ -46,7 +47,7 @@ class NotificationService:
                     language = preferred
             except ContactUnavailable as exc:
                 logger.warning("notify no-contact [%s/%s]: %s", req.channel, req.template, exc)
-                self._record(req, status="failed", reference="")
+                self._record(req, status="failed", reference="", reason=str(exc))
                 return NotifyResponse(sent=False, reference="", channel=req.channel,
                                       reason=str(exc))
 
@@ -68,23 +69,32 @@ class NotificationService:
             reason = f"{type(exc).__name__}: {exc}"
             status = "failed"
 
-        self._record(req, status=status, reference=reference)
+        self._record(req, status=status, reference=reference, reason=reason)
         return NotifyResponse(sent=sent, reference=reference, channel=req.channel, reason=reason)
 
-    def _record(self, req: NotifyRequest, status: str, reference: str) -> None:
+    def _record(self, req: NotifyRequest, status: str, reference: str,
+                reason: str = "") -> None:
         self._sent.append({
             "customer_id": req.customer_id, "channel": req.channel,
             "template": req.template, "reference": reference,
-            "sent": status == "sent", "reason": "" if status == "sent" else status,
+            "sent": status == "sent", "reason": "" if status == "sent" else reason,
         })
-        if os.getenv("DATABASE_URL"):
-            try:
-                self._persist(req, status)
-            except Exception as exc:
-                logger.warning("notification log write skipped: %s", exc)
+        if not os.getenv("DATABASE_URL"):
+            logger.warning(
+                "notification NOT persisted, DATABASE_URL unset [%s/%s] status=%s",
+                req.channel, req.template, status,
+            )
+            return
+        try:
+            self._persist(req, status, reason)
+        except Exception:
+            logger.exception(
+                "notification log write FAILED [%s/%s] status=%s customer=%s",
+                req.channel, req.template, status, req.customer_id,
+            )
 
     @staticmethod
-    def _persist(req: NotifyRequest, status: str) -> None:
+    def _persist(req: NotifyRequest, status: str, reason: str = "") -> None:
         from persistence.engine import session_scope
         from persistence.models.billing import Notification
         from persistence.util import to_uuid
@@ -95,6 +105,7 @@ class NotificationService:
                 channel=req.channel,
                 template_code=req.template,
                 status=status,
+                failure_reason=(reason[:200] or None) if status == "failed" else None,
             ))
 
     @property

@@ -30,6 +30,7 @@ from business_api.jobs.retention import run_retention
 from business_api.repositories import SupervisionRepository
 from business_api.security import require_role
 from persistence import get_session, session_scope
+from persistence.util import to_uuid
 
 app = FastAPI(title="business-api")
 app.add_middleware(
@@ -99,7 +100,12 @@ def _auth_http(error: portal_auth.AuthError) -> HTTPException:
 
 @app.post("/api/v1/auth/login")
 def auth_login(payload: LoginPayload, request: Request, session: DbSession) -> dict:
-    """Exchange credentials for an opaque bearer token. Ungated by design."""
+    """Exchange credentials for an opaque bearer token. Ungated by design.
+
+    Audited on success with the acting account. Failed logins are deliberately NOT audited: the
+    login path is rate-limited (429) and lockout-bearing already, so the ledger stays free of
+    rejected-attempt noise rather than duplicating the throttling record.
+    """
     bucket = f"login:{_client_ip(request)}"
     if not rate_limit.check(bucket):
         raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
@@ -115,6 +121,17 @@ def auth_login(payload: LoginPayload, request: Request, session: DbSession) -> d
         ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
+    PgAuditLedger(session).append(
+        None, "auth_login",
+        {"actor": _audit_actor(Principal(
+            subject=account.email,
+            kind=account.kind,
+            role=account.role,
+            account_id=account.id,
+        ))},
+        entity_reference=f"portal_accounts:{account.id}",
+    )
+    session.commit()
     return {
         "token": token,
         "expires_at": expires_at.isoformat(),
@@ -148,6 +165,17 @@ def auth_signup(payload: SignupPayload, request: Request, session: DbSession) ->
         ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
+    PgAuditLedger(session).append(
+        None, "auth_signup",
+        {"actor": _audit_actor(Principal(
+            subject=account.email,
+            kind=account.kind,
+            role=account.role,
+            account_id=account.id,
+        ))},
+        entity_reference=f"portal_accounts:{account.id}",
+    )
+    session.commit()
     return {
         "token": token,
         "expires_at": expires_at.isoformat(),
@@ -191,6 +219,12 @@ def auth_change_password(
         )
     except portal_auth.AuthError as error:
         raise _auth_http(error) from None
+    PgAuditLedger(session).append(
+        None, "auth_password_changed",
+        {"actor": _audit_actor(principal)},
+        entity_reference=f"portal_accounts:{principal.account_id}",
+    )
+    session.commit()
     return {"changed": True, "sessions_revoked": revoked}
 
 
@@ -199,7 +233,14 @@ def auth_revoke_all(session: DbSession, principal: CurrentPrincipal) -> dict:
     """Sign out of all devices. Backs the affordance already rendered on the portal Security page."""
     if principal.account_id is None:
         raise HTTPException(status_code=403, detail="requires a user account")
-    return {"sessions_revoked": portal_auth.revoke_all(session, principal.account_id)}
+    revoked = portal_auth.revoke_all(session, principal.account_id)
+    PgAuditLedger(session).append(
+        None, "auth_sessions_revoked",
+        {"actor": _audit_actor(principal), "sessions_revoked": revoked},
+        entity_reference=f"portal_accounts:{principal.account_id}",
+    )
+    session.commit()
+    return {"sessions_revoked": revoked}
 
 
 # ---------------- Client portal reads. Scoped by the TOKEN, never by the URL. ----------------
@@ -327,6 +368,20 @@ def escalations(session: DbSession, role: SuperviseurRole, status: str = "open")
     return {"escalations": SupervisionRepository(session).escalations(status)}
 
 
+def _audit_actor(principal: Principal) -> dict:
+    """Actor block for audit payloads. Inside the hash, so it is tamper-evident.
+
+    Deliberately omits principal.session_id: that is the auth-session identifier and the ledger is
+    append-only and immutable. Never include national_id or any other PII.
+    """
+    return {
+        "subject": principal.subject,
+        "kind": principal.kind,
+        "role": principal.role,
+        "account_id": str(principal.account_id) if principal.account_id else None,
+    }
+
+
 class EscalationClosePayload(BaseModel):
     resolution: str
 
@@ -336,8 +391,9 @@ def close_escalation(
     escalation_id: str,
     payload: EscalationClosePayload,
     role: SuperviseurRole,
+    principal: CurrentPrincipal,
 ) -> dict:
-    """Set the outcome on an open handoff (idempotent)."""
+    """Set the outcome on an open handoff (idempotent). Audited with the acting principal."""
     with session_scope() as session:
         try:
             closed = SupervisionRepository(session).close_escalation(
@@ -345,6 +401,19 @@ def close_escalation(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if closed:
+            PgAuditLedger(session).append(
+                to_uuid(closed["session_id"]), "escalation_closed",
+                {
+                    "actor": _audit_actor(principal),
+                    "escalation_id": closed["id"],
+                    "requested_resolution": payload.resolution,
+                    "resolution": closed["resolution"],
+                    "target": closed["target"],
+                    "trigger": closed["trigger"],
+                },
+                entity_reference=f"escalation_cases:{closed['id']}",
+            )
     if not closed:
         raise HTTPException(status_code=404, detail="escalation not found")
     return closed
