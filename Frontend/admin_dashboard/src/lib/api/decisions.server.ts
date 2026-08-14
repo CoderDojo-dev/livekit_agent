@@ -70,12 +70,33 @@ export type VerdictDistribution = {
   escalated: number;
 };
 
+/** One recorded call session, exactly as SupervisionRepository.telemetry_timeline() serialises it.
+ *  `timestamp` is a bare wall-clock "%H:%M:%S" string (created_at.strftime) with NO date part:
+ *  echo it verbatim, never parse it as a Date. `duration` is integer seconds, `frustration` a
+ *  float, `disposition` falls back to the literal "unknown" — the backend coalesces all three,
+ *  so none of them is ever null. The array arrives chronologically ASCENDING (the repository
+ *  reverses a DESC LIMIT 50), so index order is already plot order. */
+export type TelemetryPoint = {
+  timestamp: string;
+  duration: number;
+  frustration: number;
+  disposition: string;
+};
+
+/** The endpoint always returned both halves; only `verdict_distribution` was ever typed, so the
+ *  50-point `timeline` was decoded at runtime and then discarded by TypeScript. Widening the
+ *  generic is the truthful description of the existing response — it adds no request. */
+export type TelemetrySnapshot = {
+  timeline: TelemetryPoint[];
+  verdict_distribution: VerdictDistribution;
+};
+
+/* Name kept for compatibility: overview.tsx and analyticsKeys.verdicts() already speak it.
+ * It now returns the whole snapshot, of which the verdict mix is one field. */
 export const getVerdictDistribution = createServerFn({ method: "GET" })
   .middleware([authedMiddleware, requireRole("superviseur")])
   .handler(async ({ context }) => {
-    return businessApi<{
-      verdict_distribution: VerdictDistribution;
-    }>("/api/v1/telemetry/timeline", {
+    return businessApi<TelemetrySnapshot>("/api/v1/telemetry/timeline", {
       method: "GET",
       role: context.session.role,
     });

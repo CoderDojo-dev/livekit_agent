@@ -17,6 +17,7 @@ import {
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { DecisionDetail } from "@/components/nexus/decision-detail";
+import { ActionLedgerPanel } from "@/components/nexus/action-ledger";
 import { getVerdictDistribution, listDecisions, type Decision } from "@/lib/api/decisions.server";
 import {
   actionRollup,
@@ -101,6 +102,8 @@ function DecisionsPage() {
           </span>
         </div>
       </Card>
+
+      <ActionLedgerPanel />
 
       <TableShell
         toolbar={

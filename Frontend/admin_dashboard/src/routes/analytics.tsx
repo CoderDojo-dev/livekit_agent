@@ -4,6 +4,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { BarChart3 } from "lucide-react";
 import { Card, CardHeader, Segmented, EmptyState } from "@/components/nexus/primitives";
 import { HeroStat, StatCard, LineChart, Legend } from "@/components/nexus/blocks";
+import { TelemetryTimeline } from "@/components/nexus/telemetry-timeline";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState } from "@/components/nexus/states";
 import { getAnalyticsTrend } from "@/lib/api/analytics.server";
@@ -158,6 +159,10 @@ function AnalyticsPage() {
             )}
           </div>
         </Card>
+      </PageSection>
+
+      <PageSection>
+        <TelemetryTimeline />
       </PageSection>
     </>
   );

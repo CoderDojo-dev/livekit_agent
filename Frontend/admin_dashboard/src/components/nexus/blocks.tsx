@@ -146,6 +146,107 @@ export function BarChart({ data }: { data: { week: string; ai: number; advisor: 
   );
 }
 
+/** A single achromatic series with an optional hover guide — same SVG idiom as LineChart
+ *  (viewBox 0 0 100 100, preserveAspectRatio="none", non-scaling strokes).
+ *
+ *  Differences from LineChart, all deliberate:
+ *   - one series instead of two, with the scale supplied by the caller (metricMax) so an
+ *     all-zero window degrades to a flat baseline instead of NaN geometry;
+ *   - sparse x-axis ticks, because one label per point is unreadable past ~30 points;
+ *   - hover state is LIFTED to the caller, which keeps this module stateless;
+ *   - markers are lines, never circles: preserveAspectRatio="none" stretches geometry
+ *     horizontally, so a circle would render as an ellipse.
+ *
+ *  Requires values.length >= 2 (the caller gates with isPlottable). */
+export function SeriesChart({
+  values,
+  max,
+  ticks,
+  hovered,
+  onHover,
+}: {
+  values: number[];
+  max: number;
+  ticks: { index: number; label: string }[];
+  hovered: number | null;
+  onHover: (index: number | null) => void;
+}) {
+  const step = 100 / (values.length - 1);
+  const y = (value: number) => 100 - (value / max) * 100;
+  const line = values.map((value, index) => `${index * step},${y(value)}`).join(" ");
+  const area = `0,100 ${line} 100,100`;
+  const guideX = hovered === null ? 0 : hovered * step;
+
+  return (
+    <div>
+      <div className="relative h-[220px] w-full" onMouseLeave={() => onHover(null)}>
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="h-full w-full"
+          aria-hidden="true"
+        >
+          {[0, 25, 50, 75, 100].map((gridline) => (
+            <line
+              key={gridline}
+              x1="0"
+              x2="100"
+              y1={gridline}
+              y2={gridline}
+              stroke="var(--stroke-subtle)"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          <polygon points={area} fill="var(--n-12)" fillOpacity="0.06" />
+          <polyline
+            points={line}
+            fill="none"
+            stroke="var(--n-12)"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+          />
+          {hovered === null ? null : (
+            <>
+              <line
+                x1={guideX}
+                x2={guideX}
+                y1="0"
+                y2="100"
+                stroke="var(--n-8)"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+              <line
+                x1={Math.max(0, guideX - 2)}
+                x2={Math.min(100, guideX + 2)}
+                y1={y(values[hovered]!)}
+                y2={y(values[hovered]!)}
+                stroke="var(--n-12)"
+                strokeWidth="3"
+                vectorEffect="non-scaling-stroke"
+              />
+            </>
+          )}
+        </svg>
+        {/* Equal-width hit cells: the SVG is stretched, so hover is resolved in DOM space. */}
+        <div className="absolute inset-0 flex" aria-hidden="true">
+          {values.map((_, index) => (
+            <div key={index} className="h-full flex-1" onMouseEnter={() => onHover(index)} />
+          ))}
+        </div>
+      </div>
+      <div className="mt-sp-4 flex justify-between">
+        {ticks.map((tick) => (
+          <span key={tick.index} className="t-micro text-ink-5">
+            {tick.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Legend({ items }: { items: { label: string; strong?: boolean }[] }) {
   return (
     <div className="flex items-center gap-sp-6">

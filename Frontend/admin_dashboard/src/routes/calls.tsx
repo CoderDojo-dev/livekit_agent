@@ -17,6 +17,7 @@ import {
 import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState } from "@/components/nexus/states";
 import { Transcript } from "@/components/nexus/transcript";
+import { SessionVerdicts } from "@/components/nexus/session-verdicts";
 import { getCoverage } from "@/lib/api/availability.server";
 import { getSessionDetail, listSessions } from "@/lib/api/sessions.server";
 import {
@@ -282,6 +283,8 @@ function CallsPage() {
                 <Transcript turns={detailQuery.data.turns} sentiment={detailQuery.data.sentiment} />
               ) : null}
             </Card>
+
+            <SessionVerdicts sessionId={selected} />
           </>
         )}
       </div>
