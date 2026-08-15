@@ -1,8 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { Bell, PanelLeft, Command, LogOut } from "lucide-react";
+import { LogOut, PanelLeft } from "lucide-react";
 import { PAGE_META, ACCOUNT_FALLBACK, type AccountInfo } from "@/lib/nexus/nav";
-import { Avatar, IconButton, SearchInput } from "@/components/nexus/primitives";
+import { Avatar, IconButton } from "@/components/nexus/primitives";
+import { SidebarContent } from "@/components/nexus/app-sidebar";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Route as RootRoute } from "@/routes/__root";
 import { ROLE_LABEL } from "@/lib/api/session";
 import { logout } from "@/lib/api/auth.server";
@@ -10,17 +19,17 @@ import { initials as toInitials } from "@/lib/nexus/format";
 import { cn } from "@/lib/utils";
 
 export function AppTopbar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const meta = PAGE_META[pathname];
   const [scrolled, setScrolled] = useState(false);
-
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const router = useRouter();
   const { session } = RootRoute.useRouteContext();
 
   const account: AccountInfo = session
     ? {
-        // No display-name field exists on the session; the local part of the email is the
-        // closest honest label. See §8.1 — a real user record would supply a full name.
         name: session.sub.split("@")[0] ?? session.sub,
         role: ROLE_LABEL[session.role],
         email: session.sub,
@@ -36,8 +45,10 @@ export function AppTopbar() {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
+
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
+
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
@@ -48,23 +59,43 @@ export function AppTopbar() {
         scrolled ? "border-b border-stroke-default" : "border-b border-transparent",
       )}
     >
-      <IconButton label="Toggle navigation" icon={PanelLeft} className="lg:hidden" />
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            aria-label="Open navigation"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-r-3 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+          >
+            <PanelLeft className="size-4" aria-hidden="true" />
+          </button>
+        </SheetTrigger>
+
+        <SheetContent side="left" className="w-[min(88vw,320px)] p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Navigation</SheetTitle>
+            <SheetDescription>Navigate the Nexus admin dashboard.</SheetDescription>
+          </SheetHeader>
+
+          <SidebarContent className="flex" onNavigate={() => setMobileNavOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
       <div className="min-w-0">
         <h1 className="t-title-3 truncate text-ink-1">{meta?.title ?? "Nexus"}</h1>
-        <p className="t-caption hidden truncate text-ink-4 sm:block">{meta?.subtitle ?? ""}</p>
+        {meta?.subtitle ? (
+          <p className="t-caption hidden truncate text-ink-5 sm:block">{meta.subtitle}</p>
+        ) : null}
       </div>
-      <div className="ml-auto flex items-center gap-sp-5">
-        <SearchInput placeholder="Search" className="hidden w-[220px] md:block" />
-        <span className="t-mono-s hidden h-[22px] items-center gap-sp-2 rounded-r-1 border border-stroke-default px-sp-3 text-ink-4 xl:inline-flex">
-          <Command size={11} strokeWidth={1.5} aria-hidden="true" />K
-        </span>
-        <IconButton label="Notifications" icon={Bell} />
-        <span className="hidden flex-col items-end leading-tight md:flex">
-          <span className="t-label text-ink-2">{account.name}</span>
-          <span className="t-micro text-ink-4">{account.role}</span>
-        </span>
-        <Avatar initials={account.initials} name={account.name} size="sm" />
-        <IconButton label="Sign out" icon={LogOut} onClick={onSignOut} />
+
+      <div className="ml-auto flex min-w-0 items-center gap-sp-4">
+        <div className="hidden min-w-0 text-right sm:block">
+          <p className="truncate text-sm font-medium text-ink-1">{account.name}</p>
+          <p className="t-caption truncate text-ink-5">{account.role}</p>
+        </div>
+
+        <Avatar initials={account.initials} size="sm" />
+
+        <IconButton label="Sign out" icon={LogOut} onClick={() => void onSignOut()} />
       </div>
     </header>
   );

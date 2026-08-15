@@ -27,8 +27,6 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   section: NavSection;
-  badge?: number;
-  badgeVariant?: "count" | "live";
   shortcut: string;
 };
 
@@ -64,8 +62,6 @@ export const NAV: readonly NavItem[] = [
     icon: Ticket,
     section: "PLATFORM",
     shortcut: "G T",
-    badge: 42,
-    badgeVariant: "count",
   },
   {
     id: "knowledge",
@@ -122,8 +118,6 @@ export const NAV: readonly NavItem[] = [
     icon: PhoneOutgoing,
     section: "OPERATIONS",
     shortcut: "G B",
-    badge: 7,
-    badgeVariant: "count",
   },
   {
     id: "notifications",
@@ -178,11 +172,11 @@ export const NAV_SECTIONS: readonly NavSection[] = [
 export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/overview": {
     title: "Overview",
-    subtitle: "Platform-wide performance at a glance.",
+    subtitle: "Observed support KPIs, advisor availability and reported services.",
   },
   "/customers": {
     title: "Customers",
-    subtitle: "Manage every account, role and access level.",
+    subtitle: "Search CRM customer records and open customer details.",
   },
   "/escalations": {
     title: "Escalations",
@@ -190,7 +184,7 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   },
   "/tickets": {
     title: "Tickets",
-    subtitle: "Track, assign and resolve every support request.",
+    subtitle: "Mirrored view of support tickets, read-only.",
   },
   "/knowledge": {
     title: "Knowledge Base",
@@ -210,7 +204,7 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   },
   "/advisors": {
     title: "Advisors",
-    subtitle: "Availability, workload and performance.",
+    subtitle: "Registry, availability and capacity.",
   },
   "/availability": {
     title: "Availability",
@@ -234,11 +228,11 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   },
   "/agents": {
     title: "Agents",
-    subtitle: "The persona graph and who actually handles traffic.",
+    subtitle: "Review the agent catalog and observed activity.",
   },
   "/settings": {
     title: "Settings",
-    subtitle: "Workspace configuration and access control.",
+    subtitle: "Audit, integrity and retention.",
   },
 };
 

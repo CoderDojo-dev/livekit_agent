@@ -1,85 +1,92 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
-  Link,
   createRootRouteWithContext,
   useRouter,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { AlertTriangle, SearchX } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppSidebar } from "@/components/nexus/app-sidebar";
 import { AppShell } from "@/components/nexus/app-topbar";
+import { Card, Button } from "@/components/nexus/primitives";
 import { redirect, useRouterState } from "@tanstack/react-router";
-import { getSession } from "@/lib/api/auth.server";
-import type { AdminSession } from "@/lib/api/session";
+import { getSession, type SessionView } from "@/lib/api/auth.server";
 
 function NotFoundComponent() {
+  const router = useRouter();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+    <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
+      <Card className="w-full max-w-[420px]">
+        <div className="flex flex-col items-center py-sp-8 text-center">
+          <span className="mb-sp-6 inline-flex size-[40px] items-center justify-center rounded-r-3 border border-stroke-default bg-surface-2 text-ink-4">
+            <SearchX size={18} strokeWidth={1.5} />
+          </span>
+          <p className="t-title-3 text-ink-1">Page not found</p>
+          <p className="t-caption mt-sp-2 max-w-[40ch] text-ink-4">
+            The page you're looking for doesn't exist or has been moved.
+          </p>
+          <Button
+            variant="primary"
+            size="sm"
+            className="mt-sp-6"
+            onClick={() => void router.navigate({ to: "/overview" })}
           >
-            Go home
-          </Link>
+            Go to overview
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
   const router = useRouter();
+
   useEffect(() => {
+    console.error(error);
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Try again
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
-          </a>
+    <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
+      <Card className="w-full max-w-[420px]">
+        <div className="flex flex-col items-center py-sp-8 text-center">
+          <span className="mb-sp-6 inline-flex size-[40px] items-center justify-center rounded-r-3 border border-stroke-default bg-surface-2 text-ink-4">
+            <AlertTriangle size={18} strokeWidth={1.5} />
+          </span>
+          <p className="t-title-3 text-ink-1">This page didn't load</p>
+          <p className="t-caption mt-sp-2 max-w-[40ch] text-ink-4">
+            Something went wrong on our end. You can try again or head back to the overview.
+          </p>
+          <div className="mt-sp-6 flex gap-sp-4">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                void router.invalidate().finally(reset);
+              }}
+            >
+              Try again
+            </Button>
+            <Button size="sm" onClick={() => void router.navigate({ to: "/overview" })}>
+              Go to overview
+            </Button>
+          </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
-  session: AdminSession | null;
+  session: SessionView | null;
 }>()({
   // UX gate only. The security boundary is authedMiddleware on each server function
   // (see src/lib/api/middleware.ts).

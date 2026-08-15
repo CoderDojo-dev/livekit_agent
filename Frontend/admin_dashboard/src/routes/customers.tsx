@@ -100,7 +100,7 @@ function CustomersPage() {
 
   return (
     <>
-      <PageSection className="grid gap-sp-6 xl:grid-cols-4">
+      <PageSection className="grid gap-sp-6 xl:grid-cols-3">
         <HeroStat
           label="Customers"
           value={overview.data ? formatInteger(overview.data.metrics.total_customers) : "\u2014"}
@@ -110,11 +110,6 @@ function CustomersPage() {
           label={filtering ? "Matching" : "Listed"}
           value={list.data ? formatInteger(total) : "\u2014"}
           context={filtering ? "Rows matching the current filters" : "All customers"}
-        />
-        <StatCard
-          label="Subscriptions"
-          value="\u2014"
-          context="Open a customer to see their lines"
         />
         <StatCard
           label="Page"

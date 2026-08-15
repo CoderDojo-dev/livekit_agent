@@ -178,8 +178,8 @@ function OverviewPage() {
         <Card padded={false}>
           <div className="p-sp-7">
             <CardHeader
-              title="Service Inventory"
-              subtitle="Deployed services and the domain each owns. Health is not monitored."
+              title="Service Catalog"
+              subtitle="Services reported by system overview and the domain each owns. Runtime health is not reported."
             />
           </div>
           {system.isPending ? (

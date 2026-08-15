@@ -6,10 +6,17 @@ import { ROLE_LABEL, hasRank } from "@/lib/api/session";
 import { initials as toInitials } from "@/lib/nexus/format";
 import { cn } from "@/lib/utils";
 
-const ADMIN_ONLY_HREFS = new Set(["/policies"]);
+const ADMIN_ONLY_HREFS = new Set(["/policies", "/reference"]);
 
-export function AppSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+type SidebarContentProps = {
+  className?: string;
+  onNavigate?: () => void;
+};
+
+export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const { session } = RootRoute.useRouteContext();
 
   const account: AccountInfo = session
@@ -25,8 +32,7 @@ export function AppSidebar() {
     !ADMIN_ONLY_HREFS.has(href) || (session !== null && hasRank(session, "administrateur"));
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 hidden w-[236px] flex-col border-r border-stroke-default bg-surface-1 lg:flex">
-      {/* Brand */}
+    <aside className={cn("h-full flex-col border-r border-stroke-default bg-surface-1", className)}>
       <div className="flex h-[60px] shrink-0 items-center gap-sp-5 border-b border-stroke-subtle px-sp-7">
         <span className="inline-flex size-[26px] items-center justify-center rounded-r-3 bg-n-12 text-n-0">
           <svg viewBox="0 0 16 16" className="size-[13px]" aria-hidden="true">
@@ -43,65 +49,66 @@ export function AppSidebar() {
         <span className="t-mono-s ml-auto text-ink-5">v1.0</span>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-sp-5 py-sp-6">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section} className="mb-sp-7 last:mb-0">
-            <p className="t-micro-2 mb-sp-4 px-sp-4 text-ink-5">{section}</p>
-            <ul className="space-y-[2px]">
-              {NAV.filter((item) => item.section === section).map((item) => {
-                if (!canSee(item.href)) return null;
-                const active = pathname === item.href;
-                const Icon = item.icon;
-                return (
-                  <li key={item.id} className="relative">
+      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-sp-5 py-sp-6">
+        {NAV_SECTIONS.map((section) => {
+          const items = NAV.filter((item) => item.section === section && canSee(item.href));
+
+          if (items.length === 0) return null;
+
+          return (
+            <div key={section} className="mb-sp-7 last:mb-0">
+              <p className="t-micro mb-sp-3 px-sp-3 text-ink-5">{section}</p>
+
+              <div className="space-y-sp-1">
+                {items.map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const Icon = item.icon;
+
+                  return (
                     <Link
+                      key={item.id}
                       to={item.href as "/overview"}
-                      data-active={active}
+                      onClick={onNavigate}
+                      aria-current={active ? "page" : undefined}
                       className={cn(
-                        "nav-item group relative flex h-[34px] items-center gap-sp-5 rounded-r-3 px-sp-4 transition-colors duration-[120ms]",
+                        "group flex min-h-9 items-center gap-sp-4 rounded-r-3 px-sp-3 text-sm transition-colors",
                         active
-                          ? "bg-surface-3 text-ink-1"
-                          : "text-ink-3 hover:bg-surface-2 hover:text-ink-2",
+                          ? "bg-surface-3 font-medium text-ink-1"
+                          : "text-ink-4 hover:bg-surface-2 hover:text-ink-1",
                       )}
                     >
-                      <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
-                      <span className="t-ui truncate">{item.label}</span>
-                      {item.badge !== undefined ? (
-                        item.badgeVariant === "live" ? (
-                          <span className="ml-auto inline-flex items-center gap-sp-2">
-                            <PresenceDot />
-                            <span className="t-mono-s text-ink-3">{item.badge}</span>
-                          </span>
-                        ) : (
-                          <span className="t-mono-s ml-auto inline-flex h-[18px] items-center rounded-r-1 bg-surface-4 px-sp-3 text-ink-2">
-                            {item.badge}
-                          </span>
-                        )
-                      ) : (
-                        <span className="t-mono-s ml-auto text-ink-5 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100">
-                          {item.shortcut}
-                        </span>
-                      )}
+                      <Icon className="size-4 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <span
+                        aria-hidden="true"
+                        className="t-mono-s text-ink-6 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                      >
+                        {item.shortcut}
+                      </span>
                     </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
-      {/* Account */}
-      <div className="shrink-0 border-t border-stroke-subtle p-sp-5">
-        <div className="flex items-center gap-sp-5 rounded-r-3 p-sp-4 transition-colors duration-[120ms] hover:bg-surface-2">
-          <Avatar initials={account.initials} name={account.name} size="md" />
-          <div className="min-w-0">
-            <p className="t-ui truncate text-ink-1">{account.name}</p>
-            <p className="t-caption truncate text-ink-4">{account.role}</p>
-          </div>
+      <div className="flex shrink-0 items-center gap-sp-4 border-t border-stroke-subtle px-sp-6 py-sp-5">
+        <div className="relative shrink-0">
+          <Avatar initials={account.initials} size="sm" />
+          <PresenceDot live className="absolute -bottom-px -right-px" />
+        </div>
+
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-ink-1">{account.name}</p>
+          <p className="t-caption truncate text-ink-5">{account.role}</p>
         </div>
       </div>
     </aside>
   );
+}
+
+export function AppSidebar() {
+  return <SidebarContent className="fixed inset-y-0 left-0 z-20 hidden w-[236px] lg:flex" />;
 }

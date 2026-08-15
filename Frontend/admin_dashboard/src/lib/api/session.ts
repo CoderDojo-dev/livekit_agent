@@ -107,6 +107,6 @@ export async function verifySession(
   }
 }
 
-export function hasRank(session: AdminSession, minimum: BackendRole): boolean {
+export function hasRank(session: Pick<AdminSession, "role">, minimum: BackendRole): boolean {
   return ROLE_RANK[session.role] >= ROLE_RANK[minimum];
 }

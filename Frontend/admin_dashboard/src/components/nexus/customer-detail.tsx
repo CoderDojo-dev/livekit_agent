@@ -30,7 +30,7 @@ import {
   unpaidTotal,
 } from "@/lib/nexus/customer-view";
 import { ticketStatusKey } from "@/lib/nexus/ticket-view";
-import { errorMessage, isApiError } from "@/lib/api/errors";
+import { errorMessage, toApiError } from "@/lib/api/errors";
 import { maskPhone } from "@/lib/nexus/format";
 import { formatInstant } from "@/lib/nexus/audit-view";
 
@@ -69,9 +69,9 @@ export function CustomerDetail({ customer, onClose }: Props) {
 
   if (!customer) return null;
 
-  const notFound = isApiError(query.error) && query.error.status === 404;
-  const ledgerNotFound = isApiError(ledgerQuery.error) && ledgerQuery.error.status === 404;
-  const serviceNotFound = isApiError(serviceQuery.error) && serviceQuery.error.status === 404;
+  const notFound = toApiError(query.error)?.status === 404;
+  const ledgerNotFound = toApiError(ledgerQuery.error)?.status === 404;
+  const serviceNotFound = toApiError(serviceQuery.error)?.status === 404;
 
   return (
     <Modal open onClose={onClose} title={customer.name}>

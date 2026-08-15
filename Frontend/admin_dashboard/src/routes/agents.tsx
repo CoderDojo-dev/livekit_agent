@@ -5,7 +5,7 @@ import { Bot } from "lucide-react";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { HeroStat, StatCard } from "@/components/nexus/blocks";
 import { EmptyState, Segmented, TableShell, Td, Th, Token } from "@/components/nexus/primitives";
-import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
+import { CardSkeleton, ErrorState, TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { AgentDetail } from "@/components/nexus/agent-detail";
 import { getAgentActivity } from "@/lib/api/agents.server";
 import { agentKeys } from "@/lib/nexus/query-keys";
@@ -27,8 +27,7 @@ export const Route = createFileRoute("/agents")({
       { title: "Agents \u2014 Nexus" },
       {
         name: "description",
-        content:
-          "The persona graph: entry, specialists and terminal escalation, with observed activity.",
+        content: "Agent catalog entries and observed activity for the selected window.",
       },
     ],
   }),
@@ -44,34 +43,48 @@ function AgentsPage() {
     queryFn: () => getAgentActivity({ data: { days } }),
   });
 
-  const totalTurns = activity.data?.total_turns ?? 0;
-  const rows = activity.data ? mergeAgentRows(activity.data.agents, totalTurns) : [];
+  const rows = activity.data ? mergeAgentRows(activity.data.agents, activity.data.total_turns) : [];
   const unrecognized = rows.filter((row) => row.catalog === null);
   const idle = rows.filter((row) => row.catalog !== null && row.turns === 0);
 
   return (
     <>
       <PageSection className="grid gap-sp-6 xl:grid-cols-4">
-        <HeroStat
-          label="Caller turns"
-          value={formatInteger(totalTurns)}
-          context={`Across ${days} days`}
-        />
-        <StatCard
-          label="Personas deployed"
-          value={formatInteger(rows.length)}
-          context="Catalog plus observed"
-        />
-        <StatCard
-          label="Idle in window"
-          value={formatInteger(idle.length)}
-          context="No caller turns"
-        />
-        <StatCard
-          label="Unrecognized"
-          value={formatInteger(unrecognized.length)}
-          context="Observed but not in catalog"
-        />
+        {activity.isPending ? (
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
+        ) : activity.isError ? (
+          <div className="xl:col-span-4">
+            <ErrorState error={activity.error} onRetry={() => void activity.refetch()} />
+          </div>
+        ) : (
+          <>
+            <HeroStat
+              label="Caller turns"
+              value={formatInteger(activity.data.total_turns)}
+              context={`Observed across ${days} days`}
+            />
+            <StatCard
+              label="Catalog personas"
+              value={formatInteger(rows.filter((row) => row.catalog !== null).length)}
+              context="Defined in the service catalog"
+            />
+            <StatCard
+              label="Observed personas"
+              value={formatInteger(rows.filter((row) => row.turns > 0).length)}
+              context={`Recorded activity across ${days} days`}
+            />
+            <StatCard
+              label="Unrecognized classes"
+              value={formatInteger(unrecognized.length)}
+              context="Observed classes absent from the catalog"
+            />
+          </>
+        )}
       </PageSection>
 
       <PageSection>

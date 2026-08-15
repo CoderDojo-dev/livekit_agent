@@ -16,6 +16,7 @@ counter behind a Redis INCR with a real depends_on, and keep the account lockout
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 from collections import deque
@@ -26,6 +27,18 @@ _MAX_TRACKED_KEYS = 4096
 
 _buckets: dict[str, deque[float]] = {}
 _lock = threading.Lock()
+
+
+def max_attempts() -> int:
+    """Per-window budget for unauthenticated endpoints. Defaults to 20.
+
+    Overridable for local test environments so endpoints can be exercised
+    without tripping the throttle.
+    """
+    try:
+        return max(1, int(os.getenv("PORTAL_RATE_LIMIT_ATTEMPTS", str(MAX_ATTEMPTS))))
+    except ValueError:
+        return MAX_ATTEMPTS
 
 
 def _prune(now: float) -> None:
@@ -44,8 +57,10 @@ def _prune(now: float) -> None:
             _buckets.pop(key, None)
 
 
-def check(key: str, *, limit: int = MAX_ATTEMPTS, window: float = WINDOW_SECONDS) -> bool:
+def check(key: str, *, limit: int | None = None, window: float = WINDOW_SECONDS) -> bool:
     """Record one attempt for ``key``. False when the window budget is exhausted."""
+    if limit is None:
+        limit = max_attempts()
     now = time.monotonic()
     with _lock:
         _prune(now)

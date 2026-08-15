@@ -44,6 +44,26 @@ def session_ttl_seconds() -> int:
         return 28800
 
 
+def max_failed_attempts() -> int:
+    """Wrong-password attempts before the durable per-account lockout kicks in.
+
+    Defaults to 5. Overridable for local test environments so password
+    verification can be exercised without tripping the lockout.
+    """
+    try:
+        return max(1, int(os.getenv("PORTAL_MAX_FAILED_ATTEMPTS", str(MAX_FAILED_ATTEMPTS))))
+    except ValueError:
+        return MAX_FAILED_ATTEMPTS
+
+
+def lockout_minutes() -> int:
+    """Duration of the durable per-account lockout. Defaults to 15."""
+    try:
+        return max(1, int(os.getenv("PORTAL_LOCKOUT_MINUTES", str(LOCKOUT_MINUTES))))
+    except ValueError:
+        return LOCKOUT_MINUTES
+
+
 # ---------------------------------------------------------------- sign in
 
 def authenticate(session: Session, email: str, password: str) -> PortalAccount:
@@ -83,8 +103,8 @@ def authenticate(session: Session, email: str, password: str) -> PortalAccount:
 
     if not correct:
         account.failed_attempts += 1
-        if account.failed_attempts >= MAX_FAILED_ATTEMPTS:
-            account.locked_until = now + timedelta(minutes=LOCKOUT_MINUTES)
+        if account.failed_attempts >= max_failed_attempts():
+            account.locked_until = now + timedelta(minutes=lockout_minutes())
             account.failed_attempts = 0
         session.commit()
         raise AuthError("invalid_credentials", "Incorrect email or password")
