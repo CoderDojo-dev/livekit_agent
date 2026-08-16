@@ -28,7 +28,6 @@ import {
   languageLabel,
   pageRange,
 } from "@/lib/nexus/customer-view";
-import { errorMessage } from "@/lib/api/errors";
 import { formatInteger, initials, maskPhone } from "@/lib/nexus/format";
 import { useDebounced } from "@/hooks/use-debounced";
 
@@ -194,8 +193,29 @@ function CustomersPage() {
             rows.map((c) => (
               <tr
                 key={c.customer_id}
-                onClick={() => setSelected(c)}
-                className="cursor-pointer transition-colors duration-[120ms] hover:bg-surface-3"
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  if (
+                    event.target !== event.currentTarget &&
+                    (event.target as HTMLElement).closest(
+                      "a, button, input, select, textarea, [role='button']",
+                    )
+                  ) {
+                    return;
+                  }
+
+                  setSelected(c);
+                }}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelected(c);
+                  }
+                }}
+                className="cursor-pointer transition-colors duration-[120ms] hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-n-12"
               >
                 <Td>
                   <span className="flex items-center gap-sp-5">

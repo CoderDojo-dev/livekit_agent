@@ -37,13 +37,9 @@ import {
   updateAdvisor,
   type Advisor,
 } from "@/lib/api/advisors.server";
+import { queryKeys } from "@/lib/nexus/query-keys";
 
 const COLUMN_COUNT = 8;
-
-export const advisorKeys = {
-  all: ["advisors"] as const,
-  list: (includeInactive: boolean) => ["advisors", "list", { includeInactive }] as const,
-};
 
 export const Route = createFileRoute("/advisors")({
   head: () => ({
@@ -73,11 +69,14 @@ function AdvisorsPage() {
   const includeInactive = scope === "All";
 
   const advisorsQuery = useQuery({
-    queryKey: advisorKeys.list(includeInactive),
+    queryKey: queryKeys.advisors.list(includeInactive),
     queryFn: () => listAdvisors({ data: { includeInactive } }),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: advisorKeys.all });
+  const invalidate = () =>
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.advisors.all,
+    });
 
   const createMutation = useMutation({
     mutationFn: (values: AdvisorFormValues) => createAdvisor({ data: values }),

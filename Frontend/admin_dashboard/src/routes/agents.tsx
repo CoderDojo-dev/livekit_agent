@@ -9,7 +9,6 @@ import { CardSkeleton, ErrorState, TableErrorRow, TableSkeleton } from "@/compon
 import { AgentDetail } from "@/components/nexus/agent-detail";
 import { getAgentActivity } from "@/lib/api/agents.server";
 import { agentKeys } from "@/lib/nexus/query-keys";
-import { errorMessage } from "@/lib/api/errors";
 import { formatInteger } from "@/lib/nexus/format";
 import {
   formatLastSeen,
@@ -129,8 +128,29 @@ function AgentsPage() {
             ? rows.map((row) => (
                 <tr
                   key={row.className}
-                  onClick={() => setSelected(row)}
-                  className="cursor-pointer transition-colors duration-[120ms] hover:bg-surface-3"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => {
+                    if (
+                      event.target !== event.currentTarget &&
+                      (event.target as HTMLElement).closest(
+                        "a, button, input, select, textarea, [role='button']",
+                      )
+                    ) {
+                      return;
+                    }
+
+                    setSelected(row);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelected(row);
+                    }
+                  }}
+                  className="cursor-pointer transition-colors duration-[120ms] hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-n-12"
                 >
                   <Td>
                     <span className="min-w-0">

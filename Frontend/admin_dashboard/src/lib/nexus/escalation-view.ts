@@ -76,6 +76,20 @@ export function dossierEntries(dossier: unknown): DossierEntry[] {
   });
 }
 
+/** Batch 5 — projected customer name; an unresolved identity renders a neutral fallback. */
+export function escalationCustomerName(e: Escalation): string {
+  return (e.customer_name ?? "").trim() || "Customer unresolved";
+}
+
+export function escalationCustomerId(e: Escalation): string {
+  return e.customer_id ?? "—";
+}
+
+/** Raw projection values, truthy-filtered: the display fallbacks are not searchable. */
+export function escalationCustomerSearchText(e: Escalation): string {
+  return [e.customer_name, e.customer_id].filter(Boolean).join(" ").toLowerCase();
+}
+
 export function escalationMatches(e: Escalation, q: string): boolean {
   const n = q.trim().toLowerCase();
   if (!n) return true;
@@ -83,6 +97,7 @@ export function escalationMatches(e: Escalation, q: string): boolean {
     e.trigger.toLowerCase().includes(n) ||
     e.target.toLowerCase().includes(n) ||
     e.session_id.toLowerCase().includes(n) ||
-    (e.resolution ?? "open").toLowerCase().includes(n)
+    (e.resolution ?? "open").toLowerCase().includes(n) ||
+    escalationCustomerSearchText(e).includes(n)
   );
 }

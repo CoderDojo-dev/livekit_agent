@@ -3,7 +3,7 @@ name = "integration-adapters"
 version = "0.1.0"
 description = "Per-legacy-system adapters implementing domain-core ports."
 requires-python = ">=3.12"
-dependencies = ["domain-core", "httpx==0.28.1"]
+dependencies = ["domain-core", "service-auth", "httpx==0.28.1"]
 
 [build-system]
 requires = ["setuptools>=68"]

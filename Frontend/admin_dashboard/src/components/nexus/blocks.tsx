@@ -69,11 +69,28 @@ export function LineChart({
 }: {
   data: { day: string; current: number; previous: number }[];
 }) {
-  const values = data.flatMap((d) => [d.current, d.previous]);
-  const max = Math.max(...values) * 1.08;
-  const step = 100 / (data.length - 1);
+  if (data.length === 0) {
+    return <p className="t-caption text-ink-4">No chart data.</p>;
+  }
+
+  const values = data.flatMap((point) => [point.current, point.previous]);
+
+  if (values.some((value) => !Number.isFinite(value))) {
+    return (
+      <p role="status" className="t-caption text-ink-4">
+        Chart data is unavailable.
+      </p>
+    );
+  }
+
+  const max = Math.max(1, ...values) * 1.08;
+  const y = (value: number) => 100 - (value / max) * 100;
+
+  const singlePoint = data.length === 1;
+  const step = singlePoint ? 0 : 100 / (data.length - 1);
+
   const path = (key: "current" | "previous") =>
-    data.map((d, i) => `${i * step},${100 - (d[key] / max) * 100}`).join(" ");
+    data.map((point, index) => `${index * step},${y(point[key])}`).join(" ");
 
   return (
     <div>
@@ -83,65 +100,68 @@ export function LineChart({
         className="h-[220px] w-full"
         aria-hidden="true"
       >
-        {[0, 25, 50, 75, 100].map((y) => (
+        {[0, 25, 50, 75, 100].map((gridline) => (
           <line
-            key={y}
+            key={gridline}
             x1="0"
             x2="100"
-            y1={y}
-            y2={y}
+            y1={gridline}
+            y2={gridline}
             stroke="var(--stroke-subtle)"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
         ))}
-        <polyline
-          points={path("previous")}
-          fill="none"
-          stroke="var(--n-8)"
-          strokeWidth="1.5"
-          strokeDasharray="4 4"
-          vectorEffect="non-scaling-stroke"
-        />
-        <polyline
-          points={path("current")}
-          fill="none"
-          stroke="var(--n-12)"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
+        {singlePoint ? (
+          <>
+            <line
+              x1="48"
+              x2="52"
+              y1={y(data[0]!.previous)}
+              y2={y(data[0]!.previous)}
+              stroke="var(--n-8)"
+              strokeWidth="1.5"
+              strokeDasharray="4 4"
+              vectorEffect="non-scaling-stroke"
+            />
+            <line
+              x1="48"
+              x2="52"
+              y1={y(data[0]!.current)}
+              y2={y(data[0]!.current)}
+              stroke="var(--n-12)"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+          </>
+        ) : (
+          <>
+            <polyline
+              points={path("previous")}
+              fill="none"
+              stroke="var(--n-8)"
+              strokeWidth="1.5"
+              strokeDasharray="4 4"
+              vectorEffect="non-scaling-stroke"
+            />
+            <polyline
+              points={path("current")}
+              fill="none"
+              stroke="var(--n-12)"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+          </>
+        )}
       </svg>
+
       <div className="mt-sp-4 flex justify-between">
-        {data.map((d) => (
-          <span key={d.day} className="t-micro text-ink-5">
-            {d.day}
+        {data.map((point) => (
+          <span key={point.day} className="t-micro text-ink-5">
+            {point.day}
           </span>
         ))}
       </div>
-    </div>
-  );
-}
-
-export function BarChart({ data }: { data: { week: string; ai: number; advisor: number }[] }) {
-  return (
-    <div className="flex h-[220px] items-end gap-sp-6">
-      {data.map((d) => (
-        <div key={d.week} className="flex flex-1 flex-col items-center gap-sp-4">
-          <div className="flex h-full w-full items-end justify-center gap-sp-2">
-            <span
-              className="w-1/3 rounded-t-[4px] bg-n-12"
-              style={{ height: `${d.ai}%` }}
-              aria-hidden="true"
-            />
-            <span
-              className="w-1/3 rounded-t-[4px] bg-n-7"
-              style={{ height: `${d.advisor}%` }}
-              aria-hidden="true"
-            />
-          </div>
-          <span className="t-micro text-ink-5">{d.week}</span>
-        </div>
-      ))}
     </div>
   );
 }

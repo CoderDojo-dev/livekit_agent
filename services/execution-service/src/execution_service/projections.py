@@ -15,6 +15,13 @@ Read and write must agree on one system of record.
 The projection runs in a SAVEPOINT inside the execute transaction, so a projection problem can
 never undo the action ledger or the audit chain. Defensive: missing data logs and skips.
 Live-state rows are SELECT ... FOR UPDATE so concurrent actions on one customer serialize.
+
+Live-mode reconciliation: the legacy system may write through these same tables under the SAME
+idempotency key (the sims do; their ledgers are "protected by the database's own uniqueness on
+idempotency_key"). A keyed transaction row therefore means the effect is already applied, and the
+projection must not apply it a second time - colliding with the unique key rolls back the whole
+SAVEPOINT, and re-applying an unkeyed effect (a due-date push, a SIM order) silently doubles it.
+Each projection probes first; mock mode has no such rows and behaves exactly as before.
 """
 from __future__ import annotations
 
@@ -93,6 +100,16 @@ def settle(amount: Decimal, outstanding: list[Decimal]) -> tuple[list[Decimal], 
     return result, remaining
 
 
+def deferral_probe_keys(key: str) -> tuple[str, str]:
+    """The execution key plus the billing system's ``DEFERRAL::``-prefixed marker form of it.
+
+    ocs-billing-sim records a deferral as a zero-amount payment marker row whose key is
+    ``DEFERRAL::<execution key>`` (ledger.grant_deferral) so the key is consumed exactly once.
+    Both forms mean "this deferral was applied by the billing system".
+    """
+    return key, f"DEFERRAL::{key}"
+
+
 # ---- DB projection ----
 def project_domain_effect(session: Session, req, ledger_row) -> None:
     """Write the domain row for ``req`` (dispatch already succeeded). Caller wraps this in a savepoint."""
@@ -114,6 +131,26 @@ def project_domain_effect(session: Session, req, ledger_row) -> None:
 def _dec(value) -> Decimal:
     """Read a Numeric column as a Decimal (0 when NULL)."""
     return Decimal(str(value)) if value is not None else Decimal(0)
+
+
+def _effect_applied(session: Session, model, key: str | None) -> bool:
+    """True when a transaction row already carries this execution key.
+
+    The keyed tables (payments / recharges / block_unblock_cases / provisioning_requests) all carry
+    ``idempotency_key ... unique=True``; one unique-index lookup per action, before any write.
+    """
+    if not key:
+        return False
+    return session.scalar(select(model).where(model.idempotency_key == key)) is not None
+
+
+def _deferral_applied(session: Session, key: str | None) -> bool:
+    """True when the billing system already applied this deferral (either key form)."""
+    if not key:
+        return False
+    return session.scalar(
+        select(Payment).where(Payment.idempotency_key.in_(deferral_probe_keys(key)))
+    ) is not None
 
 
 def _account_for(session: Session, customer_id):
@@ -159,6 +196,12 @@ def _target_invoices(session: Session, req) -> list[Invoice]:
 
 
 def _payment(session: Session, req, ledger_row) -> None:
+    if _effect_applied(session, Payment, req.idempotency_key):
+        # Live mode: the billing system captured the payment and settled the invoice already.
+        logger.info("payment %s already applied by the billing system; projection skipped",
+                    req.idempotency_key)
+        return
+
     account = _account_for(session, req.customer_id)
     if account is None:
         logger.warning("payment projection skipped: no billing account for %s", req.customer_id)
@@ -208,7 +251,14 @@ def _payment_plan(session: Session, req, ledger_row) -> None:
 
     # Push the live due dates out; an overdue invoice that is now deferred is no longer overdue.
     deferral_until: date | None = None
-    if days > 0:
+    if _deferral_applied(session, req.idempotency_key):
+        # Live mode: the billing system already pushed the due dates. Record the plan against the
+        # CURRENT dates - pushing again would silently grant double the deferral.
+        invoices = _target_invoices(session, req)
+        deferral_until = max((inv.due_date for inv in invoices), default=None)
+        logger.info("deferral %s already applied by the billing system; recording plan only",
+                    req.idempotency_key)
+    elif days > 0:
         for invoice in _target_invoices(session, req):
             new_due = invoice.due_date + timedelta(days=days)
             invoice.due_date = new_due
@@ -260,6 +310,12 @@ def _recharge(session: Session, req, ledger_row) -> None:
     if sid is None:
         logger.warning("recharge projection skipped: no subscription on request")
         return
+    if _effect_applied(session, Recharge, req.idempotency_key):
+        # Live mode: the OCS credited the balance already - INCLUDING the catalog bonus, which
+        # this projection does not add. Crediting again would double the money.
+        logger.info("recharge %s already applied by the OCS; projection skipped",
+                    req.idempotency_key)
+        return
 
     amount = money(req.payload.get("amount"))
     session.add(Recharge(
@@ -287,6 +343,10 @@ def _sim_case(session: Session, req, ledger_row) -> None:
     if action is None or sid is None:
         logger.warning("sim projection skipped: action=%s subscription=%s", action, req.subscription_id)
         return
+    if _effect_applied(session, BlockUnblockCase, req.idempotency_key):
+        logger.info("sim case %s already applied by the provisioning system; projection skipped",
+                    req.idempotency_key)
+        return
 
     session.add(BlockUnblockCase(
         subscription_id=sid,
@@ -305,6 +365,12 @@ def _sim_case(session: Session, req, ledger_row) -> None:
 
 def _sim_order(session: Session, req, ledger_row) -> None:
     """REPLACE_SIM: raise a real replacement order carrying the dispatch reference."""
+    # The provisioning system keys its provisioning_requests row, not the order; a keyed request
+    # means the order was already placed. Without this probe, live mode ships two SIMs.
+    if _effect_applied(session, ProvisioningRequest, req.idempotency_key):
+        logger.info("SIM order %s already placed by the provisioning system; projection skipped",
+                    req.idempotency_key)
+        return
     sid = _subscription_id(session, req)
     session.add(SimOrder(
         customer_id=to_uuid(req.customer_id),
@@ -316,6 +382,12 @@ def _sim_order(session: Session, req, ledger_row) -> None:
 
 
 def _provisioning(session: Session, req, ledger_row) -> None:
+    if _effect_applied(session, ProvisioningRequest, req.idempotency_key):
+        # Live mode: the provisioning system recorded the request AND applied the effect
+        # (plan_change_history + plan_code for CHANGE_PLAN; roaming_enabled for ACTIVATE_ROAMING).
+        logger.info("provisioning %s already applied; projection skipped", req.idempotency_key)
+        return
+
     sid = _subscription_id(session, req)
     subscription = session.get(Subscription, sid) if sid is not None else None
 
@@ -345,4 +417,6 @@ def _provisioning(session: Session, req, ledger_row) -> None:
         ))
         subscription.plan_code = to_plan
     elif req.action_type == "ACTIVATE_ROAMING":
-        subscription.roaming_enabled = True
+        # Mirror executor.py's live dispatch exactly: the direction comes from the payload,
+        # and policy (ROAM_NO_DIRECTION) guarantees it is present on an AUTHORIZED verdict.
+        subscription.roaming_enabled = bool(req.payload.get("enable", True))

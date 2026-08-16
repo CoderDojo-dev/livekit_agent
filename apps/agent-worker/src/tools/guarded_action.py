@@ -87,9 +87,10 @@ async def execute_guarded_action(run_context: RunContext, action_type: str, payl
         subscription_id=context["subscription_id"],
     )
 
-    # A confirmed execution closes this logical operation: release its key so a further request
-    # with the same parameters is dispatched as a NEW action instead of replaying this one.
-    # A failure keeps the key, which is exactly what makes a retry safe.
+    # A confirmed execution starts the duplicate window: an identical call within
+    # _DUPLICATE_WINDOW_S replays this result via the retained key (no double charge);
+    # after the window it is a genuinely NEW action. A failure keeps the key with no
+    # timestamp, which is exactly what makes a retry safe.
     if isinstance(result, dict) and "executed" in {result.get("outcome"), result.get("status")}:
-        user_data.release_idempotency_key(action_type, operation_payload)
+        user_data.mark_operation_completed(action_type, operation_payload)
     return result

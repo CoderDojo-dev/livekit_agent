@@ -16,7 +16,7 @@ TARGETS = [
     ("packages/service-auth", [], "tests"),
     ("packages/cache", [], "tests"),
     ("packages/object-storage", [], "tests"),
-    ("packages/integration-adapters", ["../domain-core/src"], "tests"),
+    ("packages/integration-adapters", ["../domain-core/src", "../service-auth/src"], "tests"),
     ("packages/persistence", [], "tests"),
     ("packages/observability-kit", [], "tests"),
     ("services/context-service", ["../../packages/cache/src", "../../packages/persistence/src", "../../packages/service-auth/src"], "tests"),

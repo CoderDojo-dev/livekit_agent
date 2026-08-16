@@ -14,7 +14,10 @@ export type Escalation = {
   dossier: Record<string, string | number | boolean | null>;
   /** Batch 1 / C13 — added to the repository dict (additive). */
   created_at: string | null;
+  /** Batch 5 — customer identity projection (case id, then session id, then null). */
   customer_id: string | null;
+  customer_name: string | null;
+  customer_vip: boolean | null;
 };
 
 /**

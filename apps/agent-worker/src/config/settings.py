@@ -106,8 +106,10 @@ class Settings(BaseSettings):
     knowledge_mcp_url: str = Field("http://localhost:8201/mcp", alias="KNOWLEDGE_MCP_URL")
     ticketing_mcp_url: str = Field("http://localhost:8202/mcp", alias="TICKETING_MCP_URL")
     ticketing_http_url: str = Field("http://localhost:8202", alias="TICKETING_HTTP_URL")
-    business_api_url: str = Field("http://localhost:8107", alias="BUSINESS_API_URL")
-    nms_service_url: str = Field("http://localhost:8108", alias="NMS_SERVICE_URL")
+    # business-api binds 8108 (apps/business-api main.py); 8107 is the token-service.
+    business_api_url: str = Field("http://localhost:8108", alias="BUSINESS_API_URL")
+    # nms-sim publishes host port 8110 (docker-compose.apps.yml maps 8110 -> 8108).
+    nms_service_url: str = Field("http://localhost:8110", alias="NMS_SERVICE_URL")
 
     _SERVICE_URL_FIELDS = (
         "context_service_url", "decision_service_url", "policy_service_url",

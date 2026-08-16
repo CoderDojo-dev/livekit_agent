@@ -1,7 +1,12 @@
 """Offline tests for the pure projection mapping (no DB). The DB writes are integration-tested."""
 from __future__ import annotations
 
-from execution_service.projections import installment_amount, projection_kind, sim_case_action
+from execution_service.projections import (
+    deferral_probe_keys,
+    installment_amount,
+    projection_kind,
+    sim_case_action,
+)
 
 
 def test_projection_kind() -> None:
@@ -25,3 +30,8 @@ def test_installment_amount() -> None:
     assert installment_amount(120, 3) == 40.0
     assert installment_amount(73.9, 1) == 73.9
     assert installment_amount(100, 0) == 100.0  # guarded to >=1 installment
+
+
+def test_deferral_probe_keys() -> None:
+    """Both key forms the billing system may have used for a deferral."""
+    assert deferral_probe_keys("abc") == ("abc", "DEFERRAL::abc")

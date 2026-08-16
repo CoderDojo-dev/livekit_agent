@@ -29,6 +29,10 @@ _SERVICE_LIMIT = 50
 # Outbound notification send log (FEATURE_18). A hard cap mirrors ticket_list's own clamp.
 _NOTIFICATION_LIMIT_MAX = 200
 
+# Escalation queue (spec section 17.6). A hard cap keeps the handoff read cheap; the UI
+# surfaces "latest 200" when the queue is full.
+_ESCALATION_LIMIT = 200
+
 
 class SupervisionRepository:
     """Back-office reads over the persisted platform data."""
@@ -720,25 +724,63 @@ class SupervisionRepository:
 
         return {"sessions": items, "total": total, "limit": limit, "offset": offset}
 
-    def escalations(self, status: str = "open") -> list[dict]:
-        rows = self._s.scalars(select(EscalationCase).order_by(EscalationCase.created_at.desc())).all()
+    def _project_escalation_cases(self, cases: list[EscalationCase]) -> list[dict]:
+        """Customer identity for a batch of escalation cases.
+
+        Precedence: the case's own customer_id wins; otherwise the call session's
+        customer_id; otherwise null. Batched lookups — one session query and one
+        customer query for the whole batch, never one per case. Soft-deleted
+        customers still resolve to their historical name/VIP (no deleted_at filter).
+        """
+        session_ids = {c.session_id for c in cases if c.customer_id is None}
+        session_customer: dict = {}
+        if session_ids:
+            rows = self._s.execute(
+                select(CallSession.id, CallSession.customer_id).where(CallSession.id.in_(session_ids))
+            ).all()
+            session_customer = {str(session_id): customer_id for session_id, customer_id in rows}
+
+        customer_ids = {
+            case.customer_id if case.customer_id is not None else session_customer.get(str(case.session_id))
+            for case in cases
+        }
+        customer_ids.discard(None)
+
+        customers: dict = {}
+        if customer_ids:
+            rows = self._s.execute(
+                select(Customer.id, Customer.first_name, Customer.last_name, Customer.vip_flag)
+                .where(Customer.id.in_(customer_ids))
+            ).all()
+            customers = {str(cid): (first, last, vip) for cid, first, last, vip in rows}
+
         out = []
-        for case in rows:
-            is_open = case.resolution is None
-            if status == "open" and not is_open:
-                continue
+        for case in cases:
+            cid = case.customer_id
+            if cid is None:
+                cid = session_customer.get(str(case.session_id))
+            name_vip = customers.get(str(cid)) if cid is not None else None
             out.append({
                 "id": str(case.id), "session_id": str(case.session_id), "trigger": case.trigger,
                 "target": case.target, "resolution": case.resolution, "dossier": case.dossier,
-                # Batch 1 / C13: expose created_at (the query already orders by it) and
-                # customer_id (present on the model, one join from Customer 360). Additive keys —
-                # consumed by the admin dashboard only; supervisor-dashboard ignores them.
-                # APPROVED in the C13 audit follow-up (2026-08-04): JSON-additive and nullable-safe;
-                # Cookbook 13 §8.1/§8.3 originally deferred both pending sign-off.
                 "created_at": case.created_at.isoformat() if case.created_at else None,
-                "customer_id": str(case.customer_id) if case.customer_id else None,
+                # Batch 5 — customer identity projection. customer_id: the case's own id wins,
+                # then the session's, then null (a dangling id is kept, name/VIP stay null).
+                # customer_name / customer_vip: null when the identity is unresolved.
+                "customer_id": str(cid) if cid is not None else None,
+                "customer_name": f"{name_vip[0]} {name_vip[1]}".strip() if name_vip else None,
+                "customer_vip": bool(name_vip[2]) if name_vip else None,
             })
         return out
+
+    def escalations(self, status: str = "open") -> list[dict]:
+        stmt = select(EscalationCase)
+        if status == "open":
+            stmt = stmt.where(EscalationCase.resolution.is_(None))
+        rows = self._s.scalars(
+            stmt.order_by(EscalationCase.created_at.desc()).limit(_ESCALATION_LIMIT)
+        ).all()
+        return self._project_escalation_cases(list(rows))
 
     _ESCALATION_RESOLUTIONS = ("transferred", "queued", "callback_scheduled", "resolved")
 
@@ -756,16 +798,7 @@ class SupervisionRepository:
             case.resolution = resolution
             self._s.flush()
 
-        return {
-            "id": str(case.id),
-            "session_id": str(case.session_id),
-            "trigger": case.trigger,
-            "target": case.target,
-            "resolution": case.resolution,
-            "dossier": case.dossier,
-            "created_at": case.created_at.isoformat() if case.created_at else None,
-            "customer_id": str(case.customer_id) if case.customer_id else None,
-        }
+        return self._project_escalation_cases([case])[0]
 
     def verdicts(self, session_id: str) -> list[dict]:
         sid = to_uuid(session_id)
