@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AudioLines, Inbox, PhoneCall } from "lucide-react";
-import { copy } from "@/lib/copy";
+import { copy, personaLabel } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import {
   fetchCallbacks,
@@ -207,22 +207,44 @@ function ConversationBody({ sessionId }: { sessionId: string }) {
           <Divider className="my-sp-7" />
           <div className="t-micro text-ink-4">{copy.activity.transcript}</div>
           <div className="mt-sp-6 space-y-sp-6">
-            {detail.turns.map((line) => (
-              <div key={line.index}>
-                <div className="t-micro-2 mb-sp-2 flex gap-sp-4 text-ink-5">
-                  <span>
-                    {copy.labels.speaker[line.speaker] ?? line.speaker}
-                    {line.agent ? ` · ${line.agent}` : ""}
-                  </span>
-                  <span className="t-mono-s">{dateTime(line.at)}</span>
+            {detail.turns.map((line, turnIndex) => {
+              // Persona label from the persisted active_agent; a raw
+              // identifier must never reach the screen.
+              const persona = personaLabel(line.agent);
+              const isAgentTurn = line.speaker === "agent";
+              const previousAgent = detail.turns
+                .slice(0, turnIndex)
+                .reverse()
+                .find((t) => t.speaker === "agent");
+              const previousPersona = previousAgent ? personaLabel(previousAgent.agent) : undefined;
+              // A one-line divider replaces repeating the persona on every
+              // bubble when it changes between consecutive agent turns.
+              const showDivider = isAgentTurn && !!previousAgent && previousPersona !== persona;
+              return (
+                <div key={line.index}>
+                  {showDivider ? (
+                    <div className="mb-sp-6 flex items-center gap-sp-4" aria-hidden="true">
+                      <span className="t-micro-2 text-ink-5">
+                        {copy.assistant.tools.nowWith(persona)}
+                      </span>
+                      <span className="h-px flex-1 bg-stroke-subtle" />
+                    </div>
+                  ) : null}
+                  <div className="t-micro-2 mb-sp-2 flex gap-sp-4 text-ink-5">
+                    <span>{copy.labels.speaker[line.speaker] ?? line.speaker}</span>
+                    <span className="t-mono-s">{dateTime(line.at)}</span>
+                  </div>
+                  <p
+                    className={cn(
+                      "t-body",
+                      line.speaker === "caller" ? "text-ink-3" : "text-ink-1",
+                    )}
+                  >
+                    {line.text ?? "—"}
+                  </p>
                 </div>
-                <p
-                  className={cn("t-body", line.speaker === "caller" ? "text-ink-3" : "text-ink-1")}
-                >
-                  {line.text ?? "—"}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

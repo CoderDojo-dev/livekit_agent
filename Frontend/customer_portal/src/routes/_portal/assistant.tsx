@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAgent, useSessionContext } from "@livekit/components-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Mic, MicOff, PhoneCall, PhoneOff, LockKeyhole } from "lucide-react";
@@ -10,6 +11,8 @@ import { toOrbState } from "@/lib/orb-state";
 import { useOrbLevel } from "@/hooks/use-orb-level";
 import { useInputControls } from "@/hooks/use-input-controls";
 import { useCustomerName } from "@/hooks/use-customer-name";
+import { usePortalSession } from "@/lib/use-portal-session";
+import { isWriteTool, type ToolEvent } from "@/lib/tool-events";
 import { VoiceSessionProvider } from "@/components/assistant/voice-session";
 import { useParticipantName } from "@/components/assistant/participant-name";
 import { StartAudioButton } from "@/components/assistant/start-audio-button";
@@ -56,11 +59,14 @@ function AssistantStage() {
   const session = useSessionContext();
   const agent = useAgent();
   const name = useParticipantName();
+  const portalSession = usePortalSession();
+  const queryClient = useQueryClient();
 
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [callId, setCallId] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [hadWriteTools, setHadWriteTools] = useState(false);
 
   const connected = session.isConnected;
   // connectionState is the only reliable latch: isConnected oscillates while
@@ -109,6 +115,22 @@ function AssistantStage() {
   useEffect(() => {
     if (session.connectionState === "disconnected") setError(null);
   }, [session.connectionState]);
+
+  const handleToolEvent = useCallback((event: ToolEvent) => {
+    if (isWriteTool(event.name)) setHadWriteTools(true);
+  }, []);
+
+  // Post-call reconciliation: if a tool wrote to the account during the call,
+  // the worker's writers commit after the call. Give them a moment, then let
+  // the server be the source of truth for anything that changed.
+  const customerId = portalSession?.customerId;
+  useEffect(() => {
+    if (session.connectionState !== "disconnected" || !hadWriteTools) return;
+    const timer = window.setTimeout(() => {
+      if (customerId) void queryClient.invalidateQueries({ queryKey: ["me", customerId] });
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [session.connectionState, hadWriteTools, queryClient, customerId]);
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center gap-sp-9">
@@ -190,7 +212,7 @@ function AssistantStage() {
       </div>
 
       {/* LIVE STREAM — keyed on callId so each call starts with a clean stack. */}
-      <LiveStream key={callId} participantName={name} />
+      <LiveStream key={callId} participantName={name} onToolEvent={handleToolEvent} />
 
       {/* SUMMARY — real duration, never a hardcoded string. */}
       {!inCall && startedAt ? (

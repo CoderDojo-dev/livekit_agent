@@ -83,13 +83,19 @@ export const copy = {
       you: "YOU",
       willAppear: "Your conversation will appear here as you speak.",
       waiting: "Listening for the first words…",
-      toolLabel: "Service action",
-      toolDone: "Completed",
-      toolFailed: "Failed",
     },
     controls: {
       mute: "Mute microphone",
       unmute: "Unmute microphone",
+    },
+    tools: {
+      heading: "SERVICE ACTION",
+      working: "Checking this for you…",
+      done: "Completed",
+      failed: "Did not complete",
+      genericDone: "Checked something for you",
+      genericFailed: "Could not finish that just now",
+      nowWith: (persona: string) => `Now with ${persona}`,
     },
     summary: {
       heading: "CONVERSATION SUMMARY",
@@ -105,6 +111,17 @@ export const copy = {
       microphone: "We need access to your microphone to start a conversation.",
       timeout: "The assistant did not join in time. Try again.",
     },
+  },
+  personas: {
+    // Keys are conversation.turns.active_agent values produced by the worker
+    // (type(self).__name__ on each agent class, verified in apps/agent-worker).
+    // Unknown keys fall back — a raw identifier must never reach the screen.
+    fallback: "Assistant",
+    TriageAgent: "Assistant",
+    BillingAgent: "Billing support",
+    TechnicalAgent: "Technical support",
+    ManagerAgent: "Specialist",
+    AccountServicesAgent: "Account support",
   },
   activity: {
     heroLabel: "LAST CONVERSATION",
@@ -444,3 +461,12 @@ export const copy = {
     sessionExpired: "Your session has expired. Sign in again.",
   },
 } as const;
+
+/**
+ * conversation.turns.active_agent -> customer wording.
+ * Render rule: copy.personas[turn.agent ?? ""] ?? copy.personas.fallback.
+ * A raw identifier such as billing_agent_v2 must never reach the screen.
+ */
+export function personaLabel(agent: string | null | undefined): string {
+  return (copy.personas as Record<string, string>)[agent ?? ""] ?? copy.personas.fallback;
+}

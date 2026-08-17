@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   useAgent,
   useSessionContext,
@@ -6,10 +6,19 @@ import {
   useTranscriptions,
 } from "@livekit/components-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, LoaderCircle, Wrench, X } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 import { toOrbState } from "@/lib/orb-state";
+import {
+  parseToolEvent,
+  timestampMs,
+  toolEventText,
+  isWriteTool,
+  type ToolEvent,
+} from "@/lib/tool-events";
 import { T_BASE, T_MICRO } from "@/components/portal/data";
+import { ToolEventRow } from "@/components/assistant/tool-event-row";
+import { WorkingIndicator } from "@/components/assistant/working-indicator";
 import { copy } from "@/lib/copy";
 
 /*
@@ -34,45 +43,16 @@ type StreamItem = {
   partial?: boolean;
   status?: "done" | "error";
   persona?: string | null;
+  name?: string;
 };
 
-type ToolEvent = {
-  version: 1;
-  kind: "tool";
-  id: string;
-  name: string;
-  label: string;
-  status: "done" | "error";
-  created_at: number;
-};
-
-function parseToolEvent(text: string): ToolEvent | null {
-  try {
-    const value = JSON.parse(text) as Partial<ToolEvent>;
-    if (
-      value.version !== 1 ||
-      value.kind !== "tool" ||
-      typeof value.id !== "string" ||
-      typeof value.name !== "string" ||
-      typeof value.label !== "string" ||
-      (value.status !== "done" && value.status !== "error")
-    ) {
-      return null;
-    }
-    return value as ToolEvent;
-  } catch {
-    return null;
-  }
-}
-
-function timestampMs(value: number | Date | undefined): number {
-  if (value instanceof Date) return value.getTime();
-  if (typeof value !== "number") return Date.now();
-  // LiveKit timestamps can be seconds or milliseconds.
-  return value < 10_000_000_000 ? value * 1000 : value;
-}
-
-export function LiveStream({ participantName }: { participantName: string }) {
+export function LiveStream({
+  participantName,
+  onToolEvent,
+}: {
+  participantName: string;
+  onToolEvent?: (event: ToolEvent) => void;
+}) {
   const session = useSessionContext();
   const agent = useAgent();
 
@@ -86,6 +66,16 @@ export function LiveStream({ participantName }: { participantName: string }) {
   const { textStreams: toolStreams } = useTextStream(TOOL_EVENT_TOPIC, {
     room: session.room,
   });
+
+  // Report tool events to the parent (e.g. so it knows a write tool ran and
+  // activity should be refetched after the call).
+  useEffect(() => {
+    if (!onToolEvent) return;
+    for (const stream of toolStreams) {
+      const event = parseToolEvent(stream.text);
+      if (event) onToolEvent(event);
+    }
+  }, [toolStreams, onToolEvent]);
 
   const items = useMemo(() => {
     const transcriptBySegment = new Map<string, StreamItem>();
@@ -123,7 +113,8 @@ export function LiveStream({ participantName }: { participantName: string }) {
         {
           id: `tool:${event.id}`,
           role: "tool" as const,
-          text: event.label,
+          name: event.name,
+          text: toolEventText(event),
           status: event.status,
           timestamp: timestampMs(event.created_at || stream.streamInfo.timestamp),
         },
@@ -162,6 +153,8 @@ export function LiveStream({ participantName }: { participantName: string }) {
       </div>
 
       <div className="flex flex-col gap-sp-4">
+        <WorkingIndicator active={agent.state === "thinking"} />
+
         <AnimatePresence initial={false} mode="popLayout">
           {items.map((item, index) => {
             const depth = items.length - 1 - index;
@@ -179,33 +172,11 @@ export function LiveStream({ participantName }: { participantName: string }) {
                 className="rounded-r-4 border border-stroke-subtle bg-surface-2 px-sp-6 py-sp-5"
               >
                 {item.role === "tool" ? (
-                  <>
-                    <div className="flex items-center gap-sp-3">
-                      <span aria-hidden="true" className="text-ink-5">
-                        <Wrench size={14} strokeWidth={1.5} />
-                      </span>
-                      <span className="t-micro-2 text-ink-5">
-                        {copy.assistant.stream.toolLabel}
-                      </span>
-                      <span
-                        className="ml-auto"
-                        aria-label={
-                          item.status === "done"
-                            ? copy.assistant.stream.toolDone
-                            : copy.assistant.stream.toolFailed
-                        }
-                      >
-                        {item.status === "done" ? (
-                          <Check size={14} strokeWidth={1.5} />
-                        ) : (
-                          <X size={14} strokeWidth={1.5} />
-                        )}
-                      </span>
-                    </div>
-                    <p dir="auto" className="t-body mt-sp-2 text-ink-1">
-                      {item.text}
-                    </p>
-                  </>
+                  <ToolEventRow
+                    name={item.name ?? ""}
+                    text={item.text}
+                    status={item.status ?? "done"}
+                  />
                 ) : (
                   <>
                     <div className="t-micro-2 text-ink-5">
