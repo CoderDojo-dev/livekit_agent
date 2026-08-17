@@ -1,20 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Mic, MicOff, Captions, Lock, Radio } from "lucide-react";
+import { useAgent, useSessionContext } from "@livekit/components-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Mic, MicOff, PhoneCall, PhoneOff, LockKeyhole } from "lucide-react";
 import { Orb } from "@/components/orb/orb";
 import { OrbPlinth } from "@/components/orb/orb-plinth";
 import { ORB_SIZE, type OrbState } from "@/lib/orb-config";
+import { toOrbState } from "@/lib/orb-state";
+import { useOrbLevel } from "@/hooks/use-orb-level";
+import { useInputControls } from "@/hooks/use-input-controls";
+import { useCustomerName } from "@/hooks/use-customer-name";
+import { VoiceSessionProvider } from "@/components/assistant/voice-session";
+import { useParticipantName } from "@/components/assistant/participant-name";
+import { StartAudioButton } from "@/components/assistant/start-audio-button";
+import { LiveStream } from "@/components/assistant/live-stream";
+import { Button, Card, IconButton, StatusChip } from "@/components/portal/primitives";
+import { T_BASE } from "@/components/portal/data";
+import { duration } from "@/lib/format";
 import { copy } from "@/lib/copy";
-import {
-  Button,
-  Card,
-  Divider,
-  IconButton,
-  SectionLabel,
-  StatusChip,
-} from "@/components/portal/primitives";
-import { interactions } from "@/lib/fixtures/interactions";
-import { cn } from "@/lib/utils";
+import { reportVoiceEvent } from "@/lib/api/voice.server";
 
 export const Route = createFileRoute("/_portal/assistant")({
   head: () => ({
@@ -33,222 +37,206 @@ export const Route = createFileRoute("/_portal/assistant")({
       },
     ],
   }),
-  component: AssistantScene,
+  component: AssistantScreen,
+  // The LiveKit bundle is only paid for on this route.
+  ssr: false,
 });
 
-type Turn = { speaker: "assistant" | "you"; text: string; at: string };
+function AssistantScreen() {
+  // full_name from the existing profile-detail query; "You" until it resolves.
+  const participantName = useCustomerName();
+  return (
+    <VoiceSessionProvider participantName={participantName}>
+      <AssistantStage />
+    </VoiceSessionProvider>
+  );
+}
 
-const SCRIPT: readonly Turn[] = interactions[0]!.transcript.map((t) => ({
-  speaker: t.speaker === "specialist" ? "assistant" : t.speaker,
-  text: t.text,
-  at: t.at,
-}));
+function AssistantStage() {
+  const session = useSessionContext();
+  const agent = useAgent();
+  const name = useParticipantName();
 
-const ACTIVE: readonly OrbState[] = ["listening", "thinking", "speaking"];
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [callId, setCallId] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
 
-function AssistantScene() {
-  const [state, setState] = useState<OrbState>("disconnected");
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [ended, setEnded] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [captions, setCaptions] = useState(true);
-  const [level, setLevel] = useState(0);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const connected = session.isConnected;
+  // connectionState is the only reliable latch: isConnected oscillates while
+  // ICE settles and while the agent joins. Verified pattern from App.tsx.
+  const inCall = session.connectionState !== "disconnected";
 
-  const clear = useCallback(() => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-  }, []);
+  const orbState: OrbState = toOrbState(agent.state, connected);
+  const level = useOrbLevel(agent.microphoneTrack);
+  const stateCopy = copy.assistant.state[orbState] ?? copy.assistant.state.disconnected;
 
-  useEffect(() => clear, [clear]);
-
-  useEffect(() => {
-    if (!ACTIVE.includes(state)) {
-      setLevel(0);
-      return;
-    }
-    const id = setInterval(() => {
-      setLevel(state === "thinking" ? 0.2 : 0.25 + Math.random() * 0.65);
-    }, 140);
-    return () => clearInterval(id);
-  }, [state]);
-
-  const at = (ms: number, fn: () => void) => {
-    timers.current.push(setTimeout(fn, ms));
-  };
-
-  function start() {
-    clear();
-    setEnded(false);
-    setTurns([]);
-    setState("connecting");
-    at(900, () => setState("preConnect"));
-    at(1700, () => setState("initializing"));
-    at(2500, () => setState("idle"));
-    let t = 3200;
-    SCRIPT.forEach((turn, i) => {
-      const speaking = turn.speaker === "assistant";
-      at(t, () => setState(speaking ? "thinking" : "listening"));
-      at(t + (speaking ? 900 : 500), () => {
-        if (speaking) setState("speaking");
-        setTurns((prev) => [...prev, turn]);
-      });
-      t += 2600 + turn.text.length * 12;
-      if (i === SCRIPT.length - 1) at(t, () => setState("idle"));
+  const start = useCallback(async () => {
+    if (starting || connected) return;
+    setError(null);
+    setStarting(true);
+    setCallId((n) => n + 1);
+    void reportVoiceEvent({
+      data: { event: "start_session_clicked", details: { surface: "portal" } },
     });
-  }
+    try {
+      await session.start({
+        tracks: {
+          microphone: { enabled: true, publishOptions: { preConnectBuffer: true } },
+          camera: { enabled: false },
+          screenShare: { enabled: false },
+        },
+      });
+      setStartedAt(Date.now());
+      void reportVoiceEvent({ data: { event: "session_started", details: { surface: "portal" } } });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : copy.assistant.errors.generic);
+      void reportVoiceEvent({ data: { event: "session_start_failed", details: {} } });
+    } finally {
+      setStarting(false);
+    }
+  }, [starting, connected, session]);
 
-  function end() {
-    clear();
-    setState("disconnected");
-    setEnded(true);
-  }
+  const end = useCallback(async () => {
+    setError(null);
+    await session.end();
+    void reportVoiceEvent({ data: { event: "session_ended", details: {} } });
+  }, [session]);
 
-  const live = state !== "disconnected";
-  const s = copy.assistant.state[state];
-  const size = live ? ORB_SIZE.call : ORB_SIZE.rest;
+  // Any disconnect — End, the agent's end_conversation tool deleting the room,
+  // or a dropped network — clears the transient error. The visible restore is
+  // already reactive through connectionState. Verified pattern from App.tsx.
+  useEffect(() => {
+    if (session.connectionState === "disconnected") setError(null);
+  }, [session.connectionState]);
 
   return (
-    <div className="grid gap-sp-9 lg:grid-cols-[minmax(0,1fr)_380px]">
-      {/* --- la scene ------------------------------------------------------ */}
-      <section className="flex min-h-[560px] flex-col items-center justify-center py-sp-10">
-        <div className="flex flex-col items-center">
-          <Orb
-            state={state}
-            level={level}
-            size={size}
-            className="transition-[width,height] duration-500"
-          />
-          <OrbPlinth width={size} className="-mt-sp-8" />
-        </div>
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center gap-sp-9">
+      {/* ORB — untouched component, real inputs. */}
+      <div className="relative flex flex-col items-center">
+        <Orb
+          state={orbState}
+          level={level}
+          size={inCall ? ORB_SIZE.call : ORB_SIZE.rest}
+          className="transition-[width,height] duration-500"
+        />
+        <OrbPlinth width={inCall ? ORB_SIZE.call : ORB_SIZE.rest} />
+      </div>
 
-        <div className="mt-sp-10 max-w-md text-center">
-          {!live && !ended ? (
-            <h2 className="t-display text-ink-1">{copy.assistant.title}</h2>
+      {/* STATE COPY — cross-faded, aria-live so it is announced once. */}
+      <div className="min-h-[72px] text-center" aria-live="polite">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={orbState}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={T_BASE}
+          >
+            <div className="t-title-2 text-ink-1">{stateCopy.label}</div>
+            <p className="t-body mt-sp-3 text-ink-4">{stateCopy.detail}</p>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {error ? (
+        <div
+          role="alert"
+          className="t-caption max-w-md rounded-r-3 border border-stroke-strong bg-surface-2 px-sp-6 py-sp-5 text-ink-2"
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {/* CONTROLS — Start swaps for the call bar at --z-callbar. */}
+      <div className="flex min-h-14 items-center gap-sp-5">
+        <AnimatePresence mode="wait" initial={false}>
+          {!inCall ? (
+            <motion.div
+              key="start"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={T_BASE}
+            >
+              <Button variant="primary" size="lg" onClick={start} disabled={starting}>
+                <PhoneCall size={17} strokeWidth={1.5} />
+                {starting ? copy.assistant.connecting : copy.assistant.start}
+              </Button>
+            </motion.div>
           ) : (
-            <div className="t-title-2 text-ink-1">{s.label}</div>
+            <motion.div
+              key="bar"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={T_BASE}
+            >
+              <CallBar onEnd={end} />
+            </motion.div>
           )}
-          <p className="t-body mt-sp-4 text-ink-4">{s.detail}</p>
-        </div>
+        </AnimatePresence>
+      </div>
 
-        <div className="mt-sp-9 flex items-center gap-sp-5">
-          {!live ? (
-            <Button variant="primary" size="lg" onClick={start}>
-              {copy.assistant.start}
-            </Button>
-          ) : (
-            <>
-              <IconButton
-                label={muted ? copy.assistant.controls.unmute : copy.assistant.controls.mute}
-                onClick={() => setMuted((v) => !v)}
-                className={cn(
-                  "h-11 w-11 border border-stroke-default bg-surface-2",
-                  muted && "bg-surface-4 text-ink-1",
-                )}
-              >
-                {muted ? (
-                  <MicOff size={17} strokeWidth={1.5} />
-                ) : (
-                  <Mic size={17} strokeWidth={1.5} />
-                )}
-              </IconButton>
-              <IconButton
-                label={copy.assistant.controls.captions}
-                onClick={() => setCaptions((v) => !v)}
-                className={cn(
-                  "h-11 w-11 border border-stroke-default bg-surface-2",
-                  captions && "bg-surface-4 text-ink-1",
-                )}
-              >
-                <Captions size={17} strokeWidth={1.5} />
-              </IconButton>
-              <Button variant="danger" size="lg" onClick={end}>
-                {copy.assistant.end}
-              </Button>
-            </>
-          )}
-        </div>
+      {/* Browsers block autoplay until a gesture: this is how the customer
+          hears the assistant. Same component the client-widget uses. */}
+      <StartAudioButton label={copy.assistant.enableAudio} />
 
-        <div className="t-micro mt-sp-8 flex items-center gap-sp-6 text-ink-5">
-          <span className="inline-flex items-center gap-sp-3">
-            <Lock size={11} strokeWidth={1.5} />
-            {copy.assistant.assurance.encrypted}
-          </span>
-          <span className="inline-flex items-center gap-sp-3">
-            <Radio size={11} strokeWidth={1.5} />
-            {copy.assistant.assurance.audioOnly}
-          </span>
-        </div>
-      </section>
+      <div className="flex items-center gap-sp-5">
+        <StatusChip tone="outline">
+          <LockKeyhole size={12} strokeWidth={1.5} /> {copy.assistant.assurance.encrypted}
+        </StatusChip>
+        <StatusChip tone="dotted">{copy.assistant.assurance.audioOnly}</StatusChip>
+      </div>
 
-      {/* --- le flux ------------------------------------------------------- */}
-      <aside className="lg:sticky lg:top-24 lg:self-start">
-        {ended ? (
-          <Card className="p-sp-7">
-            <SectionLabel>{copy.assistant.summary.heading}</SectionLabel>
-            <div className="mt-sp-7 grid grid-cols-2 gap-sp-5">
-              {[
-                [copy.assistant.summary.duration, "—"],
-                [copy.assistant.summary.turns, String(SCRIPT.length)],
-              ].map(([k, v]) => (
-                <div
-                  key={k}
-                  className="rounded-r-3 border border-stroke-subtle bg-surface-2 p-sp-5"
-                >
-                  <div className="t-micro-2 text-ink-5">{k}</div>
-                  <div className="t-metric-m mt-sp-3 text-ink-1">{v}</div>
-                </div>
-              ))}
-            </div>
-            <Divider className="my-sp-7" />
-            <div className="t-micro text-ink-4">{copy.assistant.summary.changed}</div>
-            <p className="t-body mt-sp-4 text-ink-3">{copy.assistant.summary.nothingChanged}</p>
-            <div className="mt-sp-8 flex gap-sp-4">
-              <Button variant="secondary" size="sm">
-                {copy.assistant.summary.download}
-              </Button>
-              <Button variant="quiet" size="sm" onClick={start}>
-                {copy.assistant.summary.resume}
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <Card className="flex h-[560px] flex-col p-sp-0" inset={false}>
-            <div className="flex items-center justify-between border-b border-stroke-subtle px-sp-6 py-sp-5">
-              <span className="t-micro text-ink-4">{copy.assistant.stream.heading}</span>
-              <StatusChip tone={live ? "solid" : "muted"}>{live ? "LIVE" : "IDLE"}</StatusChip>
-            </div>
-            <div className="flex-1 space-y-sp-7 overflow-y-auto px-sp-6 py-sp-6">
-              {turns.length === 0 ? (
-                <p className="t-caption text-ink-5">
-                  {live ? copy.assistant.state.idle.detail : copy.empty.generic}
-                </p>
-              ) : (
-                turns.map((turn, i) => (
-                  <div key={i}>
-                    <div className="t-micro-2 mb-sp-3 flex items-center gap-sp-4 text-ink-5">
-                      <span>
-                        {turn.speaker === "assistant"
-                          ? copy.assistant.stream.assistant
-                          : copy.assistant.stream.you}
-                      </span>
-                      <span className="t-mono-s">{turn.at}</span>
-                    </div>
-                    <p
-                      className={cn(
-                        "t-body",
-                        turn.speaker === "assistant" ? "text-ink-1" : "text-ink-3",
-                      )}
-                    >
-                      {turn.text}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-        )}
-      </aside>
+      {/* LIVE STREAM — keyed on callId so each call starts with a clean stack. */}
+      <LiveStream key={callId} participantName={name} />
+
+      {/* SUMMARY — real duration, never a hardcoded string. */}
+      {!inCall && startedAt ? (
+        <Card className="w-full max-w-lg">
+          <div className="t-micro-2 text-ink-5">{copy.assistant.summary.heading}</div>
+          <div className="mt-sp-5 grid grid-cols-2 gap-sp-6">
+            <MetricPair
+              label={copy.assistant.summary.duration}
+              value={duration((Date.now() - startedAt) / 1000)}
+            />
+            <MetricPair
+              label={copy.assistant.summary.turns}
+              value={copy.assistant.summary.turnsPending}
+            />
+          </div>
+          <p className="t-caption mt-sp-6 text-ink-4">{copy.assistant.summary.savedNote}</p>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function CallBar({ onEnd }: { onEnd: () => void }) {
+  const { microphoneToggle } = useInputControls();
+  const muted = !microphoneToggle.enabled;
+  return (
+    <div className="z-callbar flex items-center gap-sp-4 rounded-r-5 border border-stroke-default bg-surface-2 p-sp-3 shadow-elev-3">
+      <IconButton
+        label={muted ? copy.assistant.controls.unmute : copy.assistant.controls.mute}
+        onClick={() => void microphoneToggle.toggle()}
+      >
+        {muted ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
+      </IconButton>
+      <Button variant="danger" size="sm" onClick={onEnd}>
+        <PhoneOff size={15} strokeWidth={1.5} />
+        {copy.assistant.end}
+      </Button>
+    </div>
+  );
+}
+
+function MetricPair({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-r-3 border border-stroke-subtle bg-surface-2 p-sp-5">
+      <div className="t-micro-2 text-ink-5">{label}</div>
+      <div className="t-metric-m mt-sp-3 text-ink-1">{value}</div>
     </div>
   );
 }

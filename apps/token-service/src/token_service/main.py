@@ -37,6 +37,7 @@ class TokenRequest(BaseModel):
     room: str = "telecom-support"
     identity: str = "caller"
     name: str = "Caller"
+    caller_msisdn: str | None = None
 
 
 class ClientEvent(BaseModel):
@@ -72,6 +73,7 @@ async def token(req: TokenRequest) -> TokenResponse:
             agents=[api.RoomAgentDispatch(agent_name=LIVEKIT_AGENT_NAME)]
         )
 
+    caller_msisdn = req.caller_msisdn or PILOT_MSISDN
     access_token = (
         api.AccessToken()
         .with_identity(req.identity)
@@ -85,8 +87,8 @@ async def token(req: TokenRequest) -> TokenResponse:
             )
         )
         .with_attributes(
-            {CALLER_MSISDN_ATTRIBUTE: PILOT_MSISDN}
-            if PILOT_MSISDN
+            {CALLER_MSISDN_ATTRIBUTE: caller_msisdn}
+            if caller_msisdn
             else {}
         )
         .with_ttl(timedelta(minutes=15))

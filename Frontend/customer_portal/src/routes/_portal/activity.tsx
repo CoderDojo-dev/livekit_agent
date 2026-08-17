@@ -224,14 +224,6 @@ function ConversationBody({ sessionId }: { sessionId: string }) {
               </div>
             ))}
           </div>
-          <div className="mt-sp-7 flex gap-sp-4">
-            <Button variant="secondary" size="sm">
-              {copy.assistant.stream.copyTranscript}
-            </Button>
-            <Button variant="quiet" size="sm">
-              {copy.assistant.stream.downloadTranscript}
-            </Button>
-          </div>
         </>
       )}
     </>

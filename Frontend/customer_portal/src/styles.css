@@ -414,6 +414,23 @@
   }
 }
 
+/* The call bar is the only consumer of --z-callbar. */
+@utility z-callbar {
+  z-index: var(--z-callbar);
+}
+
+/* Uses the `caret` keyframe that has existed unused since the design system
+   was written. */
+.assistant-caret {
+  display: inline-block;
+  width: 1px;
+  height: 1em;
+  margin-inline-start: 2px;
+  vertical-align: text-bottom;
+  background: var(--ink-2);
+  animation: caret 1s steps(1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

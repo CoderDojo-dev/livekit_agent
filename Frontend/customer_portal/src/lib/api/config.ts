@@ -27,6 +27,11 @@ export const serverConfig = {
   /** business-api origin. Docker: http://business-api:8108 */
   businessApiUrl: () => optional("BUSINESS_API_URL", "http://localhost:8108").replace(/\/$/, ""),
 
+  /** token-service origin. Server-only, exactly like BUSINESS_API_URL: the
+   * browser must never learn it, because POST /token is unauthenticated and
+   * accepts a caller-chosen room and identity. */
+  tokenServiceUrl: () => optional("TOKEN_SERVICE_URL", "http://localhost:8107").replace(/\/$/, ""),
+
   /** HMAC key for the session cookie. Generate: openssl rand -hex 32 */
   sessionSecret: () => required("PORTAL_SESSION_SECRET"),
 
