@@ -41,7 +41,7 @@ const ICONS: Record<string, LucideIcon> = {
 
 function HelpScreen() {
   return (
-    <div className="space-y-sp-10">
+    <div className="space-y-sp-9">
       <section className="space-y-sp-6">
         <SectionLabel>{copy.help.browse}</SectionLabel>
         <div className="grid gap-sp-6 sm:grid-cols-2">

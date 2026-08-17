@@ -1,5 +1,7 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, useRouterState } from "@tanstack/react-router";
+import { useIsFetching } from "@tanstack/react-query";
 import { PortalShell } from "@/components/shell/portal-shell";
+import { TabPanel, TopProgress } from "@/components/portal/data";
 import { getSession } from "@/lib/api/auth.server";
 
 export const Route = createFileRoute("/_portal")({
@@ -22,10 +24,15 @@ export const Route = createFileRoute("/_portal")({
 });
 
 function PortalLayout() {
+  const navigating = useRouterState({ select: (s) => s.status === "pending" });
+  const fetching = useIsFetching() > 0;
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <PortalShell>
-      {/* Required: nested routes render here. */}
-      <Outlet />
+      <TopProgress active={navigating || fetching} />
+      <TabPanel id={pathname}>
+        <Outlet />
+      </TabPanel>
     </PortalShell>
   );
 }

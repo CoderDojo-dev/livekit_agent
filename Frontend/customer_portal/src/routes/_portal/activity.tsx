@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AudioLines, Inbox, PhoneCall } from "lucide-react";
 import { copy } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
@@ -13,18 +13,27 @@ import {
   type ConversationSummary,
 } from "@/lib/api/activity.server";
 import { fetchRequests, type RequestItem } from "@/lib/api/requests.server";
-import { errorMessage } from "@/lib/api/errors";
 import { dateTime, duration, relative } from "@/lib/format";
 import {
   Button,
   Card,
   Divider,
-  EmptyState,
   SearchField,
   SectionLabel,
   StatusChip,
-  Tabs,
 } from "@/components/portal/primitives";
+import {
+  AnimatedTabs,
+  DataSection,
+  ErrorState,
+  InteractiveRow,
+  MetricTile,
+  PageSection,
+  Pagination,
+  Panel,
+  SkeletonList,
+  SkeletonMetric,
+} from "@/components/portal/data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_portal/activity")({
@@ -45,6 +54,9 @@ export const Route = createFileRoute("/_portal/activity")({
   }),
   component: ActivityScreen,
 });
+
+const PAGE_SIZE = 10;
+const FULL_LIMIT = 50;
 
 const TABS = [
   { id: "all", label: copy.activity.tabs.all },
@@ -83,6 +95,11 @@ type ListItem = {
   request?: RequestItem;
   callback?: CallbackItem;
 };
+
+type Selection =
+  | { kind: "conversation"; sessionId: string }
+  | { kind: "request"; item: RequestItem }
+  | { kind: "callback"; item: CallbackItem };
 
 function requestTitle(item: RequestItem): string {
   return item.subject ?? copy.labels.requestCategory[item.category] ?? item.category;
@@ -133,7 +150,13 @@ function toItems(
   });
 }
 
-function ConversationDetailPanel({ sessionId }: { sessionId: string }) {
+function selectionFor(item: ListItem): Selection {
+  if (item.conversation) return { kind: "conversation", sessionId: item.conversation.session_id };
+  if (item.request) return { kind: "request", item: item.request };
+  return { kind: "callback", item: item.callback! };
+}
+
+function ConversationBody({ sessionId }: { sessionId: string }) {
   const session = usePortalSession();
   const query = useQuery({
     queryKey: qk.conversation(session?.customerId ?? "unknown", sessionId),
@@ -142,30 +165,17 @@ function ConversationDetailPanel({ sessionId }: { sessionId: string }) {
   });
 
   if (query.isPending) {
-    return (
-      <Card>
-        <p className="t-caption text-ink-5">Loading transcript…</p>
-      </Card>
-    );
+    return <SkeletonList rows={4} />;
   }
 
   if (query.isError || !query.data) {
-    return (
-      <Card>
-        <p role="alert" className="t-body text-ink-1">
-          {errorMessage(query.error)}
-        </p>
-        <Button variant="secondary" className="mt-sp-6" onClick={() => void query.refetch()}>
-          {copy.common.tryAgain}
-        </Button>
-      </Card>
-    );
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   }
 
   const detail = query.data;
 
   return (
-    <Card className="lg:sticky lg:top-24 lg:self-start">
+    <>
       <SectionLabel
         right={
           detail.disposition ? (
@@ -181,9 +191,9 @@ function ConversationDetailPanel({ sessionId }: { sessionId: string }) {
       </SectionLabel>
       <dl className="mt-sp-6 grid grid-cols-3 gap-sp-5">
         {[
-          ["WHEN", dateTime(detail.started_at)],
-          ["LENGTH", duration(detail.duration_seconds)],
-          ["TURNS", String(detail.turns)],
+          [copy.activity.when, dateTime(detail.started_at)],
+          [copy.activity.duration, duration(detail.duration_seconds)],
+          [copy.activity.turns, String(detail.turns)],
         ].map(([k, v]) => (
           <div key={k}>
             <dt className="t-micro-2 text-ink-5">{k}</dt>
@@ -196,7 +206,7 @@ function ConversationDetailPanel({ sessionId }: { sessionId: string }) {
         <>
           <Divider className="my-sp-7" />
           <div className="t-micro text-ink-4">{copy.activity.transcript}</div>
-          <div className="mt-sp-6 max-h-72 space-y-sp-6 overflow-y-auto pr-sp-3">
+          <div className="mt-sp-6 space-y-sp-6">
             {detail.turns.map((line) => (
               <div key={line.index}>
                 <div className="t-micro-2 mb-sp-2 flex gap-sp-4 text-ink-5">
@@ -224,13 +234,13 @@ function ConversationDetailPanel({ sessionId }: { sessionId: string }) {
           </div>
         </>
       )}
-    </Card>
+    </>
   );
 }
 
-function RequestDetailPanel({ item }: { item: RequestItem }) {
+function RequestBody({ item }: { item: RequestItem }) {
   return (
-    <Card className="lg:sticky lg:top-24 lg:self-start">
+    <>
       <SectionLabel
         right={
           <StatusChip tone={REQUEST_TONE[item.status]}>
@@ -258,13 +268,35 @@ function RequestDetailPanel({ item }: { item: RequestItem }) {
           </div>
         ))}
       </dl>
-    </Card>
+      <Divider className="my-sp-7" />
+      <div className="t-micro text-ink-4">{copy.requests.timeline}</div>
+      <ol className="mt-sp-6 space-y-sp-6">
+        <li className="flex items-baseline gap-sp-5">
+          <span className="h-2 w-2 shrink-0 translate-y-[-2px] rounded-full bg-n-11" />
+          <div className="min-w-0">
+            <div className="t-ui text-ink-2">{copy.labels.requestStatus.open}</div>
+            <div className="t-mono-s mt-sp-1 text-ink-5">{dateTime(item.created_at)}</div>
+          </div>
+        </li>
+        {item.updated_at ? (
+          <li className="flex items-baseline gap-sp-5">
+            <span className="h-2 w-2 shrink-0 translate-y-[-2px] rounded-full bg-n-11" />
+            <div className="min-w-0">
+              <div className="t-ui text-ink-2">
+                {copy.labels.requestStatus[item.status] ?? item.status}
+              </div>
+              <div className="t-mono-s mt-sp-1 text-ink-5">{dateTime(item.updated_at)}</div>
+            </div>
+          </li>
+        ) : null}
+      </ol>
+    </>
   );
 }
 
-function CallbackDetailPanel({ item }: { item: CallbackItem }) {
+function CallbackBody({ item }: { item: CallbackItem }) {
   return (
-    <Card className="lg:sticky lg:top-24 lg:self-start">
+    <>
       <SectionLabel
         right={
           <StatusChip tone={CALLBACK_TONE[item.status]}>
@@ -274,11 +306,8 @@ function CallbackDetailPanel({ item }: { item: CallbackItem }) {
       >
         {copy.activity.tabs.callbacks}
       </SectionLabel>
-      <h3 className="t-title-2 mt-sp-6 text-ink-1">
-        {copy.labels.callbackStatus[item.status] ?? item.status}
-      </h3>
-      <Divider className="my-sp-7" />
-      <dl className="grid grid-cols-2 gap-sp-5">
+      <Divider className="mt-sp-7" />
+      <dl className="mt-sp-7 grid grid-cols-2 gap-sp-5">
         {[
           [copy.activity.callbackTime, dateTime(item.scheduled_time)],
           [copy.activity.callbackWindow, item.preferred_window ?? "—"],
@@ -290,7 +319,7 @@ function CallbackDetailPanel({ item }: { item: CallbackItem }) {
           </div>
         ))}
       </dl>
-    </Card>
+    </>
   );
 }
 
@@ -298,18 +327,30 @@ function ActivityScreen() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("all");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<Selection | null>(null);
   const session = usePortalSession();
   const cid = session?.customerId ?? "unknown";
+  const searching = query.trim() !== "";
+  const pagedKind = tab === "conversation" || tab === "request";
+  const limit = pagedKind ? PAGE_SIZE : FULL_LIMIT;
+  const offset = pagedKind ? page * PAGE_SIZE : 0;
 
+  const heroQuery = useQuery({
+    queryKey: qk.conversations(cid, 1, 0),
+    queryFn: () => fetchConversations({ data: { limit: 1, offset: 0 } }),
+    staleTime: 30_000,
+  });
   const conversationsQuery = useQuery({
-    queryKey: qk.conversations(cid, 50, 0),
-    queryFn: () => fetchConversations({ data: { limit: 50, offset: 0 } }),
+    queryKey: qk.conversations(cid, limit, offset),
+    queryFn: () => fetchConversations({ data: { limit, offset } }),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
   const requestsQuery = useQuery({
-    queryKey: qk.requests(cid, undefined, 50, 0),
-    queryFn: () => fetchRequests({ data: { status: undefined, limit: 50, offset: 0 } }),
+    queryKey: qk.requests(cid, undefined, limit, offset),
+    queryFn: () => fetchRequests({ data: { status: undefined, limit, offset } }),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
   const callbacksQuery = useQuery({
@@ -318,157 +359,210 @@ function ActivityScreen() {
     staleTime: 30_000,
   });
 
-  const list = useMemo(() => {
+  const hero = heroQuery.data?.items?.[0];
+
+  const byTab = useMemo(() => {
     const rows = toItems(
       conversationsQuery.data?.items ?? [],
       requestsQuery.data?.items ?? [],
       callbacksQuery.data?.items ?? [],
     );
-    const byTab = tab === "all" ? rows : rows.filter((r) => r.kind === tab);
+    return tab === "all" ? rows : rows.filter((r) => r.kind === tab);
+  }, [tab, conversationsQuery.data, requestsQuery.data, callbacksQuery.data]);
+
+  const searched = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
     if (trimmed === "") return byTab;
     return byTab.filter((r) => (r.title + " " + r.caption).toLowerCase().includes(trimmed));
-  }, [tab, query, conversationsQuery.data, requestsQuery.data, callbacksQuery.data]);
+  }, [byTab, query]);
 
-  const hero = conversationsQuery.data?.items?.[0];
-  const active = list.find((i) => i.id === selected) ?? list[0];
+  const rows = useMemo(() => {
+    const start = page * PAGE_SIZE;
+    return searched.slice(start, start + PAGE_SIZE);
+  }, [searched, page]);
 
-  if (conversationsQuery.isPending || requestsQuery.isPending || callbacksQuery.isPending) {
-    return (
-      <Card>
-        <p className="t-caption text-ink-5">Loading your activity…</p>
-      </Card>
-    );
-  }
+  const counts: Record<(typeof TABS)[number]["id"], number> = {
+    all:
+      (conversationsQuery.data?.total ?? 0) +
+      (requestsQuery.data?.total ?? 0) +
+      (callbacksQuery.data?.items.length ?? 0),
+    conversation: conversationsQuery.data?.total ?? 0,
+    request: requestsQuery.data?.total ?? 0,
+    callback: callbacksQuery.data?.items.length ?? 0,
+  };
 
-  if (
-    hero === undefined &&
-    (requestsQuery.data?.items.length ?? 0) === 0 &&
-    (callbacksQuery.data?.items.length ?? 0) === 0
-  ) {
-    return (
-      <EmptyState
-        title={copy.empty.activityA.title}
-        body={copy.empty.activityA.body}
-        action={
+  const paginationTotal =
+    tab === "conversation"
+      ? searching
+        ? searched.length
+        : (conversationsQuery.data?.total ?? searched.length)
+      : tab === "request"
+        ? searching
+          ? searched.length
+          : (requestsQuery.data?.total ?? searched.length)
+        : searched.length;
+
+  const state = {
+    isPending: conversationsQuery.isPending || requestsQuery.isPending || callbacksQuery.isPending,
+    isFetching:
+      conversationsQuery.isFetching || requestsQuery.isFetching || callbacksQuery.isFetching,
+    error: conversationsQuery.error ?? requestsQuery.error ?? callbacksQuery.error,
+  };
+
+  const retry = () =>
+    void Promise.allSettled([
+      conversationsQuery.refetch(),
+      requestsQuery.refetch(),
+      callbacksQuery.refetch(),
+    ]);
+
+  const empty = searching
+    ? {
+        title: copy.empty.filtered.title,
+        body: copy.empty.filtered.body,
+        action: (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setQuery("");
+              setPage(0);
+            }}
+          >
+            {copy.empty.filtered.action}
+          </Button>
+        ),
+      }
+    : {
+        title: copy.empty.activityA.title,
+        body: copy.empty.activityA.body,
+        action: (
           <Button variant="primary" onClick={() => void navigate({ to: "/assistant" })}>
             {copy.empty.activityA.action}
           </Button>
-        }
-      />
-    );
-  }
+        ),
+      };
+
+  const panelTitle =
+    selected?.kind === "request"
+      ? selected.item.reference
+      : selected?.kind === "callback"
+        ? (copy.labels.callbackStatus[selected.item.status] ?? selected.item.status)
+        : copy.activity.tabs.conversations;
 
   return (
     <div className="space-y-sp-9">
-      {hero && (
-        <Card className="flex flex-col gap-sp-7 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <div className="t-micro text-ink-5">{copy.activity.heroLabel}</div>
-            <h2 className="t-title-1 mt-sp-4 truncate text-ink-1">
-              {copy.labels.channel[hero.channel as keyof typeof copy.labels.channel] ??
-                hero.channel}
-            </h2>
-            <div className="t-mono-s mt-sp-6 flex flex-wrap items-center gap-sp-6 text-ink-5">
-              <span>{dateTime(hero.started_at)}</span>
-              <span>
-                {duration(hero.duration_seconds)} {copy.activity.duration}
-              </span>
-              <span>
-                {hero.turns} {copy.activity.turns}
-              </span>
-              {hero.disposition && (
-                <StatusChip tone="outline">
-                  {copy.labels.disposition[
-                    hero.disposition as keyof typeof copy.labels.disposition
-                  ] ?? hero.disposition}
-                </StatusChip>
-              )}
+      {heroQuery.isPending ? (
+        <PageSection label={copy.activity.heroLabel}>
+          <Card>
+            <div className="grid gap-sp-6 sm:grid-cols-2 lg:grid-cols-3">
+              <SkeletonMetric />
+              <SkeletonMetric />
+              <SkeletonMetric />
             </div>
-          </div>
-          <Button
-            variant="primary"
-            onClick={() => {
-              setSelected(hero.session_id);
-              setTab("conversation");
-            }}
-          >
-            {copy.activity.open}
-          </Button>
-        </Card>
-      )}
+          </Card>
+        </PageSection>
+      ) : hero ? (
+        <PageSection
+          label={copy.activity.heroLabel}
+          right={
+            hero.disposition ? (
+              <StatusChip tone="outline">
+                {copy.labels.disposition[
+                  hero.disposition as keyof typeof copy.labels.disposition
+                ] ?? hero.disposition}
+              </StatusChip>
+            ) : undefined
+          }
+        >
+          <Card>
+            <div className="grid gap-sp-6 sm:grid-cols-2 lg:grid-cols-3">
+              <MetricTile label={copy.activity.when} value={dateTime(hero.started_at)} />
+              <MetricTile label={copy.activity.duration} value={duration(hero.duration_seconds)} />
+              <MetricTile label={copy.activity.turns} value={String(hero.turns)} />
+            </div>
+            <div className="mt-sp-7">
+              <Button
+                variant="primary"
+                onClick={() => setSelected({ kind: "conversation", sessionId: hero.session_id })}
+              >
+                {copy.activity.open}
+              </Button>
+            </div>
+          </Card>
+        </PageSection>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-sp-5">
-        <Tabs tabs={TABS} value={tab} onChange={setTab} />
+        <AnimatedTabs
+          tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: counts[t.id] }))}
+          value={tab}
+          onChange={(next) => {
+            setTab(next);
+            setPage(0);
+          }}
+        />
         <SearchField
           placeholder={copy.activity.search}
           value={query}
-          onChange={setQuery}
+          onChange={(v) => {
+            setQuery(v);
+            setPage(0);
+          }}
           className="max-w-xs"
         />
       </div>
 
-      {list.length === 0 ? (
-        <EmptyState
-          title={copy.empty.filtered.title}
-          body={copy.empty.filtered.body}
-          action={
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setQuery("");
-                setTab("all");
-              }}
-            >
-              {copy.empty.filtered.action}
-            </Button>
-          }
-        />
-      ) : (
-        <div className="grid gap-sp-7 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <ul className="overflow-hidden rounded-r-5 border border-stroke-default bg-surface-1">
-            {list.map((item) => {
-              const Icon = KIND_ICON[item.kind];
-              const on = active?.id === item.id;
-              return (
-                <li
-                  key={`${item.kind}-${item.id}`}
-                  className="border-b border-stroke-subtle last:border-b-0"
-                >
-                  <button
-                    onClick={() => setSelected(item.id)}
-                    className={cn(
-                      "focus-ring flex w-full items-start gap-sp-6 px-sp-7 py-sp-6 text-left transition-colors duration-200",
-                      on ? "bg-surface-3" : "hover:bg-surface-2",
-                    )}
-                  >
-                    <span className="mt-sp-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-r-2 border border-stroke-subtle bg-surface-3 text-ink-3">
-                      <Icon size={15} strokeWidth={1.5} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="t-body-strong block truncate text-ink-1">{item.title}</span>
-                      <span className="t-caption mt-sp-2 line-clamp-2 block text-ink-4">
-                        {item.caption}
+      <DataSection state={state} items={rows} skeletonRows={5} empty={empty} onRetry={retry}>
+        {(items) => (
+          <>
+            <ul className="divide-y divide-stroke-subtle">
+              {items.map((item) => {
+                const Icon = KIND_ICON[item.kind];
+                return (
+                  <li key={`${item.kind}-${item.id}`}>
+                    <InteractiveRow
+                      onClick={() => setSelected(selectionFor(item))}
+                      className="flex items-start gap-sp-6"
+                    >
+                      <span className="mt-sp-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-r-2 border border-stroke-subtle bg-surface-3 text-ink-3">
+                        <Icon size={16} strokeWidth={1.5} />
                       </span>
-                    </span>
-                    <span className="t-mono-s shrink-0 pt-sp-2 text-ink-5">
-                      {relative(item.at)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                      <span className="min-w-0 flex-1">
+                        <span className="t-body-strong block truncate text-ink-1">
+                          {item.title}
+                        </span>
+                        <span className="t-caption mt-sp-2 line-clamp-2 block text-ink-4">
+                          {item.caption}
+                        </span>
+                      </span>
+                      <span className="t-mono-s shrink-0 pt-sp-2 text-ink-5">
+                        {relative(item.at)}
+                      </span>
+                    </InteractiveRow>
+                  </li>
+                );
+              })}
+            </ul>
+            <Pagination
+              total={paginationTotal}
+              limit={PAGE_SIZE}
+              offset={page * PAGE_SIZE}
+              onOffsetChange={(next) => setPage(Math.floor(next / PAGE_SIZE))}
+              busy={state.isFetching}
+            />
+          </>
+        )}
+      </DataSection>
 
-          {active?.conversation ? (
-            <ConversationDetailPanel sessionId={active.conversation.session_id} />
-          ) : active?.request ? (
-            <RequestDetailPanel item={active.request} />
-          ) : active?.callback ? (
-            <CallbackDetailPanel item={active.callback} />
-          ) : null}
-        </div>
-      )}
+      <Panel open={selected !== null} onClose={() => setSelected(null)} title={panelTitle}>
+        {selected?.kind === "conversation" ? (
+          <ConversationBody sessionId={selected.sessionId} />
+        ) : selected?.kind === "request" ? (
+          <RequestBody item={selected.item} />
+        ) : selected ? (
+          <CallbackBody item={selected.item} />
+        ) : null}
+      </Panel>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { BrandMark } from "@/components/shell/brand-mark";
 import {
   AudioLines,
   History,
@@ -46,8 +47,8 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
       )}
     >
       <div className="flex h-16 items-center gap-sp-5 border-b border-stroke-subtle px-sp-6">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-r-2 border border-stroke-strong bg-surface-4 shadow-elev-1">
-          <span className="t-mono-l text-ink-1">N</span>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-r-2 border border-stroke-strong bg-surface-4 text-ink-1 shadow-elev-1">
+          <BrandMark />
         </div>
         {!collapsed && (
           <div className="min-w-0">

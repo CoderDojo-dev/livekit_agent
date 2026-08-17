@@ -100,8 +100,7 @@ export const copy = {
   },
   activity: {
     heroLabel: "LAST CONVERSATION",
-    heroOld: "YOUR LAST CONVERSATION",
-    heroOldNote: "It has been a while.",
+    when: "When",
     open: "Open conversation",
     tabs: {
       all: "All",
@@ -132,23 +131,36 @@ export const copy = {
     priority: "PRIORITY",
     category: "CATEGORY",
     timeline: "TIMELINE",
+    empty: {
+      title: "No requests here",
+      body: "When you open a request with the assistant, it appears here.",
+      action: "Show all requests",
+    },
   },
   services: {
     plan: "YOUR PLAN",
-    usage: "USAGE",
+    balances: "BALANCES",
     overAllowance: "You are over your monthly allowance.",
     renews: (date: string) => `Renews on ${date}`,
     activeSince: (date: string) => `Active since ${date}`,
   },
   billing: {
     amountDue: "AMOUNT DUE",
-    accounts: "ACCOUNTS",
     invoices: "INVOICES",
-    payments: "PAYMENTS",
     balances: "BALANCES",
     recharges: "RECHARGE HISTORY",
     bonus: (n: string) => `Plus ${n} bonus`,
-    method: "METHOD",
+    total: "TOTAL",
+    issued: "ISSUED",
+    due: "DUE",
+    noInvoices: {
+      title: "No invoices yet",
+      body: "Every invoice appears here as soon as one is issued.",
+    },
+    noRecharges: {
+      title: "No recharges yet",
+      body: "When you top up, the record appears here.",
+    },
   },
   help: {
     browse: "BROWSE BY TOPIC",
@@ -277,9 +289,7 @@ export const copy = {
     lastChanged: (when: string) => `Last changed ${when}`,
     lastChangedNever: "Never changed",
     thisDevice: "This device",
-    signOutDevice: "Sign out",
     signOutAll: "Sign out of every device",
-    viewAll: "View all",
     signedIn: "Signed in",
   },
   about: {
@@ -347,6 +357,13 @@ export const copy = {
     back: "Back",
     tryAgain: "Try again",
     close: "Close",
+    loading: "Loading",
+    couldNotLoad: "We could not load this",
+    pagination: "Pages",
+    previous: "Previous page",
+    next: "Next page",
+    pageOf: (page: number, pages: number, total: number) =>
+      `Page ${page} of ${pages} · ${total} item${total === 1 ? "" : "s"}`,
   },
   labels: {
     // conversation.call_sessions.final_disposition

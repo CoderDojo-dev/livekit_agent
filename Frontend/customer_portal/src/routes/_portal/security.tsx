@@ -10,6 +10,7 @@ import { changePassword, fetchPortalSessions, revokeAllSessions } from "@/lib/ap
 import { errorMessage } from "@/lib/api/errors";
 import { dateTime, deviceLabel, relative } from "@/lib/format";
 import { Button, Card, FieldRow, SectionLabel, StatusChip } from "@/components/portal/primitives";
+import { ErrorState, SkeletonList } from "@/components/portal/data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_portal/security")({
@@ -143,24 +144,11 @@ function SecurityScreen() {
   });
 
   if (query.isPending) {
-    return (
-      <Card>
-        <p className="t-caption text-ink-5">Loading your security details…</p>
-      </Card>
-    );
+    return <SkeletonList rows={3} />;
   }
 
   if (query.isError || !query.data) {
-    return (
-      <Card>
-        <p role="alert" className="t-body text-ink-1">
-          {errorMessage(query.error)}
-        </p>
-        <Button variant="secondary" className="mt-sp-6" onClick={() => void query.refetch()}>
-          {copy.common.tryAgain}
-        </Button>
-      </Card>
-    );
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   }
 
   const { password_changed_at: passwordChangedAt, sessions } = query.data;
@@ -210,7 +198,7 @@ function SecurityScreen() {
             <SectionLabel
               right={
                 sessions.length > 0 ? (
-                  <Button variant="quiet" size="sm" onClick={() => void onRevokeAll(router)}>
+                  <Button variant="secondary" size="sm" onClick={() => void onRevokeAll(router)}>
                     {copy.security.signOutAll}
                   </Button>
                 ) : null
