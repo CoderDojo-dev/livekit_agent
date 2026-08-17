@@ -7,7 +7,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
+import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -123,6 +124,19 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <Toaster
+        position="bottom-right"
+        // Token-aligned: sonner draws with these CSS variables, so no hex value
+        // enters the codebase and the toast inherits surface/stroke/ink exactly.
+        style={
+          {
+            "--normal-bg": "var(--surface-2)",
+            "--normal-text": "var(--ink-1)",
+            "--normal-border": "var(--stroke-default)",
+          } as CSSProperties
+        }
+        toastOptions={{ className: "t-ui rounded-r-3 shadow-elev-3" }}
+      />
     </QueryClientProvider>
   );
 }

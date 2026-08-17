@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Lock, ChevronDown } from "lucide-react";
+import { Bell, Lock } from "lucide-react";
 import { PAGE_HEAD } from "@/lib/nav";
 import { copy } from "@/lib/copy";
 import { notifications } from "@/lib/fixtures/customer";
 import { fetchProfileDetail } from "@/lib/api/me.server";
+import { AccountMenu } from "@/components/shell/account-menu";
 import { IconButton, StatusChip } from "@/components/portal/primitives";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,6 @@ export function PortalTopbar() {
     queryFn: () => fetchProfileDetail(),
   });
   const me = profile.data;
-  const initials = me ? `${me.first_name.charAt(0)}${me.last_name.charAt(0)}`.toUpperCase() : "";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-sp-6 border-b border-stroke-subtle bg-surface-0/85 px-sp-8 backdrop-blur-md">
@@ -79,13 +79,7 @@ export function PortalTopbar() {
         )}
       </div>
 
-      <button className="focus-ring ml-sp-2 flex h-9 items-center gap-sp-4 rounded-r-2 border border-stroke-subtle bg-surface-2 pl-sp-3 pr-sp-5 transition-colors duration-200 hover:border-stroke-default">
-        <span className="flex h-6 w-6 items-center justify-center rounded-r-1 border border-stroke-strong bg-surface-4">
-          <span className="t-micro-2 text-ink-2">{initials}</span>
-        </span>
-        <span className="t-label hidden text-ink-2 sm:inline">{me?.first_name ?? "Account"}</span>
-        <ChevronDown size={14} strokeWidth={1.5} className="text-ink-5" />
-      </button>
+      <AccountMenu name={me?.full_name ?? "Account"} email={me?.email ?? ""} />
     </header>
   );
 }

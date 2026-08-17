@@ -2,11 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { copy } from "@/lib/copy";
 import { Card, Divider, Segmented, SectionLabel, SwitchRow } from "@/components/portal/primitives";
-import {
-  readPreferences,
-  writePreferences,
-  type PortalPreferences,
-} from "@/lib/preferences";
+import { readPreferences, writePreferences, type PortalPreferences } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_portal/preferences")({

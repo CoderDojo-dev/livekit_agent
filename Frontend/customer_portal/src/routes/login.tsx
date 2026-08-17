@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
+import { z } from "zod";
 import { Button, Card } from "@/components/portal/primitives";
 import { login } from "@/lib/api/auth.server";
 import { errorMessage } from "@/lib/api/errors";
+import { copy } from "@/lib/copy";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: z.object({
+    redirect: z.string().optional(),
+    notice: z.enum(["manual", "expired", "password", "revoked"]).optional(),
+  }),
   head: () => ({
     meta: [
       { title: "Sign in — Nexus Customer Portal" },
@@ -17,6 +23,9 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const router = useRouter();
+  const search = Route.useSearch();
+  const redirect: string | undefined = search.redirect;
+  const notice: "manual" | "expired" | "password" | "revoked" | undefined = search.notice;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<unknown>(null);
@@ -29,7 +38,7 @@ function LoginPage() {
     try {
       await login({ data: { email, password } });
       await router.invalidate();
-      await router.navigate({ to: "/assistant" });
+      await router.navigate({ to: redirect ?? "/assistant" });
     } catch (caught) {
       setError(caught);
       setPending(false);
@@ -40,9 +49,18 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
       <Card className="w-full max-w-[380px]">
         <div className="mb-sp-7 flex flex-col items-center text-center">
-          <h1 className="t-title-3 text-ink-1">Nexus</h1>
-          <p className="t-caption mt-sp-2 text-ink-4">Sign in to your self-service portal.</p>
+          <h1 className="t-title-3 text-ink-1">{copy.login.title}</h1>
+          <p className="t-caption mt-sp-2 text-ink-4">{copy.login.subtitle}</p>
         </div>
+
+        {notice ? (
+          <div
+            role="status"
+            className="t-caption mb-sp-6 rounded-r-2 border border-stroke-subtle bg-surface-2 px-sp-5 py-sp-4 text-ink-3"
+          >
+            {copy.login.notice[notice]}
+          </div>
+        ) : null}
 
         <form onSubmit={onSubmit} className="flex flex-col gap-sp-5">
           <label className="flex flex-col gap-sp-3">
@@ -75,13 +93,13 @@ function LoginPage() {
           ) : null}
 
           <Button type="submit" variant="primary" className="mt-sp-2 w-full" disabled={pending}>
-            {pending ? "Signing in…" : "Sign in"}
+            {pending ? copy.login.pending : copy.login.submit}
           </Button>
         </form>
 
         <div className="mt-sp-7 border-t border-stroke-subtle pt-sp-6 text-center">
           <Link to="/signup" className="t-caption text-ink-3 hover:text-ink-1">
-            New here? Create your secure sign-in.
+            {copy.login.newHere}
           </Link>
         </div>
       </Card>

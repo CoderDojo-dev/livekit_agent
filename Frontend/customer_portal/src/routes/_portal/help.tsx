@@ -18,8 +18,7 @@ export const Route = createFileRoute("/_portal/help")({
       { title: "Help — Nexus Customer Portal" },
       {
         name: "description",
-        content:
-          "Browse help topics by theme, or hand the question to the assistant.",
+        content: "Browse help topics by theme, or hand the question to the assistant.",
       },
       { property: "og:title", content: "Help — Nexus Customer Portal" },
       {

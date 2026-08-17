@@ -27,8 +27,15 @@ export function isForbidden(error: unknown): boolean {
   return isApiError(error) && error.status === 403;
 }
 
+/** 429 — portal_auth lockout (5 failures / 15 min) or the login/signup rate bucket. */
+export function isRateLimited(error: unknown): boolean {
+  return isApiError(error) && error.status === 429;
+}
+
 /** Human-readable copy for <ErrorState>. Never leaks a stack trace. */
 export function errorMessage(error: unknown): string {
+  if (isRateLimited(error))
+    return "Too many attempts. For your safety, try again in about 15 minutes.";
   if (isForbidden(error)) return "Your account does not grant access to this page.";
   if (isUnauthenticated(error)) return "Your session has expired. Sign in again.";
   if (isApiError(error)) return error.detail || "The service returned an unexpected response.";

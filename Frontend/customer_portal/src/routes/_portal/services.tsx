@@ -2,13 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { copy } from "@/lib/copy";
 import { plan, usage } from "@/lib/fixtures/services";
-import {
-  Card,
-  Divider,
-  Meter,
-  SectionLabel,
-  StatusChip,
-} from "@/components/portal/primitives";
+import { Card, Divider, Meter, SectionLabel, StatusChip } from "@/components/portal/primitives";
 
 export const Route = createFileRoute("/_portal/services")({
   head: () => ({
@@ -46,9 +40,7 @@ function ServicesScreen() {
             <div className="text-right">
               <div className="t-metric-xl text-ink-1">{plan.price}</div>
               <div className="t-caption text-ink-4">{plan.period}</div>
-              <div className="t-mono-s mt-sp-3 text-ink-5">
-                {copy.services.renews(plan.renews)}
-              </div>
+              <div className="t-mono-s mt-sp-3 text-ink-5">{copy.services.renews(plan.renews)}</div>
             </div>
           </div>
 

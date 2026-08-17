@@ -1,15 +1,12 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { Monitor, Smartphone, Laptop } from "lucide-react";
 import { copy } from "@/lib/copy";
 import { sessions, securityEvents } from "@/lib/fixtures/customer";
-import {
-  Button,
-  Card,
-  FieldRow,
-  SectionLabel,
-  StatusChip,
-} from "@/components/portal/primitives";
+import { changePassword, revokeAllSessions } from "@/lib/api/account.server";
+import { errorMessage } from "@/lib/api/errors";
+import { Button, Card, FieldRow, SectionLabel, StatusChip } from "@/components/portal/primitives";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_portal/security")({
@@ -18,8 +15,7 @@ export const Route = createFileRoute("/_portal/security")({
       { title: "Security — Nexus Customer Portal" },
       {
         name: "description",
-        content:
-          "Manage your Nexus sign-in and active devices.",
+        content: "Manage your Nexus sign-in and active devices.",
       },
       { property: "og:title", content: "Security — Nexus Customer Portal" },
       {
@@ -39,7 +35,101 @@ const SECTIONS = [
 
 const DEVICE_ICON = [Laptop, Smartphone, Monitor];
 
+function ChangePasswordPanel() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [pending, setPending] = useState(false);
+
+  const inputClass =
+    "focus-ring t-ui-regular inline-flex h-9 w-full rounded-r-2 border border-stroke-default bg-surface-2 px-sp-5 text-ink-1 placeholder:text-ink-5";
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (next !== confirm) {
+      toast.error(copy.signup.mismatch);
+      return;
+    }
+    setPending(true);
+    try {
+      // Success revokes every session, this one included: portal_auth
+      // .change_password() calls revoke_all(). Going to /logout is the only
+      // correct next step — the bearer token in our cookie is already dead.
+      await changePassword({ data: { current_password: current, new_password: next } });
+      await router.invalidate();
+      await router.navigate({ to: "/logout", search: { reason: "password" } });
+    } catch (caught) {
+      toast.error(errorMessage(caught));
+      setPending(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button variant="quiet" size="sm" onClick={() => setOpen(true)}>
+        {copy.security.changePassword}
+      </Button>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex w-full flex-col gap-sp-4 md:max-w-sm">
+      <input
+        type="password"
+        value={current}
+        onChange={(e) => setCurrent(e.target.value)}
+        placeholder={copy.security.currentPassword}
+        autoComplete="current-password"
+        required
+        className={inputClass}
+      />
+      <input
+        type="password"
+        value={next}
+        onChange={(e) => setNext(e.target.value)}
+        placeholder={copy.security.newPassword}
+        autoComplete="new-password"
+        minLength={10}
+        required
+        className={inputClass}
+      />
+      <input
+        type="password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        placeholder={copy.signup.confirmLabel}
+        autoComplete="new-password"
+        minLength={10}
+        required
+        className={inputClass}
+      />
+      <p className="t-caption text-ink-4">{copy.security.passwordRule}</p>
+      <div className="flex gap-sp-4">
+        <Button type="submit" variant="primary" size="sm" disabled={pending}>
+          {pending ? copy.security.savingPassword : copy.security.savePassword}
+        </Button>
+        <Button type="button" variant="quiet" size="sm" onClick={() => setOpen(false)}>
+          {copy.common.close}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+async function onRevokeAll(router: ReturnType<typeof useRouter>) {
+  try {
+    const { revoked } = await revokeAllSessions();
+    toast.success(copy.security.revokedCount(revoked));
+    await router.navigate({ to: "/logout", search: { reason: "revoked" } });
+  } catch (caught) {
+    toast.error(errorMessage(caught));
+  }
+}
+
 function SecurityScreen() {
+  const router = useRouter();
   const [section, setSection] = useState<(typeof SECTIONS)[number]["id"]>("signIn");
 
   return (
@@ -72,11 +162,7 @@ function SecurityScreen() {
               <FieldRow
                 label={copy.security.password}
                 value="Last changed 12 March"
-                action={
-                  <Button variant="quiet" size="sm">
-                    {copy.security.changePassword}
-                  </Button>
-                }
+                action={<ChangePasswordPanel />}
               />
             </div>
           </Card>
@@ -86,7 +172,7 @@ function SecurityScreen() {
           <Card>
             <SectionLabel
               right={
-                <Button variant="quiet" size="sm">
+                <Button variant="quiet" size="sm" onClick={() => void onRevokeAll(router)}>
                   {copy.security.signOutAll}
                 </Button>
               }
@@ -104,7 +190,9 @@ function SecurityScreen() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-sp-4">
                         <span className="t-body-strong text-ink-1">{s.device}</span>
-                        {s.current && <StatusChip tone="solid">{copy.security.thisDevice}</StatusChip>}
+                        {s.current && (
+                          <StatusChip tone="solid">{copy.security.thisDevice}</StatusChip>
+                        )}
                       </div>
                       <div className="t-caption text-ink-4">
                         {s.browser} · {s.location}

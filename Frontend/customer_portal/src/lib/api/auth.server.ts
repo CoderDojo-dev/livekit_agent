@@ -11,7 +11,28 @@ type LoginResponse = {
   email: string;
   role: string;
   kind: string;
+  customer_id: string | null;
 };
+
+/**
+ * The portal is a client-only surface. business-api will happily authenticate a
+ * conseiller/superviseur/administrateur here, but "client" is absent from
+ * _ROLE_RANK, so such a session can reach nothing except /auth/*: the shell
+ * would render and then 403 on every read. Refuse at the door instead, and
+ * never persist a token we are not going to use.
+ */
+function assertClient(
+  payload: LoginResponse,
+  path: string,
+): asserts payload is LoginResponse & { kind: "client"; customer_id: string } {
+  if (payload.kind !== "client" || !payload.customer_id) {
+    throw new ApiError(
+      403,
+      "This portal is for customer accounts. Staff should use the advisor console.",
+      path,
+    );
+  }
+}
 
 /**
  * Credentials are verified by business-api against a scrypt hash in auth.portal_accounts.
@@ -80,11 +101,14 @@ export const login = createServerFn({ method: "POST" })
       password: data.password,
     });
 
+    assertClient(result, "/api/v1/auth/login");
+
     const session: ClientSession = {
       sub: result.email,
       role: "client",
       exp: Math.floor(new Date(result.expires_at).getTime() / 1000),
       token: result.token,
+      customerId: result.customer_id,
     };
 
     await writeSessionCookie(session);
@@ -97,6 +121,7 @@ type SignupResponse = {
   role: string;
   token: string;
   expires_at: string;
+  customer_id: string | null;
 };
 
 export const signup = createServerFn({ method: "POST" })
@@ -130,11 +155,14 @@ export const signup = createServerFn({ method: "POST" })
       msisdn: data.msisdn,
     });
 
+    assertClient(result, "/api/v1/auth/signup");
+
     const session: ClientSession = {
       sub: result.email,
       role: "client",
       exp: Math.floor(new Date(result.expires_at).getTime() / 1000),
       token: result.token,
+      customerId: result.customer_id,
     };
 
     await writeSessionCookie(session);

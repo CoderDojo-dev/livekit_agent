@@ -1,17 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { copy } from "@/lib/copy";
-import {
-  invoices,
-  nextCharge,
-  spend,
-  type InvoiceStatus,
-} from "@/lib/fixtures/billing";
-import {
-  Card,
-  Divider,
-  SectionLabel,
-  StatusChip,
-} from "@/components/portal/primitives";
+import { invoices, nextCharge, spend, type InvoiceStatus } from "@/lib/fixtures/billing";
+import { Card, Divider, SectionLabel, StatusChip } from "@/components/portal/primitives";
 
 export const Route = createFileRoute("/_portal/billing")({
   head: () => ({
@@ -76,7 +66,10 @@ function BillingScreen() {
         <Card>
           <div className="flex h-40 items-end gap-sp-6">
             {spend.map((s) => (
-              <div key={s.month} className="flex h-full flex-1 flex-col items-center justify-end gap-sp-4">
+              <div
+                key={s.month}
+                className="flex h-full flex-1 flex-col items-center justify-end gap-sp-4"
+              >
                 <span className="t-mono-s text-ink-5">£{s.value}.00</span>
                 <div
                   className="w-full rounded-r-1 border border-stroke-strong bg-surface-4"

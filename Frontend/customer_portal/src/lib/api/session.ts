@@ -17,6 +17,12 @@ export type ClientSession = {
    * business-api revalidates it against auth.portal_sessions on every request.
    */
   token: string;
+  /**
+   * crm.customers.customer_id, returned by /auth/login and /auth/signup.
+   * Never sent to business-api: /me/* routes derive it from the bearer token.
+   * Held only so the UI can key client-side caches per customer.
+   */
+  customerId?: string;
 };
 
 /* ---------- base64url (no padding) ---------- */
@@ -90,6 +96,7 @@ export async function verifySession(
     const session = JSON.parse(new TextDecoder().decode(fromBase64Url(payload))) as ClientSession;
     if (typeof session.exp !== "number" || session.exp * 1000 < Date.now()) return null;
     if (session.role !== "client") return null;
+    if (session.customerId !== undefined && typeof session.customerId !== "string") return null;
     return session;
   } catch {
     return null;

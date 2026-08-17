@@ -22,13 +22,7 @@ const ICONS: Record<string, LucideIcon> = {
 /** 11.9 — en dessous de lg, le rail devient une barre basse de cinq entrees.
  *  Une seule source de verite : NAV. Renommer ou retirer une destination ne
  *  peut plus laisser un lien mort ici. */
-const MOBILE_HREFS = [
-  "/assistant",
-  "/activity",
-  "/requests",
-  "/services",
-  "/billing",
-] as const;
+const MOBILE_HREFS = ["/assistant", "/activity", "/requests", "/services", "/billing"] as const;
 
 const ITEMS = MOBILE_HREFS.map((href) => {
   const item = NAV.flatMap((group) => group.items).find((i) => i.href === href);

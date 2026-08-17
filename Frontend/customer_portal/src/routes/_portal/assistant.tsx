@@ -5,7 +5,14 @@ import { Orb } from "@/components/orb/orb";
 import { OrbPlinth } from "@/components/orb/orb-plinth";
 import { ORB_SIZE, type OrbState } from "@/lib/orb-config";
 import { copy } from "@/lib/copy";
-import { Button, Card, Divider, IconButton, SectionLabel, StatusChip } from "@/components/portal/primitives";
+import {
+  Button,
+  Card,
+  Divider,
+  IconButton,
+  SectionLabel,
+  StatusChip,
+} from "@/components/portal/primitives";
 import { interactions } from "@/lib/fixtures/interactions";
 import { cn } from "@/lib/utils";
 
@@ -139,7 +146,11 @@ function AssistantScene() {
                   muted && "bg-surface-4 text-ink-1",
                 )}
               >
-                {muted ? <MicOff size={17} strokeWidth={1.5} /> : <Mic size={17} strokeWidth={1.5} />}
+                {muted ? (
+                  <MicOff size={17} strokeWidth={1.5} />
+                ) : (
+                  <Mic size={17} strokeWidth={1.5} />
+                )}
               </IconButton>
               <IconButton
                 label={copy.assistant.controls.captions}
@@ -180,7 +191,10 @@ function AssistantScene() {
                 [copy.assistant.summary.duration, "—"],
                 [copy.assistant.summary.turns, String(SCRIPT.length)],
               ].map(([k, v]) => (
-                <div key={k} className="rounded-r-3 border border-stroke-subtle bg-surface-2 p-sp-5">
+                <div
+                  key={k}
+                  className="rounded-r-3 border border-stroke-subtle bg-surface-2 p-sp-5"
+                >
                   <div className="t-micro-2 text-ink-5">{k}</div>
                   <div className="t-metric-m mt-sp-3 text-ink-1">{v}</div>
                 </div>
@@ -188,9 +202,7 @@ function AssistantScene() {
             </div>
             <Divider className="my-sp-7" />
             <div className="t-micro text-ink-4">{copy.assistant.summary.changed}</div>
-            <p className="t-body mt-sp-4 text-ink-3">
-              {copy.assistant.summary.nothingChanged}
-            </p>
+            <p className="t-body mt-sp-4 text-ink-3">{copy.assistant.summary.nothingChanged}</p>
             <div className="mt-sp-8 flex gap-sp-4">
               <Button variant="secondary" size="sm">
                 {copy.assistant.summary.download}
@@ -204,9 +216,7 @@ function AssistantScene() {
           <Card className="flex h-[560px] flex-col p-sp-0" inset={false}>
             <div className="flex items-center justify-between border-b border-stroke-subtle px-sp-6 py-sp-5">
               <span className="t-micro text-ink-4">{copy.assistant.stream.heading}</span>
-              <StatusChip tone={live ? "solid" : "muted"}>
-                {live ? "LIVE" : "IDLE"}
-              </StatusChip>
+              <StatusChip tone={live ? "solid" : "muted"}>{live ? "LIVE" : "IDLE"}</StatusChip>
             </div>
             <div className="flex-1 space-y-sp-7 overflow-y-auto px-sp-6 py-sp-6">
               {turns.length === 0 ? (

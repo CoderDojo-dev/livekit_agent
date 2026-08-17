@@ -4,8 +4,12 @@ import { authedMiddleware } from "./middleware";
 
 type Me = {
   subject: string;
-  kind: "staff" | "customer";
+  /** Principal.kind in infrastructure/auth/principal.py. "service" is the
+   * X-API-Key machine principal; it can never reach the portal, but the type
+   * must not lie about what the endpoint can return. */
+  kind: "staff" | "client" | "service";
   role: string;
+  account_id: string | null;
   customer_id: string | null;
 };
 

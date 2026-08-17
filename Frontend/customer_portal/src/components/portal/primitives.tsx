@@ -11,12 +11,7 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "sm" | "md" | "lg";
 };
 
-export function Button({
-  className,
-  variant = "secondary",
-  size = "md",
-  ...props
-}: ButtonProps) {
+export function Button({ className, variant = "secondary", size = "md", ...props }: ButtonProps) {
   return (
     <button
       className={cn(
@@ -28,8 +23,7 @@ export function Button({
           "border-transparent bg-n-12 text-ink-inverse hover:bg-n-11 active:bg-n-10",
         variant === "secondary" &&
           "border-stroke-default bg-surface-3 text-ink-1 shadow-elev-1 hover:border-stroke-strong hover:bg-surface-4",
-        variant === "ghost" &&
-          "border-transparent text-ink-3 hover:bg-surface-3 hover:text-ink-1",
+        variant === "ghost" && "border-transparent text-ink-3 hover:bg-surface-3 hover:text-ink-1",
         variant === "quiet" &&
           "border-stroke-subtle bg-transparent text-ink-3 hover:border-stroke-default hover:text-ink-1",
         variant === "danger" &&
@@ -143,9 +137,7 @@ export function FieldRow({
     <div className="flex items-start justify-between gap-sp-6 py-sp-6">
       <div className="min-w-0">
         <div className="t-label text-ink-4">{label}</div>
-        <div className={cn("mt-sp-2 text-ink-1", mono ? "t-mono-l" : "t-body-strong")}>
-          {value}
-        </div>
+        <div className={cn("mt-sp-2 text-ink-1", mono ? "t-mono-l" : "t-body-strong")}>{value}</div>
         {hint ? <div className="t-caption mt-sp-2 text-ink-5">{hint}</div> : null}
       </div>
       {action ? <div className="shrink-0 pt-sp-3">{action}</div> : null}
@@ -222,9 +214,7 @@ export function Meter({
           style={{ width: `${pct}%` }}
         />
       </div>
-      {over && overNote ? (
-        <div className="t-caption mt-sp-3 text-ink-3">{overNote}</div>
-      ) : null}
+      {over && overNote ? <div className="t-caption mt-sp-3 text-ink-3">{overNote}</div> : null}
     </div>
   );
 }
@@ -315,7 +305,11 @@ export function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex overflow-hidden rounded-r-2 border border-stroke-default">
+    <div
+      role="group"
+      aria-label={label}
+      className="inline-flex overflow-hidden rounded-r-2 border border-stroke-default"
+    >
       {options.map((o, i) => (
         <button
           key={o}

@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { Button, Card } from "@/components/portal/primitives";
 import { signup } from "@/lib/api/auth.server";
 import { errorMessage } from "@/lib/api/errors";
+import { copy } from "@/lib/copy";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -28,7 +29,7 @@ function SignupPage() {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(copy.signup.mismatch);
       return;
     }
     setPending(true);
@@ -43,7 +44,9 @@ function SignupPage() {
         },
       });
       await router.invalidate();
-      await router.navigate({ to: "/assistant" });
+      // Until Cookbook 5 lands, /assistant is a scripted demo, while /profile
+      // is the one screen already backed by real data. Reverted in Cookbook 5.
+      await router.navigate({ to: "/profile" });
     } catch (caught) {
       setError(caught);
       setPending(false);
@@ -57,10 +60,8 @@ function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8 py-sp-10">
       <Card className="w-full max-w-[420px]">
         <div className="mb-sp-7 text-center">
-          <h1 className="t-title-3 text-ink-1">Create your sign-in</h1>
-          <p className="t-caption mt-sp-2 text-ink-4">
-            A password keeps your data out of other people's hands.
-          </p>
+          <h1 className="t-title-3 text-ink-1">{copy.signup.title}</h1>
+          <p className="t-caption mt-sp-2 text-ink-4">{copy.signup.subtitle}</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-sp-5">
@@ -76,7 +77,7 @@ function SignupPage() {
             />
           </label>
           <label className="flex flex-col gap-sp-3">
-            <span className="t-label text-ink-4">Last 4 digits of your CIN</span>
+            <span className="t-label text-ink-4">{copy.signup.cinLabel}</span>
             <input
               type="text"
               value={cin}
@@ -88,31 +89,31 @@ function SignupPage() {
             />
           </label>
           <label className="flex flex-col gap-sp-3">
-            <span className="t-label text-ink-4">Password (min. 8 characters)</span>
+            <span className="t-label text-ink-4">{copy.signup.passwordLabel}</span>
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
-              minLength={8}
+              minLength={10}
               required
               className={inputClass}
             />
           </label>
           <label className="flex flex-col gap-sp-3">
-            <span className="t-label text-ink-4">Confirm password</span>
+            <span className="t-label text-ink-4">{copy.signup.confirmLabel}</span>
             <input
               type="password"
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
               autoComplete="new-password"
-              minLength={8}
+              minLength={10}
               required
               className={inputClass}
             />
           </label>
           <label className="flex flex-col gap-sp-3">
-            <span className="t-label text-ink-4">Phone number on the account</span>
+            <span className="t-label text-ink-4">{copy.signup.phoneLabel}</span>
             <input
               type="tel"
               value={phone}
@@ -130,13 +131,13 @@ function SignupPage() {
           ) : null}
 
           <Button type="submit" variant="primary" className="mt-sp-2 w-full" disabled={pending}>
-            {pending ? "Creating your sign-in…" : "Create my sign-in"}
+            {pending ? copy.signup.pending : copy.signup.submit}
           </Button>
         </form>
 
         <div className="mt-sp-7 border-t border-stroke-subtle pt-sp-6 text-center">
           <Link to="/login" className="t-caption text-ink-3 hover:text-ink-1">
-            Already have a sign-in? Use it here.
+            {copy.signup.haveOne}
           </Link>
         </div>
       </Card>

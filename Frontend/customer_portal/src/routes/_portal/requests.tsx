@@ -55,8 +55,7 @@ function RequestsScreen() {
     () =>
       requests.filter((r) => {
         const isActive = r.status === "open" || r.status === "in_progress";
-        const byTab =
-          tab === "all" ? true : tab === "active" ? isActive : !isActive;
+        const byTab = tab === "all" ? true : tab === "active" ? isActive : !isActive;
         const byQuery =
           query.trim() === "" ||
           (r.title + r.summary + r.ref).toLowerCase().includes(query.toLowerCase());
@@ -104,7 +103,13 @@ function RequestsScreen() {
           title={copy.empty.filtered.title}
           body={copy.empty.filtered.body}
           action={
-            <Button variant="secondary" onClick={() => { setQuery(""); setTab("all"); }}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setQuery("");
+                setTab("all");
+              }}
+            >
               {copy.empty.filtered.action}
             </Button>
           }
@@ -123,9 +128,7 @@ function RequestsScreen() {
                 >
                   <div className="flex items-center gap-sp-5">
                     <span className="t-mono-s text-ink-5">{r.ref}</span>
-                    <StatusChip tone={TONE[r.status]}>
-                      {copy.requests.status[r.status]}
-                    </StatusChip>
+                    <StatusChip tone={TONE[r.status]}>{copy.requests.status[r.status]}</StatusChip>
                     <span className="t-mono-s ml-auto text-ink-5">{r.opened}</span>
                   </div>
                   <div className="t-body-strong mt-sp-4 text-ink-1">{r.title}</div>
@@ -137,7 +140,13 @@ function RequestsScreen() {
 
           {active && (
             <Card className="lg:sticky lg:top-24 lg:self-start">
-              <SectionLabel right={<StatusChip tone={TONE[active.status]}>{copy.requests.status[active.status]}</StatusChip>}>
+              <SectionLabel
+                right={
+                  <StatusChip tone={TONE[active.status]}>
+                    {copy.requests.status[active.status]}
+                  </StatusChip>
+                }
+              >
                 {active.ref}
               </SectionLabel>
               <h3 className="t-title-2 mt-sp-6 text-ink-1">{active.title}</h3>
