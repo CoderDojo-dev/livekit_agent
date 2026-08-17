@@ -423,3 +423,21 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Manual mirror of the OS-level preference above, driven by lib/preferences.ts. */
+[data-reduce-motion="true"] *,
+[data-reduce-motion="true"] *::before,
+[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* Compact density: one step down the existing spacing scale. No new values. */
+[data-density="compact"] .portal-section {
+  padding-block: var(--sp-6);
+}
+
+[data-text-size="large"] {
+  font-size: 15px;
+}

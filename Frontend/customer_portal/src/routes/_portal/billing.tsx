@@ -3,12 +3,10 @@ import { copy } from "@/lib/copy";
 import {
   invoices,
   nextCharge,
-  paymentMethod,
   spend,
   type InvoiceStatus,
 } from "@/lib/fixtures/billing";
 import {
-  Button,
   Card,
   Divider,
   SectionLabel,
@@ -71,25 +69,6 @@ function BillingScreen() {
             </ul>
           </Card>
         </section>
-
-        <section className="space-y-sp-6">
-          <SectionLabel right={<Button variant="quiet" size="sm">{copy.billing.update}</Button>}>
-            {copy.billing.paymentMethod}
-          </SectionLabel>
-          <Card>
-            <div className="rounded-r-4 border border-stroke-strong bg-surface-3 p-sp-7 shadow-elev-2">
-              <div className="t-micro-2 text-ink-5">{paymentMethod.brand}</div>
-              <div className="t-mono-l mt-sp-7 text-ink-1">
-                •••• •••• •••• {paymentMethod.last4}
-              </div>
-              <div className="mt-sp-6 flex items-end justify-between">
-                <span className="t-mono-s text-ink-4">{paymentMethod.holder}</span>
-                <span className="t-mono-s text-ink-4">{paymentMethod.expiry}</span>
-              </div>
-            </div>
-            <p className="t-caption mt-sp-6 text-ink-5">{copy.billing.providerNote}</p>
-          </Card>
-        </section>
       </div>
 
       <section className="space-y-sp-6">
@@ -111,20 +90,12 @@ function BillingScreen() {
       </section>
 
       <section className="space-y-sp-6">
-        <SectionLabel
-          right={
-            <Button variant="quiet" size="sm">
-              {copy.billing.downloadAll}
-            </Button>
-          }
-        >
-          {copy.billing.invoices}
-        </SectionLabel>
+        <SectionLabel>{copy.billing.invoices}</SectionLabel>
         <div className="overflow-hidden rounded-r-5 border border-stroke-default bg-surface-1">
           <table className="w-full">
             <thead>
               <tr className="border-b border-stroke-subtle">
-                {["INVOICE", "PERIOD", "DATE", "AMOUNT", "STATUS", ""].map((h) => (
+                {["INVOICE", "PERIOD", "DATE", "AMOUNT", "STATUS"].map((h) => (
                   <th
                     key={h}
                     className="t-micro-2 px-sp-7 py-sp-5 text-left font-semibold text-ink-5"
@@ -148,11 +119,6 @@ function BillingScreen() {
                     <StatusChip tone={TONE[inv.status]}>
                       {copy.billing.status[inv.status]}
                     </StatusChip>
-                  </td>
-                  <td className="px-sp-7 py-sp-6 text-right">
-                    <Button variant="quiet" size="sm">
-                      {inv.status === "failed" ? copy.billing.retry : copy.billing.pdf}
-                    </Button>
                   </td>
                 </tr>
               ))}

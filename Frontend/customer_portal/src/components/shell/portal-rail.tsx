@@ -32,7 +32,7 @@ const ICONS: Record<string, LucideIcon> = {
 
 /**
  * components/shell/portal-rail.tsx — chapitre 11.
- * Onze destinations, trois groupes, un pied de marque.
+ * Dix destinations, trois groupes, un pied de marque.
  */
 export function PortalRail({
   collapsed,

@@ -197,11 +197,14 @@ export function Meter({
   used,
   limit,
   unit,
+  overNote,
 }: {
   label: string;
   used: number;
   limit: number;
   unit: string;
+  /** Sentence shown when usage exceeds the allowance. Lives in copy.ts, never here. */
+  overNote?: string;
 }) {
   const over = used > limit;
   const pct = Math.min(100, Math.round((used / limit) * 100));
@@ -219,10 +222,8 @@ export function Meter({
           style={{ width: `${pct}%` }}
         />
       </div>
-      {over ? (
-        <div className="t-caption mt-sp-3 text-ink-3">
-          Over your monthly allowance. Extra blocks are billed at £6.00 each.
-        </div>
+      {over && overNote ? (
+        <div className="t-caption mt-sp-3 text-ink-3">{overNote}</div>
       ) : null}
     </div>
   );

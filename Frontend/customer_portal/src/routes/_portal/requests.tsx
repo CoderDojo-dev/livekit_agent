@@ -97,9 +97,6 @@ function RequestsScreen() {
           onChange={setQuery}
           className="max-w-xs"
         />
-        <Button variant="secondary" className="ml-auto">
-          {copy.requests.create}
-        </Button>
       </div>
 
       {list.length === 0 ? (
@@ -161,22 +158,6 @@ function RequestsScreen() {
                   </li>
                 ))}
               </ol>
-
-              {(active.status === "open" || active.status === "in_progress") && (
-                <>
-                  <Divider className="my-sp-7" />
-                  <textarea
-                    rows={3}
-                    placeholder={copy.requests.replyPlaceholder}
-                    className="focus-ring t-body w-full resize-none rounded-r-3 border border-stroke-default bg-surface-2 p-sp-5 text-ink-1 placeholder:text-ink-5"
-                  />
-                  <div className="mt-sp-5 flex justify-end">
-                    <Button variant="primary" size="sm">
-                      {copy.requests.send}
-                    </Button>
-                  </div>
-                </>
-              )}
             </Card>
           )}
         </div>

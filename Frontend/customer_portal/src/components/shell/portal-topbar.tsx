@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Search, Lock, ChevronDown } from "lucide-react";
+import { Bell, Lock, ChevronDown } from "lucide-react";
 import { PAGE_HEAD } from "@/lib/nav";
 import { copy } from "@/lib/copy";
 import { notifications } from "@/lib/fixtures/customer";
@@ -39,10 +39,6 @@ export function PortalTopbar() {
           {copy.shell.secure}
         </StatusChip>
       </div>
-
-      <IconButton label={copy.shell.search}>
-        <Search size={16} strokeWidth={1.5} />
-      </IconButton>
 
       <div className="relative">
         <IconButton label={copy.shell.notifications} onClick={() => setOpenTray((v) => !v)}>

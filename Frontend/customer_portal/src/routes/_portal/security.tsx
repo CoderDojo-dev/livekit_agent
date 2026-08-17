@@ -6,7 +6,6 @@ import { sessions, securityEvents } from "@/lib/fixtures/customer";
 import {
   Button,
   Card,
-  Divider,
   FieldRow,
   SectionLabel,
   StatusChip,
@@ -20,12 +19,12 @@ export const Route = createFileRoute("/_portal/security")({
       {
         name: "description",
         content:
-          "Manage your Nexus sign-in, two-step verification, passkeys, active devices, and what happens to your data.",
+          "Manage your Nexus sign-in and active devices.",
       },
       { property: "og:title", content: "Security — Nexus Customer Portal" },
       {
         property: "og:description",
-        content: "Sign-in, devices, and your data.",
+        content: "Sign-in and active devices.",
       },
     ],
   }),
@@ -36,7 +35,6 @@ const SECTIONS = [
   { id: "signIn", label: copy.security.nav.signIn },
   { id: "sessions", label: copy.security.nav.sessions },
   { id: "activity", label: copy.security.nav.activity },
-  { id: "data", label: copy.security.nav.data },
 ] as const;
 
 const DEVICE_ICON = [Laptop, Smartphone, Monitor];
@@ -68,48 +66,20 @@ function SecurityScreen() {
 
       <div className="space-y-sp-8">
         {section === "signIn" && (
-          <>
-            <Card className="border-dashed">
-              <div className="flex flex-col gap-sp-6 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h3 className="t-title-3 text-ink-1">{copy.security.callout.title}</h3>
-                  <p className="t-body mt-sp-3 max-w-xl text-ink-4">
-                    {copy.security.callout.body}
-                  </p>
-                </div>
-                <Button variant="primary">{copy.security.callout.action}</Button>
-              </div>
-            </Card>
-
-            <Card>
-              <SectionLabel>{copy.security.signIn}</SectionLabel>
-              <div className="mt-sp-4 divide-y divide-stroke-subtle">
-                <FieldRow
-                  label={copy.security.password}
-                  value="Last changed 12 March"
-                  action={
-                    <Button variant="quiet" size="sm">
-                      {copy.security.changePassword}
-                    </Button>
-                  }
-                />
-                <FieldRow
-                  label={copy.security.twoStep}
-                  value="Not turned on"
-                  action={<StatusChip tone="dashed">OFF</StatusChip>}
-                />
-                <FieldRow
-                  label={copy.security.passkeys}
-                  value="No passkeys yet"
-                  action={
-                    <Button variant="quiet" size="sm">
-                      {copy.security.addPasskey}
-                    </Button>
-                  }
-                />
-              </div>
-            </Card>
-          </>
+          <Card>
+            <SectionLabel>{copy.security.signIn}</SectionLabel>
+            <div className="mt-sp-4 divide-y divide-stroke-subtle">
+              <FieldRow
+                label={copy.security.password}
+                value="Last changed 12 March"
+                action={
+                  <Button variant="quiet" size="sm">
+                    {copy.security.changePassword}
+                  </Button>
+                }
+              />
+            </div>
+          </Card>
         )}
 
         {section === "sessions" && (
@@ -167,42 +137,6 @@ function SecurityScreen() {
                 </li>
               ))}
             </ul>
-          </Card>
-        )}
-
-        {section === "data" && (
-          <Card>
-            <SectionLabel>{copy.security.data}</SectionLabel>
-            <div className="mt-sp-6 space-y-sp-6">
-              {copy.security.blocks.map((b, i) => (
-                <div key={b.title}>
-                  {i === 2 && (
-                    <>
-                      <Divider className="my-sp-7" />
-                      <div className="t-micro mb-sp-5 text-ink-4">
-                        {copy.security.irreversible}
-                      </div>
-                    </>
-                  )}
-                  <div
-                    className={cn(
-                      "flex flex-col gap-sp-5 rounded-r-3 border p-sp-6 md:flex-row md:items-center md:justify-between",
-                      i === 2
-                        ? "border-dashed border-stroke-strong"
-                        : "border-stroke-subtle bg-surface-2",
-                    )}
-                  >
-                    <div>
-                      <div className="t-body-strong text-ink-1">{b.title}</div>
-                      <p className="t-caption mt-sp-2 max-w-xl text-ink-4">{b.body}</p>
-                    </div>
-                    <Button variant={i === 2 ? "danger" : "secondary"} size="sm">
-                      {b.action}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </Card>
         )}
       </div>

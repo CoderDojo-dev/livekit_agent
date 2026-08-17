@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Mic, MicOff, Captions, Keyboard, Volume2, Lock, Radio } from "lucide-react";
+import { Mic, MicOff, Captions, Lock, Radio } from "lucide-react";
 import { Orb } from "@/components/orb/orb";
 import { OrbPlinth } from "@/components/orb/orb-plinth";
 import { ORB_SIZE, type OrbState } from "@/lib/orb-config";
@@ -154,18 +154,6 @@ function AssistantScene() {
               <Button variant="danger" size="lg" onClick={end}>
                 {copy.assistant.end}
               </Button>
-              <IconButton
-                label={copy.assistant.controls.volume}
-                className="h-11 w-11 border border-stroke-default bg-surface-2"
-              >
-                <Volume2 size={17} strokeWidth={1.5} />
-              </IconButton>
-              <IconButton
-                label={copy.assistant.controls.keyboard}
-                className="h-11 w-11 border border-stroke-default bg-surface-2"
-              >
-                <Keyboard size={17} strokeWidth={1.5} />
-              </IconButton>
             </>
           )}
         </div>
@@ -187,11 +175,10 @@ function AssistantScene() {
         {ended ? (
           <Card className="p-sp-7">
             <SectionLabel>{copy.assistant.summary.heading}</SectionLabel>
-            <div className="mt-sp-7 grid grid-cols-3 gap-sp-5">
+            <div className="mt-sp-7 grid grid-cols-2 gap-sp-5">
               {[
-                [copy.assistant.summary.duration, "4m 18s"],
+                [copy.assistant.summary.duration, "—"],
                 [copy.assistant.summary.turns, String(SCRIPT.length)],
-                [copy.assistant.summary.actions, "2"],
               ].map(([k, v]) => (
                 <div key={k} className="rounded-r-3 border border-stroke-subtle bg-surface-2 p-sp-5">
                   <div className="t-micro-2 text-ink-5">{k}</div>
@@ -248,12 +235,6 @@ function AssistantScene() {
                   </div>
                 ))
               )}
-            </div>
-            <div className="border-t border-stroke-subtle p-sp-5">
-              <input
-                placeholder={copy.assistant.stream.composer}
-                className="focus-ring t-ui-regular h-9 w-full rounded-r-2 border border-stroke-default bg-surface-2 px-sp-5 text-ink-1 placeholder:text-ink-5"
-              />
             </div>
           </Card>
         )}

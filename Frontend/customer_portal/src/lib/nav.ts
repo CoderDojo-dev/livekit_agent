@@ -1,6 +1,7 @@
 /**
- * lib/nav.ts — les onze destinations, chapitre 11.2.
- * Aucune douzieme destination.
+ * lib/nav.ts — les dix destinations, chapitre 11.2 (3 + 3 + 4).
+ * Source unique : le rail, la barre mobile et PAGE_HEAD derivent d'ici.
+ * Aucune onzieme destination.
  */
 export type NavItem = {
   href: string;
