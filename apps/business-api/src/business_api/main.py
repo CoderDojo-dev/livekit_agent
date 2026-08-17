@@ -9,7 +9,7 @@ import os
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -474,8 +474,12 @@ def system_overview(session: DbSession, role: SuperviseurRole) -> dict:
 
 
 @app.get("/api/v1/system/health")
-async def system_health(role: AdministrateurRole) -> dict:
-    """Probe the configured platform allow-list concurrently; expose no URLs or bodies."""
+async def system_health(
+    response: Response,
+    role: AdministrateurRole,
+) -> dict:
+    """Return a bounded administrator-only runtime health snapshot."""
+    response.headers["Cache-Control"] = "private, no-store"
     return await aggregate_service_health()
 
 
@@ -913,11 +917,18 @@ def me_requests(
 
 
 @app.get("/api/v1/me/billing", tags=["me"])
-def me_billing(
+async def me_billing(
     principal: ClientPrincipal,
     db: DbSession,
+    limit: int = 20,
+    offset: int = 0,
 ) -> dict[str, Any]:
-    return me_reads.billing(db, customer_id=_client_customer_id(principal))
+    return me_reads.billing(
+        db,
+        customer_id=_client_customer_id(principal),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @app.get("/api/v1/me/balance", tags=["me"])
@@ -929,28 +940,32 @@ def me_balance(
 
 
 @app.get("/api/v1/me/notifications", tags=["me"])
-def me_notifications(
+async def me_notifications(
     principal: ClientPrincipal,
     db: DbSession,
     limit: int = 20,
+    offset: int = 0,
 ) -> dict[str, Any]:
     return me_reads.notifications(
         db,
         customer_id=_client_customer_id(principal),
         limit=limit,
+        offset=offset,
     )
 
 
 @app.get("/api/v1/me/callbacks", tags=["me"])
-def me_callbacks(
+async def me_callbacks(
     principal: ClientPrincipal,
     db: DbSession,
     limit: int = 20,
+    offset: int = 0,
 ) -> dict[str, Any]:
     return me_reads.callbacks(
         db,
         customer_id=_client_customer_id(principal),
         limit=limit,
+        offset=offset,
     )
 
 

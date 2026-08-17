@@ -34,8 +34,8 @@ export function PortalTopbar() {
     queryFn: () => fetchProfileDetail(),
   });
   const notifications = useQuery({
-    queryKey: qk.notifications(session?.customerId ?? "unknown"),
-    queryFn: () => fetchNotifications(),
+    queryKey: qk.notifications(session?.customerId ?? "unknown", 20, 0),
+    queryFn: () => fetchNotifications({ data: { limit: 20, offset: 0 } }),
     staleTime: 30_000,
   });
   const me = profile.data;
@@ -80,8 +80,13 @@ export function PortalTopbar() {
                       <div className="min-w-0">
                         <div className="t-ui text-ink-1">{notificationMessage(n)}</div>
                         <div className="t-caption mt-sp-1 text-ink-4">
-                          {copy.labels.notificationChannel[n.channel] ?? n.channel} ·{" "}
-                          {copy.labels.notificationStatus[n.status] ?? n.status}
+                          {copy.labels.notificationChannel[
+                            n.channel as keyof typeof copy.labels.notificationChannel
+                          ] ?? n.channel}{" "}
+                          ·{" "}
+                          {copy.labels.notificationStatus[
+                            n.status as keyof typeof copy.labels.notificationStatus
+                          ] ?? n.status}
                         </div>
                         <div className="t-mono-s mt-sp-2 text-ink-5">
                           {relative(n.sent_at ?? n.created_at)}

@@ -21,11 +21,11 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from persistence.models.billing import Account, Invoice, Notification, Payment
-from persistence.models.conversation import CallbackSchedule, CallSession, Turn
+from persistence.models.billing import Account, Invoice, Notification, NotificationLog, Payment
+from persistence.models.conversation import CallbackRequest, CallbackSchedule, CallSession, Turn
 from persistence.models.crm import Subscription
 from persistence.models.ocs import BalanceAccount, Recharge
 from persistence.models.portal_identity import PortalAccount, PortalSession
@@ -313,10 +313,20 @@ def requests(
     }
 
 
+# Statuses that owe nothing.
+_EXCLUDED_OUTSTANDING = ("paid", "void")
+
+
 # --------------------------------------------------------------------------
 # /me/billing  (postpaid / hybrid)
 # --------------------------------------------------------------------------
-def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
+def billing(
+    session: Session,
+    *,
+    customer_id: UUID,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> dict[str, Any]:
     """Billing accounts, their invoices, and settled payments.
 
     repositories.customer_ledger returns payments, payment plans, and consents
@@ -341,82 +351,108 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
     invoices: list[dict[str, Any]] = []
     payments: list[dict[str, Any]] = []
 
-    if account_ids:
-        invoice_rows = session.execute(
-            select(
-                Invoice.id,
-                Invoice.account_id,
-                Invoice.invoice_number,
-                Invoice.period_start,
-                Invoice.period_end,
-                Invoice.issue_date,
-                Invoice.due_date,
-                Invoice.subtotal,
-                Invoice.tax_amount,
-                Invoice.total_amount,
-                Invoice.outstanding_amount,
-                Invoice.currency_code,
-                Invoice.status,
-            )
-            .where(Invoice.account_id.in_(account_ids))
-            .order_by(Invoice.issue_date.desc())
-            .limit(_LIST_MAX)
-        ).all()
+    size, start = _page(limit, offset)
 
-        invoices = [
-            {
-                "invoice_number": row.invoice_number,
-                "account_number": next(
-                    (a.account_number for a in accounts if a.id == row.account_id),
-                    None,
-                ),
-                "period_start": _iso(row.period_start),
-                "period_end": _iso(row.period_end),
-                "issue_date": _iso(row.issue_date),
-                "due_date": _iso(row.due_date),
-                "subtotal": _num(row.subtotal),
-                "tax_amount": _num(row.tax_amount),
-                "total_amount": _num(row.total_amount),
-                "outstanding_amount": _num(row.outstanding_amount),
-                "currency_code": row.currency_code,
-                "status": row.status,
-            }
-            for row in invoice_rows
-        ]
+    if not account_ids:
+        return {
+            "accounts": [],
+            "total_outstanding": 0.0,
+            "currency_code": "",
+            "invoices": {"total": 0, "limit": size, "offset": start, "items": []},
+            "payments": [],
+        }
 
-        payment_rows = session.execute(
-            select(
-                Payment.id,
-                Payment.amount,
-                Payment.currency_code,
-                Payment.method,
-                Payment.status,
-                Payment.paid_at,
-                Invoice.invoice_number,
-            )
-            .join(Invoice, Invoice.id == Payment.invoice_id, isouter=True)
-            .where(Payment.account_id.in_(account_ids))
-            .order_by(Payment.paid_at.desc().nullslast())
-            .limit(_LIST_MAX)
-        ).all()
+    # Whole-account figures must not follow the invoice page: an outstanding
+    # balance computed from 20 visible rows would understate what is owed.
+    totals_stmt = select(
+        func.count(Invoice.id),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        Invoice.status.notin_(_EXCLUDED_OUTSTANDING),
+                        Invoice.outstanding_amount,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ),
+    ).where(Invoice.billing_account_id.in_(account_ids))
+    invoice_total, outstanding_sum = session.execute(totals_stmt).one()
 
-        payments = [
-            {
-                "amount": _num(row.amount),
-                "currency_code": row.currency_code,
-                "method": row.method,
-                "status": row.status,
-                "paid_at": _iso(row.paid_at),
-                "invoice_number": row.invoice_number,
-            }
-            for row in payment_rows
-        ]
+    invoice_rows = session.execute(
+        select(
+            Invoice.id,
+            Invoice.account_id,
+            Invoice.invoice_number,
+            Invoice.period_start,
+            Invoice.period_end,
+            Invoice.issue_date,
+            Invoice.due_date,
+            Invoice.subtotal,
+            Invoice.tax_amount,
+            Invoice.total_amount,
+            Invoice.outstanding_amount,
+            Invoice.currency_code,
+            Invoice.status,
+        )
+        .where(Invoice.billing_account_id.in_(account_ids))
+        .order_by(Invoice.issue_date.desc())
+        .offset(start)
+        .limit(size)
+    ).all()
 
-    total_outstanding = sum(
-        (item["outstanding_amount"] or 0.0)
-        for item in invoices
-        if item["status"] not in {"paid", "void"}
-    )
+    payment_rows = session.execute(
+        select(
+            Payment.id,
+            Payment.amount,
+            Payment.currency_code,
+            Payment.method,
+            Payment.status,
+            Payment.paid_at,
+            Invoice.invoice_number,
+        )
+        .join(Invoice, Invoice.id == Payment.invoice_id, isouter=True)
+        .where(Payment.account_id.in_(account_ids))
+        .order_by(Payment.paid_at.desc().nullslast())
+        .limit(_LIST_MAX)
+    ).all()
+
+    payments = [
+        {
+            "amount": _num(row.amount),
+            "currency_code": row.currency_code,
+            "method": row.method,
+            "status": row.status,
+            "paid_at": _iso(row.paid_at),
+            "invoice_number": row.invoice_number,
+        }
+        for row in payment_rows
+    ]
+
+    currency_code = accounts[0].currency_code if accounts else ""
+
+    invoices = [
+        {
+            "invoice_number": row.invoice_number,
+            "account_number": next(
+                (a.account_number for a in accounts if a.id == row.account_id),
+                None,
+            ),
+            "period_start": _iso(row.period_start),
+            "period_end": _iso(row.period_end),
+            "issue_date": _iso(row.issue_date),
+            "due_date": _iso(row.due_date),
+            "subtotal": _num(row.subtotal),
+            "tax_amount": _num(row.tax_amount),
+            "total_amount": _num(row.total_amount),
+            "outstanding_amount": _num(row.outstanding_amount),
+            "currency_code": row.currency_code,
+            "status": row.status,
+        }
+        for row in invoice_rows
+    ]
 
     return {
         "accounts": [
@@ -429,9 +465,17 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
             }
             for row in accounts
         ],
-        "total_outstanding": round(float(total_outstanding), 2),
-        "currency_code": (accounts[0].currency_code if accounts else "TND"),
-        "invoices": invoices,
+        # Account-wide, deliberately independent of the invoice page below.
+        "total_outstanding": _num(outstanding_sum) or 0.0,
+        "currency_code": currency_code,
+        "invoices": {
+            "total": int(invoice_total or 0),
+            "limit": size,
+            "offset": start,
+            "items": invoices,
+        },
+        # Payments stay a short unpaged recent list: they are context for the
+        # invoices, not a browsable ledger. Capped by _LIST_MAX as before.
         "payments": payments,
     }
 
@@ -520,6 +564,7 @@ def notifications(
     *,
     customer_id: UUID,
     limit: int | None = None,
+    offset: int | None = None,
 ) -> dict[str, Any]:
     """Messages the platform sent to this customer.
 
@@ -528,7 +573,13 @@ def notifications(
     and drops failure_reason entirely: a customer is told a message failed, not
     why an SMS gateway rejected it.
     """
-    size, _ = _page(limit, 0)
+    size, start = _page(limit, offset)
+
+    total = session.scalar(
+        select(func.count(NotificationLog.id)).where(
+            NotificationLog.customer_id == customer_id
+        )
+    )
 
     rows = session.execute(
         select(
@@ -545,6 +596,9 @@ def notifications(
     ).all()
 
     return {
+        "total": int(total or 0),
+        "limit": size,
+        "offset": start,
         "items": [
             {
                 "channel": row.channel,
@@ -554,7 +608,7 @@ def notifications(
                 "created_at": _iso(row.created_at),
             }
             for row in rows
-        ]
+        ],
     }
 
 
@@ -566,11 +620,18 @@ def callbacks(
     *,
     customer_id: UUID,
     limit: int | None = None,
+    offset: int | None = None,
 ) -> dict[str, Any]:
     """Scheduled call-backs for this customer. outcome_note is an advisor note
     and is not exposed; attempts is an operational counter and is not exposed.
     """
-    size, _ = _page(limit, 0)
+    size, start = _page(limit, offset)
+
+    total = session.scalar(
+        select(func.count(CallbackRequest.id)).where(
+            CallbackRequest.customer_id == customer_id
+        )
+    )
 
     rows = session.execute(
         select(
@@ -587,6 +648,9 @@ def callbacks(
     ).all()
 
     return {
+        "total": int(total or 0),
+        "limit": size,
+        "offset": start,
         "items": [
             {
                 "scheduled_time": _iso(row.scheduled_time),
@@ -596,5 +660,5 @@ def callbacks(
                 "completed_at": _iso(row.completed_at),
             }
             for row in rows
-        ]
+        ],
     }

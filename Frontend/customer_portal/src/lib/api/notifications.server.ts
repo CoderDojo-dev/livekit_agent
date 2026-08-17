@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import type { Paged } from "./activity.server";
 import { businessApi } from "./business-api";
 import { authedMiddleware } from "./middleware";
 
@@ -12,6 +14,15 @@ export type NotificationItem = {
 
 export const fetchNotifications = createServerFn({ method: "GET" })
   .middleware([authedMiddleware])
-  .handler(() =>
-    businessApi<{ items: NotificationItem[] }>("/api/v1/me/notifications?limit=20", {}),
+  .validator(
+    z.object({
+      limit: z.number().int().min(1).max(50).default(20),
+      offset: z.number().int().min(0).default(0),
+    }),
+  )
+  .handler(({ data }) =>
+    businessApi<Paged<NotificationItem>>(
+      `/api/v1/me/notifications?limit=${data.limit}&offset=${data.offset}`,
+      {},
+    ),
   );

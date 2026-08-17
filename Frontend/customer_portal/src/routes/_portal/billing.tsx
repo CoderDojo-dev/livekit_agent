@@ -6,6 +6,7 @@ import { copy } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { fetchBalance, fetchBilling, type InvoiceItem } from "@/lib/api/billing.server";
 import { date, dateTime, money, quantity } from "@/lib/format";
+import type { Paged } from "@/lib/api/activity.server";
 import {
   Card,
   Divider,
@@ -43,7 +44,7 @@ export const Route = createFileRoute("/_portal/billing")({
   component: BillingScreen,
 });
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 const INVOICE_TONE: Record<
   InvoiceItem["status"],
@@ -71,8 +72,8 @@ function BillingScreen() {
   const [selected, setSelected] = useState<InvoiceItem | null>(null);
 
   const billingQuery = useQuery({
-    queryKey: qk.billing(cid),
-    queryFn: () => fetchBilling(),
+    queryKey: qk.billing(cid, PAGE_SIZE, page * PAGE_SIZE),
+    queryFn: () => fetchBilling({ data: { limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
@@ -87,19 +88,17 @@ function BillingScreen() {
   const balance = balanceQuery.data ?? { balances: [], recharges: [] };
   const hasBalances = balance.balances.length > 0;
 
+  const invoices = billing?.invoices.items ?? [];
+  const invoiceTotal = billing?.invoices.total ?? 0;
+
   const nextDue = useMemo(() => {
-    const dues = (billing?.invoices ?? [])
+    const dues = invoices
       .filter((i) => i.status !== "paid" && i.status !== "void")
       .map((i) => i.due_date)
       .filter((d): d is string => Boolean(d))
       .sort();
     return dues[0];
-  }, [billing]);
-
-  const rows = useMemo(
-    () => (billing?.invoices ?? []).slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
-    [billing, page],
-  );
+  }, [invoices]);
 
   if (billingQuery.isPending || balanceQuery.isPending) {
     return (
@@ -142,14 +141,15 @@ function BillingScreen() {
       </PageSection>
 
       {postpaid && (
-        <DataSection
+        <DataSection<InvoiceItem>
           label={copy.billing.invoices}
           state={{
             isPending: billingQuery.isPending,
             isFetching: billingQuery.isFetching,
+            isPlaceholderData: billingQuery.isPlaceholderData,
             error: billingQuery.error,
           }}
-          items={rows}
+          items={invoices}
           skeletonRows={4}
           empty={{
             title: copy.billing.noInvoices.title,
@@ -183,11 +183,10 @@ function BillingScreen() {
                 ))}
               </ul>
               <Pagination
-                total={billing.invoices.length}
+                total={invoiceTotal}
                 limit={PAGE_SIZE}
                 offset={page * PAGE_SIZE}
                 onOffsetChange={(next) => setPage(Math.floor(next / PAGE_SIZE))}
-                busy={billingQuery.isFetching}
               />
             </>
           )}

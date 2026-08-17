@@ -130,7 +130,9 @@ function toItems(
     ...callbacks.map((cb, i) => ({
       kind: "callback" as const,
       id: cb.scheduled_time ?? `${cb.reason ?? "callback"}-${i}`,
-      title: copy.labels.callbackStatus[cb.status] ?? cb.status,
+      title:
+        copy.labels.callbackStatus[cb.status as keyof typeof copy.labels.callbackStatus] ??
+        cb.status,
       caption: cb.reason ?? "—",
       at: cb.scheduled_time,
       callback: cb,
@@ -302,12 +304,13 @@ function RequestBody({ item }: { item: RequestItem }) {
 }
 
 function CallbackBody({ item }: { item: CallbackItem }) {
+  const status = item.status as "pending" | "completed" | "cancelled";
   return (
     <>
       <SectionLabel
         right={
-          <StatusChip tone={CALLBACK_TONE[item.status]}>
-            {copy.labels.callbackStatus[item.status] ?? item.status}
+          <StatusChip tone={CALLBACK_TONE[status] ?? "muted"}>
+            {copy.labels.callbackStatus[status] ?? item.status}
           </StatusChip>
         }
       >
@@ -361,8 +364,8 @@ function ActivityScreen() {
     staleTime: 30_000,
   });
   const callbacksQuery = useQuery({
-    queryKey: qk.callbacks(cid),
-    queryFn: () => fetchCallbacks(),
+    queryKey: qk.callbacks(cid, 20, 0),
+    queryFn: () => fetchCallbacks({ data: { limit: 20, offset: 0 } }),
     staleTime: 30_000,
   });
 
@@ -453,7 +456,9 @@ function ActivityScreen() {
     selected?.kind === "request"
       ? selected.item.reference
       : selected?.kind === "callback"
-        ? (copy.labels.callbackStatus[selected.item.status] ?? selected.item.status)
+        ? (copy.labels.callbackStatus[
+            selected.item.status as keyof typeof copy.labels.callbackStatus
+          ] ?? selected.item.status)
         : copy.activity.tabs.conversations;
 
   return (

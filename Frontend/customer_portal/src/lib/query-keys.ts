@@ -14,8 +14,11 @@ export const qk = {
   conversation: (cid: string, id: string) => ["me", cid, "conversation", id] as const,
   requests: (cid: string, status: string | undefined, limit: number, offset: number) =>
     ["me", cid, "requests", status ?? "all", limit, offset] as const,
-  billing: (cid: string) => ["me", cid, "billing"] as const,
+  billing: (cid: string, limit: number, offset: number) =>
+    ["me", cid, "billing", limit, offset] as const,
   balance: (cid: string) => ["me", cid, "balance"] as const,
-  notifications: (cid: string) => ["me", cid, "notifications"] as const,
-  callbacks: (cid: string) => ["me", cid, "callbacks"] as const,
+  notifications: (cid: string, limit: number, offset: number) =>
+    ["me", cid, "notifications", limit, offset] as const,
+  callbacks: (cid: string, limit: number, offset: number) =>
+    ["me", cid, "callbacks", limit, offset] as const,
 };

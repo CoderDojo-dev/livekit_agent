@@ -1,3 +1,11 @@
+/**
+ * activity.server.ts — server functions for the Activity and Requests tabs.
+ *
+ * Paged endpoints return a `{ total, limit, offset, items }` object. The
+ * frontend's `Pagination` component needs all three to render page indicators.
+ * Non-paged endpoints (details, transcripts) return the single item directly.
+ */
+
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { businessApi } from "./business-api";
@@ -28,6 +36,26 @@ export type ConversationDetail = Omit<ConversationSummary, "turns"> & {
   turns: ConversationTurn[];
 };
 
+export type TicketItem = {
+  subject: string;
+  category: string;
+  status: string;
+  reference: string | null;
+  created_at: string | null;
+};
+
+export type RequestItem = TicketItem & {
+  glpi_id: string | null;
+};
+
+export type CallbackItem = {
+  scheduled_time: string | null;
+  preferred_window: string | null;
+  status: string;
+  reason: string | null;
+  completed_at: string | null;
+};
+
 export const fetchConversations = createServerFn({ method: "GET" })
   .middleware([authedMiddleware])
   .validator(
@@ -53,14 +81,33 @@ export const fetchConversation = createServerFn({ method: "GET" })
     ),
   );
 
-export type CallbackItem = {
-  scheduled_time: string | null;
-  preferred_window: string | null;
-  status: "pending" | "completed" | "cancelled";
-  reason: string | null;
-  completed_at: string | null;
-};
+export const fetchRequests = createServerFn({ method: "GET" })
+  .middleware([authedMiddleware])
+  .validator(
+    z.object({
+      limit: z.number().int().min(1).max(50).default(10),
+      offset: z.number().int().min(0).default(0),
+      status: z.string().optional(),
+    }),
+  )
+  .handler(({ data }) =>
+    businessApi<Paged<TicketItem>>(
+      `/api/v1/me/requests?limit=${data.limit}&offset=${data.offset}&status=${data.status ?? ""}`,
+      {},
+    ),
+  );
 
 export const fetchCallbacks = createServerFn({ method: "GET" })
   .middleware([authedMiddleware])
-  .handler(() => businessApi<{ items: CallbackItem[] }>("/api/v1/me/callbacks?limit=20", {}));
+  .validator(
+    z.object({
+      limit: z.number().int().min(1).max(50).default(20),
+      offset: z.number().int().min(0).default(0),
+    }),
+  )
+  .handler(({ data }) =>
+    businessApi<Paged<CallbackItem>>(
+      `/api/v1/me/callbacks?limit=${data.limit}&offset=${data.offset}`,
+      {},
+    ),
+  );

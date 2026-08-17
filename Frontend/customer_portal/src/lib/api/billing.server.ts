@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { businessApi } from "./business-api";
 import { authedMiddleware } from "./middleware";
+import type { Paged } from "./activity.server";
 
 export type BillingAccount = {
   account_number: string;
@@ -38,7 +40,8 @@ export type BillingPayload = {
   accounts: BillingAccount[];
   total_outstanding: number;
   currency_code: string;
-  invoices: InvoiceItem[];
+  /** Paged: the account figures above are whole-account and do not follow it. */
+  invoices: Paged<InvoiceItem>;
   payments: PaymentItem[];
 };
 
@@ -64,7 +67,15 @@ export type BalancePayload = { balances: BalanceItem[]; recharges: RechargeItem[
 
 export const fetchBilling = createServerFn({ method: "GET" })
   .middleware([authedMiddleware])
-  .handler(() => businessApi<BillingPayload>("/api/v1/me/billing", {}));
+  .validator(
+    z.object({
+      limit: z.number().int().min(1).max(50).default(20),
+      offset: z.number().int().min(0).default(0),
+    }),
+  )
+  .handler(({ data }) =>
+    businessApi<BillingPayload>(`/api/v1/me/billing?limit=${data.limit}&offset=${data.offset}`, {}),
+  );
 
 export const fetchBalance = createServerFn({ method: "GET" })
   .middleware([authedMiddleware])
