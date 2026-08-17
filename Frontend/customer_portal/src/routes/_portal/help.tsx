@@ -1,14 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  AudioLines,
-  Compass,
-  LifeBuoy,
-  Layers2,
-  ReceiptText,
-  Shield,
-  Accessibility,
-  type LucideIcon,
-} from "lucide-react";
+import { AudioLines, Compass, LifeBuoy, ReceiptText, Shield } from "lucide-react";
 import { copy } from "@/lib/copy";
 import { Button, Card, SectionLabel } from "@/components/portal/primitives";
 
@@ -30,35 +21,38 @@ export const Route = createFileRoute("/_portal/help")({
   component: HelpScreen,
 });
 
-const ICONS: Record<string, LucideIcon> = {
-  compass: Compass,
-  "audio-lines": AudioLines,
-  "receipt-text": ReceiptText,
-  "layers-2": Layers2,
-  shield: Shield,
-  accessibility: Accessibility,
-};
+const HELP_TOPICS = [
+  { id: "plan", icon: Compass, to: "/services" },
+  { id: "bill", icon: ReceiptText, to: "/billing" },
+  { id: "request", icon: LifeBuoy, to: "/requests" },
+  { id: "security", icon: Shield, to: "/security" },
+  { id: "assistant", icon: AudioLines, to: "/assistant" },
+] as const;
 
 function HelpScreen() {
   return (
     <div className="space-y-sp-9">
       <section className="space-y-sp-6">
         <SectionLabel>{copy.help.browse}</SectionLabel>
-        <div className="grid gap-sp-6 sm:grid-cols-2">
-          {copy.help.topics.map((t) => {
-            const Icon = ICONS[t.icon] ?? Compass;
+        <div className="grid gap-sp-4 sm:grid-cols-2">
+          {HELP_TOPICS.map((topic) => {
+            const Icon = topic.icon;
+            const t = copy.help.topics[topic.id];
             return (
-              <Card key={t.title} className="p-sp-7">
-                <div className="flex items-start gap-sp-6">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-r-2 border border-stroke-subtle bg-surface-3 text-ink-3">
-                    <Icon size={16} strokeWidth={1.5} />
+              <Link
+                key={topic.id}
+                to={topic.to}
+                className="portal-section focus-ring group flex items-start gap-sp-4"
+              >
+                <Icon className="size-5 shrink-0 text-ink-3" aria-hidden />
+                <div className="min-w-0">
+                  <p className="t-body-l text-ink-1">{t.title}</p>
+                  <p className="t-caption mt-sp-2 text-ink-4">{t.body}</p>
+                  <span className="t-caption text-ink-3 opacity-0 transition-opacity group-hover:opacity-100">
+                    {t.action}
                   </span>
-                  <div className="min-w-0">
-                    <div className="t-title-3 text-ink-1">{t.title}</div>
-                    <p className="t-caption mt-sp-2 text-ink-4">{t.body}</p>
-                  </div>
                 </div>
-              </Card>
+              </Link>
             );
           })}
         </div>
@@ -70,13 +64,10 @@ function HelpScreen() {
             <LifeBuoy size={16} strokeWidth={1.5} />
           </span>
           <div>
-            <div className="t-micro text-ink-5">{copy.help.contactLabel}</div>
+            <div className="t-micro text-ink-5">{copy.help.stillStuck}</div>
             <p className="t-body mt-sp-3 max-w-xl text-ink-3">{copy.help.contactBody}</p>
           </div>
         </div>
-        <Link to="/assistant" className="shrink-0">
-          <Button variant="primary">{copy.help.startConversation}</Button>
-        </Link>
       </Card>
     </div>
   );

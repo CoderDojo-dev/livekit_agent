@@ -189,44 +189,36 @@ export const copy = {
   },
   help: {
     browse: "BROWSE BY TOPIC",
-    contactLabel: "STILL NEED HELP?",
+    stillStuck: "STILL NEED HELP?",
     contactBody:
       "The assistant can answer most questions instantly, and hand you to a specialist when it cannot.",
-    startConversation: "Start a conversation",
-    askInstead: "Ask the assistant instead",
-    // Curated, static, and true: transcribed from the help fixture at cleanup time.
-    topics: [
-      {
-        title: "Getting started",
-        body: "What the portal does and how the assistant works.",
-        icon: "compass",
+    topics: {
+      plan: {
+        title: "Plans and subscriptions",
+        body: "See your current plan, switch options, and view add-ons.",
+        action: "See your balances →",
       },
-      {
-        title: "Talking to the assistant",
-        body: "Start a conversation, mute, and what the assistant can do for you.",
-        icon: "audio-lines",
+      bill: {
+        title: "Invoices and payments",
+        body: "View past invoices, download statements, and update payment details.",
+        action: "View your invoices →",
       },
-      {
-        title: "Billing and invoices",
-        body: "Invoices, balances, and what a charge means.",
-        icon: "receipt-text",
+      request: {
+        title: "Raise and track requests",
+        body: "Check the status of any request you've raised or the assistant raised for you.",
+        action: "See your tickets →",
       },
-      {
-        title: "Plans and add-ons",
-        body: "What you have with us today and how it renews.",
-        icon: "layers-2",
+      security: {
+        title: "Account security",
+        body: "Manage sessions, passwords, and sign-in history.",
+        action: "Check sessions →",
       },
-      {
-        title: "Privacy and data",
-        body: "What is recorded, and what happens to it.",
-        icon: "shield",
+      assistant: {
+        title: "Use the assistant",
+        body: "Start a voice call, check past conversations, and understand what the assistant can do.",
+        action: "Start a call →",
       },
-      {
-        title: "Accessibility",
-        body: "Screen readers, keyboard use, and reduced motion.",
-        icon: "accessibility",
-      },
-    ],
+    },
   },
   profile: {
     nav: {
@@ -261,7 +253,9 @@ export const copy = {
       reference: "Customer reference",
       email: "Email",
       phone: "Phone",
-      language: "Language",
+      language: "Portal display language",
+      scopeNote:
+        "These settings apply to this browser only. The language your assistant speaks follows your account and is set when you speak to us.",
       region: "Region",
       timeZone: "Time zone",
       dateFormat: "Date format",

@@ -4,6 +4,7 @@ import { copy } from "@/lib/copy";
 import { Card, Divider, Segmented, SectionLabel, SwitchRow } from "@/components/portal/primitives";
 import { readPreferences, writePreferences, type PortalPreferences } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
+import { useReducedMotion } from "motion/react";
 
 export const Route = createFileRoute("/_portal/preferences")({
   head: () => ({
@@ -32,6 +33,7 @@ const SECTIONS = [
 function PreferencesScreen() {
   const [section, setSection] = useState<(typeof SECTIONS)[number]["id"]>("appearance");
   const [prefs, setPrefs] = useState<PortalPreferences>(() => readPreferences());
+  const T = useReducedMotion() ? { duration: 0 } : { duration: 0.2 };
 
   function update(next: Partial<PortalPreferences>) {
     const merged = { ...prefs, ...next };
