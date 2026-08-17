@@ -17,7 +17,7 @@ from observability_kit import record_ttfa, record_ttft
 logger = logging.getLogger(__name__)
 
 
-def attach_metrics(session):
+def attach_metrics(session, writer=None):
     """Wire usage collection + TTFA/TTFT logging/export onto ``session``; return a shutdown callback."""
     usage_collector = metrics.UsageCollector()
     last_eou_metrics: dict[str, Any] = {"value": None}
@@ -32,6 +32,22 @@ def attach_metrics(session):
             ttft = getattr(metric, "ttft", None)
             if ttft:
                 record_ttft(float(ttft))  # export time-to-first-token
+            inp = getattr(metric, "prompt_tokens", None)
+            if inp is None: inp = getattr(metric, "input_tokens", None)
+            out = getattr(metric, "completion_tokens", None)
+            if out is None: out = getattr(metric, "output_tokens", None)
+            if writer is not None and isinstance(inp, int) and isinstance(out, int):
+                try: agent = type(session.current_agent).__name__
+                except Exception: agent = "UnknownAgent"
+                writer.record_llm_usage(agent=agent, input_tokens=inp, output_tokens=out, provider=getattr(metric, "provider", None), model=getattr(metric, "model_name", None))
+            inp = getattr(metric, "prompt_tokens", None)
+            if inp is None: inp = getattr(metric, "input_tokens", None)
+            out = getattr(metric, "completion_tokens", None)
+            if out is None: out = getattr(metric, "output_tokens", None)
+            if writer is not None and isinstance(inp, int) and isinstance(out, int):
+                try: agent = type(session.current_agent).__name__
+                except Exception: agent = "UnknownAgent"
+                writer.record_llm_usage(agent=agent, input_tokens=inp, output_tokens=out, provider=getattr(metric, "provider", None), model=getattr(metric, "model_name", None))
         metrics.log_metrics(metric)
         usage_collector.collect(metric)
 

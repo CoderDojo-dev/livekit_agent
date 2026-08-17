@@ -31,7 +31,7 @@ services:
       # .env cannot point the service at a directory that does not exist inside the image.
       EMBEDDING_CACHE_DIR: "/opt/models"
       HF_HOME: "/opt/models"
-      # Cap torch/numpy CPU threads to 4 — the CE gate's set_num_threads() is not always
+      # Cap torch/numpy CPU threads to 4 â€” the CE gate's set_num_threads() is not always
       # respected (other libs can reset it), so OMP/MKL env vars are the reliable control.
       OMP_NUM_THREADS: "4"
       MKL_NUM_THREADS: "4"
@@ -117,6 +117,9 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
       MINIO_ENDPOINT: "minio:9000"
+      SERVICE_HEALTH_TIMEOUT_MS: "1500"
+      SERVICE_HEALTH_TARGETS: >-
+        [{"name":"context-service","domain":"conversation context","url":"http://context-service:8101/health"},{"name":"knowledge-service","domain":"retrieval","url":"http://knowledge-service:8102/health"},{"name":"decision-service","domain":"decisioning","url":"http://decision-service:8103/health"},{"name":"policy-service","domain":"policy","url":"http://policy-service:8104/health"},{"name":"execution-service","domain":"actions","url":"http://execution-service:8105/health"},{"name":"notification-service","domain":"notifications","url":"http://notification-service:8106/health"},{"name":"token-service","domain":"voice admission","url":"http://token-service:8107/health"},{"name":"ticketing-glpi","domain":"ticketing","url":"http://ticketing-glpi:8202/health","required":false}]
     depends_on:
       postgres: { condition: service_healthy }
       minio: { condition: service_healthy }

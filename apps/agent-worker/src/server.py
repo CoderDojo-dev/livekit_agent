@@ -149,7 +149,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     ctx.add_shutdown_callback(_finish_conversation)
     ctx.add_shutdown_callback(frontend_events.aclose)
-    ctx.add_shutdown_callback(attach_metrics(session))
+    ctx.add_shutdown_callback(attach_metrics(session, writer))
     ctx.add_shutdown_callback(aclose_all_clients)  # release httpx pools (patch #10)
 
     @session.on("conversation_item_added")

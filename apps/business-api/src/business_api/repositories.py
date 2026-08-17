@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from business_api.kpis import Kpis, compute_kpis
 from persistence.models.billing import Account, Invoice, Notification, Payment, PaymentPlan
-from persistence.models.conversation import CallSession, EscalationCase, SentimentSample, Turn
+from persistence.models.conversation import AgentUsageEvent, CallSession, EscalationCase, SentimentSample, Turn
 from persistence.models.crm import ConsentRecord, Customer, Subscription
 from persistence.models.execution import ActionLedger
 from persistence.models.ocs import BalanceAccount, Recharge
@@ -1082,51 +1082,23 @@ class SupervisionRepository:
         }
 
     def agent_activity(self, days: int = 30) -> dict:
-        """Per-persona activity aggregated from conversation.turns.active_agent.
-
-        Read-only. Windows on CallSession.start_time (confirmed present),
-        joining turns to their session rather than relying on a Turn timestamp.
-        """
+        """Truthful per-agent session duration and provider-reported token usage."""
         from datetime import UTC, datetime, timedelta
-
         window_days = max(1, min(int(days or 30), 365))
         since = datetime.now(UTC) - timedelta(days=window_days)
-
-        rows = self._s.execute(
-            select(
-                Turn.active_agent.label("agent"),
-                func.count(Turn.id).label("turn_count"),
-                func.count(func.distinct(Turn.session_id)).label("session_count"),
-                func.max(CallSession.start_time).label("last_seen"),
-            )
-            .join(CallSession, CallSession.id == Turn.session_id)
-            .where(CallSession.start_time >= since)
-            # P0-3/P1-1 - count CALLER turns only. Before P0-3 every row in
-            # conversation.turns was a caller row, so this predicate was a no-op and
-            # its absence was invisible. The moment agent turns persist, omitting it
-            # would roughly double the number under a column labelled "Caller turns".
-            .where(Turn.speaker == "caller")
-            .where(Turn.active_agent.isnot(None))
-            .where(Turn.active_agent != "")
-            .group_by(Turn.active_agent)
-            .order_by(func.count(Turn.id).desc())
-        ).all()
-
-        agents = [
-            {
-                "agent": row.agent,
-                "turns": int(row.turn_count or 0),
-                "sessions": int(row.session_count or 0),
-                "last_seen": row.last_seen.isoformat() if row.last_seen else None,
-            }
-            for row in rows
-        ]
-        return {
-            "window_days": window_days,
-            "total_turns": sum(a["turns"] for a in agents),
-            "total_sessions": sum(a["sessions"] for a in agents),
-            "agents": agents,
-        }
+        agents = self._s.execute(select(Turn.active_agent).join(CallSession, CallSession.id == Turn.session_id).where(CallSession.start_time >= since, Turn.active_agent.isnot(None), Turn.active_agent != "").distinct()).scalars().all()
+        result = []
+        total_sessions = total_seconds = total_input = total_output = 0
+        for agent in agents:
+            session_ids = select(Turn.session_id).where(Turn.active_agent == agent).distinct()
+            stats = self._s.execute(select(func.count(CallSession.id), func.coalesce(func.sum(CallSession.duration_seconds), 0), func.avg(CallSession.duration_seconds), func.max(CallSession.start_time)).where(CallSession.start_time >= since, CallSession.id.in_(session_ids))).one()
+            usage = self._s.execute(select(func.sum(AgentUsageEvent.input_tokens), func.sum(AgentUsageEvent.output_tokens), func.count(func.distinct(AgentUsageEvent.session_id))).where(AgentUsageEvent.agent == agent, AgentUsageEvent.occurred_at >= since)).one()
+            daily_rows = self._s.execute(select(func.date(CallSession.start_time).label("day"), func.coalesce(func.sum(CallSession.duration_seconds), 0)).where(CallSession.start_time >= since, CallSession.id.in_(session_ids)).group_by(func.date(CallSession.start_time)).order_by(func.date(CallSession.start_time))).all()
+            sessions, seconds = int(stats[0] or 0), int(stats[1] or 0)
+            inp = int(usage[0]) if usage[0] is not None else None; out = int(usage[1]) if usage[1] is not None else None
+            result.append({"agent": agent, "sessions": sessions, "duration_seconds": seconds, "average_duration_seconds": float(stats[2]) if stats[2] is not None else None, "last_seen": stats[3].isoformat() if stats[3] else None, "input_tokens": inp, "output_tokens": out, "total_tokens": inp + out if inp is not None and out is not None else None, "token_sessions": int(usage[2] or 0), "coverage": "available" if usage[2] == sessions and sessions else ("partial" if usage[2] else "unavailable"), "daily": [{"day": str(r[0]), "duration_seconds": int(r[1])} for r in daily_rows]})
+            total_sessions += sessions; total_seconds += seconds; total_input += inp or 0; total_output += out or 0
+        return {"window_days": window_days, "total_sessions": total_sessions, "total_duration_seconds": total_seconds, "input_tokens": total_input if any(r["input_tokens"] is not None for r in result) else None, "output_tokens": total_output if any(r["output_tokens"] is not None for r in result) else None, "agents": sorted(result, key=lambda r: r["duration_seconds"], reverse=True), "token_history": "forward_only_no_backfill"}
 
     def audit_entries(self, limit: int = 50, before_seq: int | None = None,
                       event_type: str | None = None) -> dict:

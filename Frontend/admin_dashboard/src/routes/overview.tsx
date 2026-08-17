@@ -12,6 +12,7 @@ import {
 import { HeroStat, StatCard } from "@/components/nexus/blocks";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState } from "@/components/nexus/states";
+import { ServiceHealthPanel } from "@/components/nexus/service-health-panel";
 import { getKpis, getSystemOverview } from "@/lib/api/analytics.server";
 import { getVerdictDistribution } from "@/lib/api/decisions.server";
 import { listAdvisors } from "@/lib/api/advisors.server";
@@ -20,16 +21,18 @@ import { formatRatio, rateContext, verdictShare, verdictTotal } from "@/lib/nexu
 import { advisorStatusKey, advisorPresenceLabel } from "@/lib/nexus/advisor-view";
 import { formatInteger, formatCompact, initials } from "@/lib/nexus/format";
 import { errorMessage } from "@/lib/api/errors";
+import { hasRank } from "@/lib/api/session";
+import { Route as RootRoute } from "@/routes/__root";
 
 export const Route = createFileRoute("/overview")({
   head: () => ({
     meta: [
-      { title: "Overview — Nexus" },
+      { title: "Overview â€” Nexus" },
       {
         name: "description",
         content: "Platform totals, containment KPIs and who is on the floor.",
       },
-      { property: "og:title", content: "Overview — Nexus" },
+      { property: "og:title", content: "Overview â€” Nexus" },
       { property: "og:description", content: "Current state of the support platform." },
     ],
   }),
@@ -37,6 +40,8 @@ export const Route = createFileRoute("/overview")({
 });
 
 function OverviewPage() {
+  const { session } = RootRoute.useRouteContext();
+  const isAdmin = session !== null && hasRank(session, "administrateur");
   const kpis = useQuery({ queryKey: analyticsKeys.kpis(), queryFn: () => getKpis() });
   const system = useQuery({ queryKey: analyticsKeys.system(), queryFn: () => getSystemOverview() });
   const verdicts = useQuery({
@@ -167,14 +172,14 @@ function OverviewPage() {
                       {advisorPresenceLabel(a.status)}
                     </p>
                   </div>
-                  <span className="t-label ml-auto text-ink-3">{a.language ?? "—"}</span>
+                  <span className="t-label ml-auto text-ink-3">{a.language ?? "â€”"}</span>
                 </li>
               ))}
             </ul>
           )}
         </Card>
 
-        {/* ---- Service inventory. NO status: see Cookbook 9 §0. ---- */}
+        {/* ---- Service inventory. NO status: see Cookbook 9 Â§0. ---- */}
         <Card padded={false}>
           <div className="p-sp-7">
             <CardHeader
@@ -207,6 +212,10 @@ function OverviewPage() {
             </ul>
           )}
         </Card>
+      </PageSection>
+
+      <PageSection>
+        <ServiceHealthPanel isAdmin={isAdmin} />
       </PageSection>
 
       {/* ---- Platform totals ---- */}

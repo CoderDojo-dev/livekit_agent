@@ -42,7 +42,7 @@ function AgentsPage() {
     queryFn: () => getAgentActivity({ data: { days } }),
   });
 
-  const rows = activity.data ? mergeAgentRows(activity.data.agents, activity.data.total_turns) : [];
+  const rows = activity.data ? mergeAgentRows(activity.data.agents, activity.data.total_sessions) : [];
   const unrecognized = rows.filter((row) => row.catalog === null);
   const idle = rows.filter((row) => row.catalog !== null && row.turns === 0);
 
@@ -63,24 +63,24 @@ function AgentsPage() {
         ) : (
           <>
             <HeroStat
-              label="Caller turns"
-              value={formatInteger(activity.data.total_turns)}
-              context={`Observed across ${days} days`}
+              label="Agent sessions"
+              value={formatInteger(activity.data.total_sessions)}
+              context={`${Math.round(activity.data.total_duration_seconds / 60)} persisted minutes`}
             />
             <StatCard
-              label="Catalog personas"
-              value={formatInteger(rows.filter((row) => row.catalog !== null).length)}
-              context="Defined in the service catalog"
+              label="Time spent"
+              value={`${Math.round(activity.data.total_duration_seconds / 60)}m`}
+              context="Sum of persisted session durations"
             />
             <StatCard
-              label="Observed personas"
-              value={formatInteger(rows.filter((row) => row.turns > 0).length)}
-              context={`Recorded activity across ${days} days`}
+              label="Input tokens"
+              value={activity.data.input_tokens === null ? "Unavailable" : formatInteger(activity.data.input_tokens)}
+              context="Provider-reported; forward-only"
             />
             <StatCard
-              label="Unrecognized classes"
-              value={formatInteger(unrecognized.length)}
-              context="Observed classes absent from the catalog"
+              label="Output tokens"
+              value={activity.data.output_tokens === null ? "Unavailable" : formatInteger(activity.data.output_tokens)}
+              context="No historical backfill"
             />
           </>
         )}
@@ -99,9 +99,9 @@ function AgentsPage() {
             <tr>
               <Th>Persona</Th>
               <Th>Role in graph</Th>
-              <Th align="right">Caller turns</Th>
-              <Th align="right">Share</Th>
-              <Th align="right">Sessions</Th>
+              <Th align="right">Time spent</Th>
+              <Th align="right">Avg duration</Th>
+              <Th align="right">Tokens</Th>
               <Th align="right">Last seen</Th>
             </tr>
           }
@@ -173,13 +173,13 @@ function AgentsPage() {
                     )}
                   </Td>
                   <Td align="right">
-                    <span className="t-mono text-ink-3">{formatInteger(row.turns)}</span>
+                    <span className="t-mono text-ink-3">{Math.round(row.durationSeconds / 60)}m</span>
                   </Td>
                   <Td align="right">
-                    <span className="t-mono text-ink-3">{sharePercent(row.turnShare)}</span>
+                    <span className="t-mono text-ink-3">{row.averageDurationSeconds === null ? "ΓÇö" : `${Math.round(row.averageDurationSeconds)}s`}</span>
                   </Td>
                   <Td align="right">
-                    <span className="t-mono text-ink-3">{formatInteger(row.sessions)}</span>
+                    <span className="t-mono text-ink-3">{row.totalTokens === null ? "Unavailable" : formatInteger(row.totalTokens)}</span>
                   </Td>
                   <Td align="right">
                     <span className="t-mono text-ink-3">{formatLastSeen(row.lastSeen)}</span>

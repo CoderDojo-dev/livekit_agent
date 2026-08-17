@@ -40,7 +40,7 @@ export function KnowledgePurge({ source }: { source: string }) {
         open={open}
         onClose={() => setOpen(false)}
         title="Purge this source?"
-        description="This removes the document from the index, the records, and the storage bucket. It cannot be recovered."
+        description="This archives the document metadata and removes the associated chunks and the uploaded source object from the knowledge base. Database history is retained."
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>
@@ -51,7 +51,7 @@ export function KnowledgePurge({ source }: { source: string }) {
               disabled={confirmation !== source || mutation.isPending}
               onClick={() => mutation.mutate()}
             >
-              {mutation.isPending ? "Purging\u2026" : "Purge permanently"}
+              {mutation.isPending ? "Purging\u2026" : "Archive and remove source"}
             </Button>
           </>
         }

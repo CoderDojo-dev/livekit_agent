@@ -1,12 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { NAV, NAV_SECTIONS, ACCOUNT_FALLBACK, type AccountInfo } from "@/lib/nexus/nav";
+import { NAV, NAV_SECTIONS, ACCOUNT_FALLBACK, canSeeNavItem, type AccountInfo } from "@/lib/nexus/nav";
 import { Avatar, PresenceDot } from "@/components/nexus/primitives";
 import { Route as RootRoute } from "@/routes/__root";
-import { ROLE_LABEL, hasRank } from "@/lib/api/session";
+import { ROLE_LABEL } from "@/lib/api/session";
 import { initials as toInitials } from "@/lib/nexus/format";
 import { cn } from "@/lib/utils";
 
-const ADMIN_ONLY_HREFS = new Set(["/policies", "/reference"]);
 
 type SidebarContentProps = {
   className?: string;
@@ -28,8 +27,6 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
       }
     : ACCOUNT_FALLBACK;
 
-  const canSee = (href: string) =>
-    !ADMIN_ONLY_HREFS.has(href) || (session !== null && hasRank(session, "administrateur"));
 
   return (
     <aside className={cn("h-full flex-col border-r border-stroke-default bg-surface-1", className)}>
@@ -51,7 +48,7 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
 
       <nav aria-label="Primary" className="flex-1 overflow-y-auto px-sp-5 py-sp-6">
         {NAV_SECTIONS.map((section) => {
-          const items = NAV.filter((item) => item.section === section && canSee(item.href));
+          const items = NAV.filter((item) => item.section === section && canSeeNavItem(item, session));
 
           if (items.length === 0) return null;
 

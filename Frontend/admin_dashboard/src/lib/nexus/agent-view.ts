@@ -6,6 +6,7 @@ export type AgentRow = {
   label: string;
   catalog: AgentCatalogEntry | null;
   turns: number;
+  durationSeconds: number; averageDurationSeconds: number | null; inputTokens: number | null; outputTokens: number | null; totalTokens: number | null; coverage: "available" | "partial" | "unavailable"; daily: Array<{ day: string; duration_seconds: number }>;
   sessions: number;
   lastSeen: string | null;
   turnShare: number;
@@ -47,7 +48,8 @@ export function mergeAgentRows(observed: AgentActivityRow[], totalTurns: number)
       className: entry.className,
       label: entry.label,
       catalog: entry,
-      turns: hit?.turns ?? 0,
+      turns: hit?.sessions ?? 0,
+      durationSeconds: hit?.duration_seconds ?? 0, averageDurationSeconds: hit?.average_duration_seconds ?? null, inputTokens: hit?.input_tokens ?? null, outputTokens: hit?.output_tokens ?? null, totalTokens: hit?.total_tokens ?? null, coverage: hit?.coverage ?? "unavailable", daily: hit?.daily ?? [],
       sessions: hit?.sessions ?? 0,
       lastSeen: hit?.last_seen ?? null,
       turnShare: totalTurns > 0 ? (hit?.turns ?? 0) / totalTurns : 0,
@@ -60,7 +62,8 @@ export function mergeAgentRows(observed: AgentActivityRow[], totalTurns: number)
       className: row.agent,
       label: humanizeClassName(row.agent),
       catalog: null,
-      turns: row.turns,
+      turns: row.sessions,
+      durationSeconds: row.duration_seconds, averageDurationSeconds: row.average_duration_seconds, inputTokens: row.input_tokens, outputTokens: row.output_tokens, totalTokens: row.total_tokens, coverage: row.coverage, daily: row.daily,
       sessions: row.sessions,
       lastSeen: row.last_seen,
       turnShare: totalTurns > 0 ? row.turns / totalTurns : 0,

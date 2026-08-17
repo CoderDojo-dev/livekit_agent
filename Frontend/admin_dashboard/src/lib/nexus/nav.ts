@@ -1,4 +1,6 @@
-// Chapter 11.7 — the twelve destinations. Source of truth for navigation.
+// Source of truth for primary navigation and its visibility requirements.
+import type { AdminSession, BackendRole } from "@/lib/api/session";
+import { hasRank } from "@/lib/api/session";
 import {
   LayoutDashboard,
   Users,
@@ -16,6 +18,7 @@ import {
   Scale,
   Settings,
   Bot,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -28,6 +31,7 @@ export type NavItem = {
   icon: LucideIcon;
   section: NavSection;
   shortcut: string;
+  minimumRole?: BackendRole;
 };
 
 export const NAV: readonly NavItem[] = [
@@ -78,6 +82,7 @@ export const NAV: readonly NavItem[] = [
     icon: ScrollText,
     section: "KNOWLEDGE",
     shortcut: "G P",
+    minimumRole: "administrateur",
   },
   {
     id: "reference",
@@ -86,6 +91,7 @@ export const NAV: readonly NavItem[] = [
     icon: GitBranch,
     section: "KNOWLEDGE",
     shortcut: "G R",
+    minimumRole: "administrateur",
   },
   {
     id: "calls",
@@ -152,6 +158,15 @@ export const NAV: readonly NavItem[] = [
     shortcut: "G G",
   },
   {
+    id: "audit",
+    label: "Audit",
+    href: "/audit",
+    icon: ShieldCheck,
+    section: "INSIGHTS",
+    shortcut: "G U",
+    minimumRole: "administrateur",
+  },
+  {
     id: "settings",
     label: "Settings",
     href: "/settings",
@@ -160,6 +175,10 @@ export const NAV: readonly NavItem[] = [
     shortcut: "G S",
   },
 ];
+
+export function canSeeNavItem(item: NavItem, session: Pick<AdminSession, "role"> | null): boolean {
+  return item.minimumRole === undefined || (session !== null && hasRank(session, item.minimumRole));
+}
 
 export const NAV_SECTIONS: readonly NavSection[] = [
   "PLATFORM",
@@ -230,9 +249,13 @@ export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
     title: "Agents",
     subtitle: "Review the agent catalog and observed activity.",
   },
+  "/audit": {
+    title: "Audit",
+    subtitle: "Append-only ledger, integrity verification and retention operations.",
+  },
   "/settings": {
     title: "Settings",
-    subtitle: "Audit, integrity and retention.",
+    subtitle: "Account and session security.",
   },
 };
 

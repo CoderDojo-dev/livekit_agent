@@ -61,6 +61,32 @@ class CallSession(UUIDPrimaryKey, Base):
     )
 
 
+class AgentUsageEvent(UUIDPrimaryKey, Base):
+    """One provider-reported LLM usage metric, attributed at capture time."""
+
+    __tablename__ = "agent_usage_events"
+    __table_args__ = (
+        CheckConstraint("input_tokens >= 0", name="input_tokens_non_negative"),
+        CheckConstraint("output_tokens >= 0", name="output_tokens_non_negative"),
+        {"schema": "conversation"},
+    )
+
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversation.call_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    agent: Mapped[str] = mapped_column(String(80), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(80))
+    model: Mapped[str | None] = mapped_column(String(160))
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    occurred_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
 class Turn(UUIDPrimaryKey, Base):
     __tablename__ = "turns"
     __table_args__ = (

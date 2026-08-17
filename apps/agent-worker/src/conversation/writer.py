@@ -59,6 +59,7 @@ class ConversationWriter:
     def _write(self, item: dict) -> None:
         from persistence.engine import session_scope
         from persistence.models.conversation import (
+            AgentUsageEvent,
             CallbackSchedule,
             CallSession,
             EscalationCase,
@@ -79,6 +80,8 @@ class ConversationWriter:
                 session.add(EscalationCase(**row))
             elif kind == "callback":
                 session.add(CallbackSchedule(**row))
+            elif kind == "usage":
+                session.add(AgentUsageEvent(**row))
             elif kind == "consent":
                 from audit_trail import PgAuditLedger
                 from persistence.models.crm import ConsentRecord
@@ -197,6 +200,12 @@ class ConversationWriter:
             "granted": granted,
             "language": language,
         }})
+
+    def record_llm_usage(self, *, agent: str, input_tokens: int, output_tokens: int, provider=None, model=None) -> None:
+        """Persist only counters reported by the provider."""
+        if self._session_db_id is None or input_tokens < 0 or output_tokens < 0:
+            return
+        self._enqueue("usage", {"session_id": uuid.UUID(self._session_db_id), "agent": (agent or "UnknownAgent")[:80], "provider": provider, "model": model, "input_tokens": int(input_tokens), "output_tokens": int(output_tokens), "occurred_at": datetime.now(UTC)})
 
     def finish_session(self, *, disposition=None, max_frustration=0.0, recording_consent=None) -> None:
         """Close the call record (end time, duration, disposition, peak frustration)."""

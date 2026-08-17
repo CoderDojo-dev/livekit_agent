@@ -1,4 +1,4 @@
-// Chapter 1.7 — the canonical status truth table. No status exists outside it.
+// Chapter 1.7 â€” the canonical status truth table. No status exists outside it.
 export type StatusShape = "disc" | "ring" | "half" | "triangle" | "square" | "bar";
 export type StatusLevel = "critical" | "high" | "medium" | "low" | "inert";
 export type StatusContainer = "flat" | "soft" | "outline" | "inverted";
@@ -137,6 +137,15 @@ export const STATUS: Record<string, StatusDefinition> = {
     container: "flat",
     label: "Disabled",
   },
+  reachable: { shape: "disc", level: "high", container: "soft", label: "Reachable" },
+  degraded: { shape: "half", level: "medium", container: "outline", label: "Degraded" },
+  unavailable: {
+    shape: "triangle",
+    level: "critical",
+    container: "inverted",
+    label: "Unavailable",
+  },
+  unknown: { shape: "ring", level: "inert", container: "flat", label: "Unknown" },
 };
 
 export type StatusKey = keyof typeof STATUS;

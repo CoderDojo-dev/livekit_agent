@@ -35,4 +35,6 @@ __all__ = [
     "routing",
     "sim",
     "ticketing",
+    "AgentUsageEvent",
 ]
+from persistence.models.conversation import AgentUsageEvent

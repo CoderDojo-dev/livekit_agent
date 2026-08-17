@@ -30,6 +30,7 @@ from business_api.jobs.integrity import run_integrity
 from business_api.jobs.retention import run_retention
 from business_api.repositories import SupervisionRepository
 from business_api.security import require_role
+from business_api.service_health import aggregate_service_health
 from persistence import get_session, session_scope
 from persistence.util import to_uuid
 
@@ -468,8 +469,14 @@ def kpis(session: DbSession, role: SuperviseurRole) -> dict:
 
 @app.get("/api/v1/system/overview")
 def system_overview(session: DbSession, role: SuperviseurRole) -> dict:
-    """Real-time system overview: database counts + service status matrix."""
+    """Persisted platform totals and service catalog (not runtime health)."""
     return SupervisionRepository(session).system_overview()
+
+
+@app.get("/api/v1/system/health")
+async def system_health(role: AdministrateurRole) -> dict:
+    """Probe the configured platform allow-list concurrently; expose no URLs or bodies."""
+    return await aggregate_service_health()
 
 
 @app.get("/api/v1/telemetry/timeline")
