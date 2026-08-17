@@ -6,7 +6,8 @@ the audit ledger; the integrity job only verifies it.
 from __future__ import annotations
 
 import os
-from typing import Annotated
+from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,7 @@ from audit_trail import PgAuditLedger
 from business_api import advisors as advisor_repo
 from business_api import availability as availability_repo
 from business_api import callbacks as callback_repo
-from business_api import policy_view, portal_auth
+from business_api import me_reads, policy_view, portal_auth
 from business_api.infrastructure.auth import rate_limit
 from business_api.infrastructure.auth.principal import (
     Principal,
@@ -811,6 +812,127 @@ def cancel_callback(callback_id: str, outcome: CallbackOutcome, session: DbSessi
         raise HTTPException(status_code=404, detail="callback not found")
     session.commit()
     return updated
+
+
+# ---------------------------------------------------------------------------
+# Client self-service reads (customer portal).
+#
+# Additive by construction:
+#   * every route is gated by ClientPrincipal -> current_client, which refuses
+#     staff and machine principals;
+#   * customer_id and account_id come from the principal, never from the
+#     request, so there is no client-supplied identifier to tamper with;
+#   * every path parameter is re-checked against the caller's customer_id and
+#     answers 404 on a miss, so existence is not leaked through 403;
+#   * reads are not audited, matching every other read route in this file;
+#   * projections live in me_reads.py and no advisor projection was widened.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/me/sessions", tags=["me"])
+def me_sessions(
+    principal: ClientPrincipal,
+    db: DbSession,
+) -> dict[str, Any]:
+    if principal.account_id is None:
+        raise HTTPException(status_code=403, detail="requires a portal account")
+    return me_reads.portal_sessions(
+        db,
+        account_id=principal.account_id,
+        current_session_id=principal.session_id,
+    )
+
+
+@app.get("/api/v1/me/conversations", tags=["me"])
+def me_conversations(
+    principal: ClientPrincipal,
+    db: DbSession,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    return me_reads.conversations(
+        db,
+        customer_id=principal.customer_id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/api/v1/me/conversations/{session_id}", tags=["me"])
+def me_conversation_detail(
+    session_id: UUID,
+    principal: ClientPrincipal,
+    db: DbSession,
+) -> dict[str, Any]:
+    payload = me_reads.conversation_detail(
+        db,
+        customer_id=principal.customer_id,
+        session_id=session_id,
+    )
+    if payload is None:
+        # 404, not 403: a conversation belonging to someone else must be
+        # indistinguishable from one that does not exist.
+        raise HTTPException(status_code=404, detail="conversation not found")
+    return payload
+
+
+@app.get("/api/v1/me/requests", tags=["me"])
+def me_requests(
+    principal: ClientPrincipal,
+    db: DbSession,
+    status: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    return me_reads.requests(
+        db,
+        customer_id=principal.customer_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/api/v1/me/billing", tags=["me"])
+def me_billing(
+    principal: ClientPrincipal,
+    db: DbSession,
+) -> dict[str, Any]:
+    return me_reads.billing(db, customer_id=principal.customer_id)
+
+
+@app.get("/api/v1/me/balance", tags=["me"])
+def me_balance(
+    principal: ClientPrincipal,
+    db: DbSession,
+) -> dict[str, Any]:
+    return me_reads.balance(db, customer_id=principal.customer_id)
+
+
+@app.get("/api/v1/me/notifications", tags=["me"])
+def me_notifications(
+    principal: ClientPrincipal,
+    db: DbSession,
+    limit: int = 20,
+) -> dict[str, Any]:
+    return me_reads.notifications(
+        db,
+        customer_id=principal.customer_id,
+        limit=limit,
+    )
+
+
+@app.get("/api/v1/me/callbacks", tags=["me"])
+def me_callbacks(
+    principal: ClientPrincipal,
+    db: DbSession,
+    limit: int = 20,
+) -> dict[str, Any]:
+    return me_reads.callbacks(
+        db,
+        customer_id=principal.customer_id,
+        limit=limit,
+    )
 
 
 def run() -> None:
