@@ -1,7 +1,9 @@
-"""P0-3/P1-1 - agent_activity() must report CALLER turns only.
+"""P0-3/P1-1 - agent_activity() must attribute sessions to the right persona.
 
-Before P0-3 every row was a caller row, so the missing predicate was invisible.
-This pins the intent so it cannot silently regress.
+v93 replaced the per-turn count with per-agent session aggregation
+(sessions/duration_seconds + provider-reported token usage). The probe agent
+must show exactly its single seeded session, never inflated by the caller rows
+sharing the same session.
 """
 from __future__ import annotations
 
@@ -45,7 +47,8 @@ def test_agent_activity_counts_caller_turns_only(db_session):
     report = SupervisionRepository(db_session).agent_activity(days=1)
     probe = next(row for row in report["agents"] if row["agent"] == _PROBE)
 
-    assert probe["turns"] == 2, "agent rows must not inflate a column labelled 'Caller turns'"
+    assert probe["sessions"] == 1, "the seeded session must be attributed exactly once"
+    assert probe["duration_seconds"] >= 0
 
 
 def test_the_agent_row_really_exists(db_session):

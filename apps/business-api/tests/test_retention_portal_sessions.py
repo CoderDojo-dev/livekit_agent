@@ -10,10 +10,27 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from business_api.jobs.retention import run_retention
+from sqlalchemy import delete, or_
+
+from business_api.jobs.retention import _SESSION_GRACE_DAYS, run_retention
 
 from persistence.models.conversation import CallSession, Turn
 from persistence.models.portal_identity import PortalAccount, PortalSession
+
+
+def _purge_eligible(db_session) -> None:
+    """Self-heal: earlier runs committed eligible rows (run_retention commits), so
+    pre-existing eligible sessions would inflate every count. Remove them first."""
+    cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=_SESSION_GRACE_DAYS)
+    db_session.execute(
+        delete(PortalSession).where(
+            or_(
+                PortalSession.expires_at < cutoff,
+                PortalSession.revoked_at < cutoff,
+            )
+        )
+    )
+    db_session.flush()
 
 
 def _account(db_session, email: str) -> PortalAccount:
@@ -44,6 +61,7 @@ def _session(db_session, account: PortalAccount, *, expires_at, revoked_at=None)
 
 
 def test_dry_run_purges_nothing(db_session):
+    _purge_eligible(db_session)
     account = _account(db_session, f"dry-{uuid.uuid4().hex[:8]}@telecom.tn")
     old = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30)
     row = _session(db_session, account, expires_at=old)
@@ -56,6 +74,7 @@ def test_dry_run_purges_nothing(db_session):
 
 
 def test_long_expired_session_is_purged(db_session):
+    _purge_eligible(db_session)
     account = _account(db_session, f"exp-{uuid.uuid4().hex[:8]}@telecom.tn")
     old = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30)
     row = _session(db_session, account, expires_at=old)
@@ -68,6 +87,7 @@ def test_long_expired_session_is_purged(db_session):
 
 
 def test_live_session_survives(db_session):
+    _purge_eligible(db_session)
     account = _account(db_session, f"live-{uuid.uuid4().hex[:8]}@telecom.tn")
     future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=1)
     row = _session(db_session, account, expires_at=future)
@@ -81,6 +101,7 @@ def test_live_session_survives(db_session):
 
 def test_inside_grace_window_survives(db_session):
     """The 7-day forensic window is honoured, not ignored."""
+    _purge_eligible(db_session)
     account = _account(db_session, f"grace-{uuid.uuid4().hex[:8]}@telecom.tn")
     recent = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1)
     row = _session(db_session, account, expires_at=recent)
@@ -94,6 +115,7 @@ def test_inside_grace_window_survives(db_session):
 
 def test_long_revoked_session_is_purged_even_with_future_expiry(db_session):
     """The or_() arm: revoked_at past the cutoff wins over a live expires_at."""
+    _purge_eligible(db_session)
     account = _account(db_session, f"rev-{uuid.uuid4().hex[:8]}@telecom.tn")
     future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=1)
     revoked = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30)
@@ -108,6 +130,7 @@ def test_long_revoked_session_is_purged_even_with_future_expiry(db_session):
 
 def test_conversation_retention_still_reports_its_own_counts(db_session):
     """Positive control: the pre-existing block must not be masked by a passing purge test."""
+    _purge_eligible(db_session)
     account = _account(db_session, f"ctl-{uuid.uuid4().hex[:8]}@telecom.tn")
     _session(db_session, account, expires_at=datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=1))
 
