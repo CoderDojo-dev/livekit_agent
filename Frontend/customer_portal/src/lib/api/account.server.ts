@@ -47,3 +47,21 @@ export const revokeAllSessions = createServerFn({ method: "POST" })
     await clearSessionCookie();
     return payload;
   });
+
+export type PortalSessionItem = {
+  session_id: string;
+  signed_in_at: string | null;
+  expires_at: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  current: boolean;
+};
+
+export type PortalSessionsPayload = {
+  password_changed_at: string | null;
+  sessions: PortalSessionItem[];
+};
+
+export const fetchPortalSessions = createServerFn({ method: "GET" })
+  .middleware([authedMiddleware])
+  .handler(() => businessApi<PortalSessionsPayload>("/api/v1/me/sessions", {}));

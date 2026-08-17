@@ -1,0 +1,71 @@
+import { createServerFn } from "@tanstack/react-start";
+import { businessApi } from "./business-api";
+import { authedMiddleware } from "./middleware";
+
+export type BillingAccount = {
+  account_number: string;
+  account_type: "postpaid" | "hybrid";
+  billing_cycle_day: number | null;
+  currency_code: string;
+  status: string;
+};
+
+export type InvoiceItem = {
+  invoice_number: string;
+  account_number: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  issue_date: string | null;
+  due_date: string | null;
+  subtotal: number | null;
+  tax_amount: number | null;
+  total_amount: number | null;
+  outstanding_amount: number | null;
+  currency_code: string;
+  status: "draft" | "issued" | "paid" | "partial" | "overdue" | "disputed" | "void";
+};
+
+export type PaymentItem = {
+  amount: number | null;
+  currency_code: string;
+  method: string | null;
+  status: string;
+  paid_at: string | null;
+  invoice_number: string | null;
+};
+
+export type BillingPayload = {
+  accounts: BillingAccount[];
+  total_outstanding: number;
+  currency_code: string;
+  invoices: InvoiceItem[];
+  payments: PaymentItem[];
+};
+
+export type BalanceItem = {
+  msisdn: string | null;
+  balance_type: "main" | "data" | "voice" | "sms";
+  value: number | null;
+  unit: "TND" | "GB" | "MB" | "MIN" | "SMS";
+  expires_on: string | null;
+  status: "active" | "expired" | "suspended";
+};
+
+export type RechargeItem = {
+  msisdn: string | null;
+  amount: number | null;
+  bonus_amount: number | null;
+  channel: "app" | "web" | "ussd" | "scratch_card" | "agent";
+  status: "pending" | "completed" | "failed";
+  created_at: string | null;
+};
+
+export type BalancePayload = { balances: BalanceItem[]; recharges: RechargeItem[] };
+
+export const fetchBilling = createServerFn({ method: "GET" })
+  .middleware([authedMiddleware])
+  .handler(() => businessApi<BillingPayload>("/api/v1/me/billing", {}));
+
+export const fetchBalance = createServerFn({ method: "GET" })
+  .middleware([authedMiddleware])
+  .handler(() => businessApi<BalancePayload>("/api/v1/me/balance", {}));

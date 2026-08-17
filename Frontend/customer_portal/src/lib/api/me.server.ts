@@ -49,3 +49,30 @@ export const fetchProfileDetail = createServerFn({ method: "GET" })
   .handler(async (): Promise<ProfileDetail> =>
     businessApi<ProfileDetail>("/api/v1/me/profile/detail", {}),
   );
+
+export type Subscription360 = {
+  subscription_id: string;
+  msisdn: string | null;
+  plan: string | null;
+  status: string | null;
+};
+
+export type Customer360 = {
+  customer_id: string;
+  name: string;
+  vip: boolean;
+  preferred_language: string;
+  subscriptions: Subscription360[];
+  open_invoices: {
+    invoice: string;
+    amount: number;
+    outstanding: number;
+    status: string;
+  }[];
+  tickets: { glpi_id: string | null; status: string; subject: string | null }[];
+};
+
+/** GET /api/v1/me/profile — the signed-in customer's own 360 (customer_360). */
+export const fetchProfile360 = createServerFn({ method: "GET" })
+  .middleware([authedMiddleware])
+  .handler(async (): Promise<Customer360> => businessApi<Customer360>("/api/v1/me/profile", {}));

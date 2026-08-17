@@ -1,30 +1,45 @@
 import { useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
+import { usePortalSession } from "@/lib/use-portal-session";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Lock } from "lucide-react";
 import { PAGE_HEAD } from "@/lib/nav";
 import { copy } from "@/lib/copy";
-import { notifications } from "@/lib/fixtures/customer";
+import { qk } from "@/lib/query-keys";
+import { fetchNotifications, type NotificationItem } from "@/lib/api/notifications.server";
 import { fetchProfileDetail } from "@/lib/api/me.server";
+import { relative } from "@/lib/format";
 import { AccountMenu } from "@/components/shell/account-menu";
 import { IconButton, StatusChip } from "@/components/portal/primitives";
-import { cn } from "@/lib/utils";
 
 /**
  * components/shell/portal-topbar.tsx — chapitre 12.
  * Titre de page a gauche, assurance et compte a droite.
  */
+function notificationMessage(item: NotificationItem): string {
+  const template = item.template_code
+    ? copy.notificationTemplates[item.template_code as keyof typeof copy.notificationTemplates]
+    : undefined;
+  return template ?? copy.notifications.genericMessage;
+}
+
 export function PortalTopbar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const base = "/" + pathname.split("/").filter(Boolean)[0];
   const head = PAGE_HEAD[base] ?? { title: "Assistant", subtitle: null };
   const [openTray, setOpenTray] = useState(false);
-  const unread = notifications.filter((n) => n.unread).length;
+  const session = usePortalSession();
   const profile = useQuery({
     queryKey: ["me", "profile", "detail"],
     queryFn: () => fetchProfileDetail(),
   });
+  const notifications = useQuery({
+    queryKey: qk.notifications(session?.customerId ?? "unknown"),
+    queryFn: () => fetchNotifications(),
+    staleTime: 30_000,
+  });
   const me = profile.data;
+  const items = notifications.data?.items ?? [];
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-sp-6 border-b border-stroke-subtle bg-surface-0/85 px-sp-8 backdrop-blur-md">
@@ -43,38 +58,40 @@ export function PortalTopbar() {
       <div className="relative">
         <IconButton label={copy.shell.notifications} onClick={() => setOpenTray((v) => !v)}>
           <Bell size={16} strokeWidth={1.5} />
-          {unread > 0 && (
-            <span className="absolute right-sp-2 top-sp-2 h-1.5 w-1.5 rounded-r-1 bg-n-12" />
-          )}
         </IconButton>
 
         {openTray && (
           <div className="absolute right-0 top-10 z-50 w-80 overflow-hidden rounded-r-4 border border-stroke-default bg-surface-2 shadow-elev-4">
             <div className="t-micro border-b border-stroke-subtle px-sp-6 py-sp-5 text-ink-4">
-              {copy.shell.notifications}
+              {copy.notifications.heading}
             </div>
-            <ul>
-              {notifications.map((n) => (
-                <li
-                  key={n.id}
-                  className="border-b border-stroke-subtle px-sp-6 py-sp-5 last:border-b-0"
-                >
-                  <div className="flex items-start gap-sp-4">
-                    <span
-                      className={cn(
-                        "mt-sp-4 h-1.5 w-1.5 shrink-0 rounded-r-1",
-                        n.unread ? "bg-n-12" : "bg-n-7",
-                      )}
-                    />
-                    <div className="min-w-0">
-                      <div className="t-ui text-ink-1">{n.title}</div>
-                      <div className="t-caption text-ink-4">{n.detail}</div>
-                      <div className="t-mono-s mt-sp-2 text-ink-5">{n.at}</div>
+            {items.length === 0 ? (
+              <p className="t-caption px-sp-6 py-sp-6 text-ink-4">
+                {copy.shell.notificationsEmpty}
+              </p>
+            ) : (
+              <ul>
+                {items.map((n, i) => (
+                  <li
+                    key={`${n.created_at}-${i}`}
+                    className="border-b border-stroke-subtle px-sp-6 py-sp-5 last:border-b-0"
+                  >
+                    <div className="flex items-start gap-sp-4">
+                      <div className="min-w-0">
+                        <div className="t-ui text-ink-1">{notificationMessage(n)}</div>
+                        <div className="t-caption mt-sp-1 text-ink-4">
+                          {copy.labels.notificationChannel[n.channel] ?? n.channel} ·{" "}
+                          {copy.labels.notificationStatus[n.status] ?? n.status}
+                        </div>
+                        <div className="t-mono-s mt-sp-2 text-ink-5">
+                          {relative(n.sent_at ?? n.created_at)}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </div>

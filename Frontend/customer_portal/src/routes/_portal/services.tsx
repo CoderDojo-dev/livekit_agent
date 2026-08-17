@@ -1,8 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { usePortalSession } from "@/lib/use-portal-session";
+import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { copy } from "@/lib/copy";
-import { plan, usage } from "@/lib/fixtures/services";
-import { Card, Divider, Meter, SectionLabel, StatusChip } from "@/components/portal/primitives";
+import { qk } from "@/lib/query-keys";
+import { fetchProfile360 } from "@/lib/api/me.server";
+import { fetchBalance, type BalanceItem } from "@/lib/api/billing.server";
+import { errorMessage } from "@/lib/api/errors";
+import { date, quantity } from "@/lib/format";
+import { Button, Card, SectionLabel, StatusChip } from "@/components/portal/primitives";
 
 export const Route = createFileRoute("/_portal/services")({
   head: () => ({
@@ -23,54 +29,100 @@ export const Route = createFileRoute("/_portal/services")({
   component: ServicesScreen,
 });
 
+function isDataBalance(balance: BalanceItem): boolean {
+  return balance.balance_type === "data" && (balance.unit === "GB" || balance.unit === "MB");
+}
+
 function ServicesScreen() {
+  const session = usePortalSession();
+  const cid = session?.customerId ?? "unknown";
+
+  const profileQuery = useQuery({
+    queryKey: qk.profile360(cid),
+    queryFn: () => fetchProfile360(),
+    staleTime: 30_000,
+  });
+  const balanceQuery = useQuery({
+    queryKey: qk.balance(cid),
+    queryFn: () => fetchBalance(),
+    staleTime: 30_000,
+  });
+
+  if (profileQuery.isPending || balanceQuery.isPending) {
+    return (
+      <Card>
+        <p className="t-caption text-ink-5">Loading your plan…</p>
+      </Card>
+    );
+  }
+
+  if (profileQuery.isError || !profileQuery.data) {
+    return (
+      <Card>
+        <p role="alert" className="t-body text-ink-1">
+          {errorMessage(profileQuery.error)}
+        </p>
+        <Button variant="secondary" className="mt-sp-6" onClick={() => void profileQuery.refetch()}>
+          {copy.common.tryAgain}
+        </Button>
+      </Card>
+    );
+  }
+
+  const subscriptions = profileQuery.data.subscriptions;
+  const dataBalances = (balanceQuery.data?.balances ?? []).filter(isDataBalance);
+
   return (
     <div className="space-y-sp-10">
       <section className="space-y-sp-6">
         <SectionLabel>{copy.services.plan}</SectionLabel>
-        <Card>
-          <div className="flex flex-col gap-sp-7 md:flex-row md:items-start md:justify-between">
-            <div>
-              <div className="flex items-center gap-sp-5">
-                <h3 className="t-metric-l text-ink-1">{plan.name}</h3>
-                <StatusChip tone="solid">ACTIVE</StatusChip>
-              </div>
-              <p className="t-body mt-sp-3 max-w-xl text-ink-4">{plan.description}</p>
-            </div>
-            <div className="text-right">
-              <div className="t-metric-xl text-ink-1">{plan.price}</div>
-              <div className="t-caption text-ink-4">{plan.period}</div>
-              <div className="t-mono-s mt-sp-3 text-ink-5">{copy.services.renews(plan.renews)}</div>
-            </div>
-          </div>
-
-          <Divider className="my-sp-8" />
-
-          <ul className="grid gap-sp-5 sm:grid-cols-2">
-            {plan.included.map((f) => (
-              <li key={f} className="t-ui flex items-start gap-sp-4 text-ink-2">
-                <Check size={15} strokeWidth={1.5} className="mt-sp-2 shrink-0 text-ink-4" />
-                {f}
-              </li>
-            ))}
-          </ul>
-
-          <Divider className="my-sp-8" />
-
-          <div className="divide-y divide-stroke-subtle">
-            {usage.map((u) => (
-              <Meter
-                key={u.id}
-                label={u.label}
-                used={u.used}
-                limit={u.limit}
-                unit={u.unit}
-                overNote={copy.services.overAllowance}
-              />
-            ))}
-          </div>
-        </Card>
+        {subscriptions.length === 0 ? (
+          <Card>
+            <p className="t-caption text-ink-5">{copy.empty.generic}</p>
+          </Card>
+        ) : (
+          <Card>
+            <ul className="divide-y divide-stroke-subtle">
+              {subscriptions.map((sub) => (
+                <li
+                  key={sub.subscription_id}
+                  className="flex flex-col gap-sp-5 py-sp-6 first:pt-0 last:pb-0"
+                >
+                  <div className="flex flex-wrap items-center gap-sp-5">
+                    <h3 className="t-metric-l text-ink-1">{sub.plan ?? "—"}</h3>
+                    {sub.status ? <StatusChip tone="solid">{sub.status}</StatusChip> : null}
+                  </div>
+                  <div className="t-mono-s text-ink-5">{sub.msisdn ?? "—"}</div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </section>
+
+      {dataBalances.length > 0 && (
+        <section className="space-y-sp-6">
+          <SectionLabel>{copy.services.usage}</SectionLabel>
+          <Card>
+            <ul className="divide-y divide-stroke-subtle">
+              {dataBalances.map((b, i) => (
+                <li
+                  key={`${b.msisdn}-${b.balance_type}-${i}`}
+                  className="flex items-baseline justify-between gap-sp-5 py-sp-5 first:pt-0 last:pb-0"
+                >
+                  <span className="t-ui text-ink-2">
+                    {b.msisdn ?? "—"} · {copy.labels.balanceType[b.balance_type] ?? b.balance_type}
+                  </span>
+                  <span className="t-mono text-ink-3">
+                    {quantity(b.value, b.unit)}
+                    {b.expires_on ? ` · expires ${date(b.expires_on)}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
     </div>
   );
 }
