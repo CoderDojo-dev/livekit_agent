@@ -269,6 +269,18 @@ def me_profile_detail(session: DbSession, principal: ClientPrincipal) -> dict:
     return SupervisionRepository(session).me_profile_detail(str(principal.customer_id))
 
 
+def _client_customer_id(principal: Principal) -> UUID:
+    """Narrow the principal's customer_id for the /me/* reads.
+
+    current_client (ClientPrincipal) already refuses any principal without a
+    customer_id (403), so this re-check is dead at runtime; it exists so mypy
+    can prove the UUID to the read functions.
+    """
+    if principal.customer_id is None:
+        raise HTTPException(status_code=403, detail="requires a client account")
+    return principal.customer_id
+
+
 @app.get("/api/v1/customers")
 def list_customers(
     session: DbSession,
@@ -852,7 +864,7 @@ def me_conversations(
 ) -> dict[str, Any]:
     return me_reads.conversations(
         db,
-        customer_id=principal.customer_id,
+        customer_id=_client_customer_id(principal),
         limit=limit,
         offset=offset,
     )
@@ -866,7 +878,7 @@ def me_conversation_detail(
 ) -> dict[str, Any]:
     payload = me_reads.conversation_detail(
         db,
-        customer_id=principal.customer_id,
+        customer_id=_client_customer_id(principal),
         session_id=session_id,
     )
     if payload is None:
@@ -886,7 +898,7 @@ def me_requests(
 ) -> dict[str, Any]:
     return me_reads.requests(
         db,
-        customer_id=principal.customer_id,
+        customer_id=_client_customer_id(principal),
         status=status,
         limit=limit,
         offset=offset,
@@ -898,7 +910,7 @@ def me_billing(
     principal: ClientPrincipal,
     db: DbSession,
 ) -> dict[str, Any]:
-    return me_reads.billing(db, customer_id=principal.customer_id)
+    return me_reads.billing(db, customer_id=_client_customer_id(principal))
 
 
 @app.get("/api/v1/me/balance", tags=["me"])
@@ -906,7 +918,7 @@ def me_balance(
     principal: ClientPrincipal,
     db: DbSession,
 ) -> dict[str, Any]:
-    return me_reads.balance(db, customer_id=principal.customer_id)
+    return me_reads.balance(db, customer_id=_client_customer_id(principal))
 
 
 @app.get("/api/v1/me/notifications", tags=["me"])
@@ -917,7 +929,7 @@ def me_notifications(
 ) -> dict[str, Any]:
     return me_reads.notifications(
         db,
-        customer_id=principal.customer_id,
+        customer_id=_client_customer_id(principal),
         limit=limit,
     )
 
@@ -930,7 +942,7 @@ def me_callbacks(
 ) -> dict[str, Any]:
     return me_reads.callbacks(
         db,
-        customer_id=principal.customer_id,
+        customer_id=_client_customer_id(principal),
         limit=limit,
     )
 

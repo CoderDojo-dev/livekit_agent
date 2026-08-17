@@ -13,6 +13,7 @@ import {
   type ConversationSummary,
 } from "@/lib/api/activity.server";
 import { fetchRequests, type RequestItem } from "@/lib/api/requests.server";
+import { REQUEST_TONE } from "@/lib/request-status";
 import { dateTime, duration, relative } from "@/lib/format";
 import {
   Button,
@@ -70,14 +71,6 @@ const KIND_ICON = {
   request: Inbox,
   callback: PhoneCall,
 } as const;
-
-const REQUEST_TONE: Record<RequestItem["status"], "solid" | "outline" | "dashed" | "muted"> = {
-  open: "dashed",
-  in_progress: "solid",
-  pending: "dashed",
-  resolved: "outline",
-  closed: "muted",
-};
 
 const CALLBACK_TONE: Record<CallbackItem["status"], "solid" | "outline" | "dashed" | "muted"> = {
   pending: "dashed",

@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_portal")({
     if (!session) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
-    // The cookie carries the bearer expiry. business-api revalidates the
+    // The cookie carries the bearer's lifetime. business-api revalidates the
     // session row on every request anyway, so a locally expired cookie can
     // only produce a shell full of 401s. Bounce it here instead.
     if (session.exp * 1000 <= Date.now()) {

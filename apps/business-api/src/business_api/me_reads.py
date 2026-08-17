@@ -57,7 +57,7 @@ def _subscription_ids(session: Session, customer_id: UUID) -> list[UUID]:
     reach OCS balances, which are keyed by subscription and not by customer."""
     return list(
         session.scalars(
-            select(Subscription.subscription_id).where(
+            select(Subscription.id).where(
                 Subscription.customer_id == customer_id
             )
         ).all()
@@ -83,7 +83,7 @@ def portal_sessions(
 
     rows = session.execute(
         select(
-            PortalSession.session_id,
+            PortalSession.id,
             PortalSession.created_at,
             PortalSession.expires_at,
             PortalSession.ip_address,
@@ -100,7 +100,7 @@ def portal_sessions(
 
     password_changed_at = session.scalar(
         select(PortalAccount.password_changed_at).where(
-            PortalAccount.account_id == account_id
+            PortalAccount.id == account_id
         )
     )
 
@@ -108,13 +108,13 @@ def portal_sessions(
         "password_changed_at": _iso(password_changed_at),
         "sessions": [
             {
-                "session_id": str(row.session_id),
+                "session_id": str(row.id),
                 "signed_in_at": _iso(row.created_at),
                 "expires_at": _iso(row.expires_at),
                 "ip_address": row.ip_address,
                 "user_agent": row.user_agent,
                 "current": current_session_id is not None
-                and row.session_id == current_session_id,
+                and row.id == current_session_id,
             }
             for row in rows
         ],
@@ -152,7 +152,7 @@ def conversations(
 
     rows = session.execute(
         select(
-            CallSession.session_id,
+            CallSession.id,
             CallSession.channel,
             CallSession.start_time,
             CallSession.end_time,
@@ -160,7 +160,7 @@ def conversations(
             CallSession.final_disposition,
             func.coalesce(turn_counts.c.turns, 0).label("turns"),
         )
-        .outerjoin(turn_counts, turn_counts.c.session_id == CallSession.session_id)
+        .outerjoin(turn_counts, turn_counts.c.session_id == CallSession.id)
         .where(CallSession.customer_id == customer_id)
         .order_by(CallSession.start_time.desc())
         .limit(size)
@@ -173,7 +173,7 @@ def conversations(
         "offset": start,
         "items": [
             {
-                "session_id": str(row.session_id),
+                "session_id": str(row.id),
                 "channel": row.channel,
                 "started_at": _iso(row.start_time),
                 "ended_at": _iso(row.end_time),
@@ -202,14 +202,14 @@ def conversation_detail(
     """
     head = session.execute(
         select(
-            CallSession.session_id,
+            CallSession.id,
             CallSession.channel,
             CallSession.start_time,
             CallSession.end_time,
             CallSession.duration_seconds,
             CallSession.final_disposition,
         ).where(
-            CallSession.session_id == session_id,
+            CallSession.id == session_id,
             CallSession.customer_id == customer_id,
         )
     ).one_or_none()
@@ -232,7 +232,7 @@ def conversation_detail(
     ).all()
 
     return {
-        "session_id": str(head.session_id),
+        "session_id": str(head.id),
         "channel": head.channel,
         "started_at": _iso(head.start_time),
         "ended_at": _iso(head.end_time),
@@ -281,7 +281,7 @@ def requests(
 
     rows = session.execute(
         select(
-            Ticket.ticket_id,
+            Ticket.id,
             Ticket.glpi_ticket_id,
             Ticket.category,
             Ticket.subject,
@@ -325,7 +325,7 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
     """
     accounts = session.execute(
         select(
-            Account.account_id,
+            Account.id,
             Account.account_number,
             Account.account_type,
             Account.billing_cycle_day,
@@ -336,7 +336,7 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
         .order_by(Account.created_at.asc())
     ).all()
 
-    account_ids = [row.account_id for row in accounts]
+    account_ids = [row.id for row in accounts]
 
     invoices: list[dict[str, Any]] = []
     payments: list[dict[str, Any]] = []
@@ -344,7 +344,7 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
     if account_ids:
         invoice_rows = session.execute(
             select(
-                Invoice.invoice_id,
+                Invoice.id,
                 Invoice.account_id,
                 Invoice.invoice_number,
                 Invoice.period_start,
@@ -367,7 +367,7 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
             {
                 "invoice_number": row.invoice_number,
                 "account_number": next(
-                    (a.account_number for a in accounts if a.account_id == row.account_id),
+                    (a.account_number for a in accounts if a.id == row.account_id),
                     None,
                 ),
                 "period_start": _iso(row.period_start),
@@ -386,7 +386,7 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
 
         payment_rows = session.execute(
             select(
-                Payment.payment_id,
+                Payment.id,
                 Payment.amount,
                 Payment.currency_code,
                 Payment.method,
@@ -394,7 +394,7 @@ def billing(session: Session, *, customer_id: UUID) -> dict[str, Any]:
                 Payment.paid_at,
                 Invoice.invoice_number,
             )
-            .join(Invoice, Invoice.invoice_id == Payment.invoice_id, isouter=True)
+            .join(Invoice, Invoice.id == Payment.invoice_id, isouter=True)
             .where(Payment.account_id.in_(account_ids))
             .order_by(Payment.paid_at.desc().nullslast())
             .limit(_LIST_MAX)
@@ -462,7 +462,7 @@ def balance(session: Session, *, customer_id: UUID) -> dict[str, Any]:
         )
         .join(
             Subscription,
-            Subscription.subscription_id == BalanceAccount.subscription_id,
+            Subscription.id == BalanceAccount.subscription_id,
         )
         .where(BalanceAccount.subscription_id.in_(subscription_ids))
         .order_by(Subscription.msisdn.asc(), BalanceAccount.balance_type.asc())
@@ -479,7 +479,7 @@ def balance(session: Session, *, customer_id: UUID) -> dict[str, Any]:
         )
         .join(
             Subscription,
-            Subscription.subscription_id == Recharge.subscription_id,
+            Subscription.id == Recharge.subscription_id,
         )
         .where(Recharge.subscription_id.in_(subscription_ids))
         .order_by(Recharge.created_at.desc())
@@ -532,7 +532,7 @@ def notifications(
 
     rows = session.execute(
         select(
-            Notification.notification_id,
+            Notification.id,
             Notification.channel,
             Notification.template_code,
             Notification.status,
@@ -574,7 +574,7 @@ def callbacks(
 
     rows = session.execute(
         select(
-            CallbackSchedule.callback_id,
+            CallbackSchedule.id,
             CallbackSchedule.scheduled_time,
             CallbackSchedule.preferred_window,
             CallbackSchedule.status,

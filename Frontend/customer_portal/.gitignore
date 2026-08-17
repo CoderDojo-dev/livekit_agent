@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TypeScript incremental build info: stale buildinfo can mask errors locally
+# that a fresh CI clone then finds.
+tsconfig.tsbuildinfo

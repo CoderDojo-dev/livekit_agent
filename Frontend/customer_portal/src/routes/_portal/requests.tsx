@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { copy } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { fetchRequests, type RequestItem } from "@/lib/api/requests.server";
+import { REQUEST_TONE, isActiveRequest } from "@/lib/request-status";
 import { dateTime } from "@/lib/format";
 import {
   Button,
@@ -26,13 +27,13 @@ import {
 export const Route = createFileRoute("/_portal/requests")({
   head: () => ({
     meta: [
-      { title: "Requests — Nexus Customer Portal" },
+      { title: "Requests â€” Nexus Customer Portal" },
       {
         name: "description",
         content:
           "Track everything Nexus is working on for you, from the moment a request is received to the day it is resolved.",
       },
-      { property: "og:title", content: "Requests — Nexus Customer Portal" },
+      { property: "og:title", content: "Requests â€” Nexus Customer Portal" },
       {
         property: "og:description",
         content: "A plain timeline of what we are doing for you, and what needs your reply.",
@@ -49,18 +50,6 @@ const TABS = [
   { id: "resolved", label: copy.requests.tabs.resolved },
   { id: "all", label: copy.requests.tabs.all },
 ] as const;
-
-const TONE: Record<RequestItem["status"], "solid" | "outline" | "dashed" | "muted"> = {
-  open: "dashed",
-  in_progress: "solid",
-  pending: "dashed",
-  resolved: "outline",
-  closed: "muted",
-};
-
-function isActive(status: RequestItem["status"]): boolean {
-  return status === "open" || status === "in_progress" || status === "pending";
-}
 
 function requestTitle(item: RequestItem): string {
   return item.subject ?? copy.labels.requestCategory[item.category] ?? item.category;
@@ -87,7 +76,7 @@ function RequestsScreen() {
     staleTime: 30_000,
   });
 
-  const hero = heroQuery.data?.items?.find((r) => isActive(r.status));
+  const hero = heroQuery.data?.items?.find((r) => isActiveRequest(r.status));
 
   const filtered = useMemo(() => {
     const all = requestsQuery.data?.items ?? [];
@@ -95,8 +84,8 @@ function RequestsScreen() {
       tab === "all"
         ? all
         : tab === "active"
-          ? all.filter((r) => isActive(r.status))
-          : all.filter((r) => !isActive(r.status));
+          ? all.filter((r) => isActiveRequest(r.status))
+          : all.filter((r) => !isActiveRequest(r.status));
     const trimmed = query.trim().toLowerCase();
     if (trimmed === "") return byTab;
     return byTab.filter((r) =>
@@ -153,7 +142,7 @@ function RequestsScreen() {
         <PageSection
           label={copy.requests.heroLabel}
           right={
-            <StatusChip tone={TONE[hero.status]}>
+            <StatusChip tone={REQUEST_TONE[hero.status]}>
               {copy.labels.requestStatus[hero.status] ?? hero.status}
             </StatusChip>
           }
@@ -181,7 +170,11 @@ function RequestsScreen() {
             id: t.id,
             label: t.label,
             count: (requestsQuery.data?.items ?? []).filter((r) =>
-              t.id === "all" ? true : t.id === "active" ? isActive(r.status) : !isActive(r.status),
+              t.id === "all"
+                ? true
+                : t.id === "active"
+                  ? isActiveRequest(r.status)
+                  : !isActiveRequest(r.status),
             ).length,
           }))}
           value={tab}
@@ -222,7 +215,7 @@ function RequestsScreen() {
                     <span className="t-body-strong min-w-0 flex-1 truncate text-ink-1">
                       {requestTitle(r)}
                     </span>
-                    <StatusChip tone={TONE[r.status]}>
+                    <StatusChip tone={REQUEST_TONE[r.status]}>
                       {copy.labels.requestStatus[r.status] ?? r.status}
                     </StatusChip>
                   </InteractiveRow>
@@ -249,7 +242,7 @@ function RequestsScreen() {
           <>
             <SectionLabel
               right={
-                <StatusChip tone={TONE[selected.status]}>
+                <StatusChip tone={REQUEST_TONE[selected.status]}>
                   {copy.labels.requestStatus[selected.status] ?? selected.status}
                 </StatusChip>
               }
@@ -267,7 +260,7 @@ function RequestsScreen() {
                   copy.requests.priority,
                   selected.priority
                     ? (copy.labels.priority[selected.priority] ?? selected.priority)
-                    : "—",
+                    : "â€”",
                 ],
                 [copy.requests.created, dateTime(selected.created_at)],
                 [copy.requests.updated, dateTime(selected.updated_at)],

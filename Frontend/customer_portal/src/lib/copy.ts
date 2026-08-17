@@ -194,7 +194,7 @@ export const copy = {
       "The assistant can answer most questions instantly, and hand you to a specialist when it cannot.",
     startConversation: "Start a conversation",
     askInstead: "Ask the assistant instead",
-    // Curated, static, and true: transcribed from lib/fixtures/help.ts at cleanup time.
+    // Curated, static, and true: transcribed from the help fixture at cleanup time.
     topics: [
       {
         title: "Getting started",
