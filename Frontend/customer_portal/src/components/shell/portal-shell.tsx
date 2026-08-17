@@ -8,13 +8,7 @@ import { cn } from "@/lib/utils";
  * components/shell/portal-shell.tsx — chapitre 10.
  * Rail fixe, barre superieure collante, une seule zone de defilement.
  */
-export function PortalShell({
-  children,
-  scene = false,
-}: {
-  children: ReactNode;
-  scene?: boolean;
-}) {
+export function PortalShell({ children, scene = false }: { children: ReactNode; scene?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (

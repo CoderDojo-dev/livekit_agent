@@ -64,8 +64,7 @@ function ActivityScreen() {
   );
 
   const hero = interactions[0]!;
-  const active: Interaction | undefined =
-    list.find((i) => i.id === selected) ?? list[0];
+  const active: Interaction | undefined = list.find((i) => i.id === selected) ?? list[0];
 
   return (
     <div className="space-y-sp-9">
@@ -139,16 +138,12 @@ function ActivityScreen() {
                       <Icon size={15} strokeWidth={1.5} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="t-body-strong block truncate text-ink-1">
-                        {item.title}
-                      </span>
+                      <span className="t-body-strong block truncate text-ink-1">{item.title}</span>
                       <span className="t-caption mt-sp-2 line-clamp-2 block text-ink-4">
                         {item.summary}
                       </span>
                     </span>
-                    <span className="t-mono-s shrink-0 pt-sp-2 text-ink-5">
-                      {item.relative}
-                    </span>
+                    <span className="t-mono-s shrink-0 pt-sp-2 text-ink-5">{item.relative}</span>
                   </button>
                 </li>
               );
@@ -186,9 +181,7 @@ function ActivityScreen() {
               {active.changed.length > 0 && (
                 <>
                   <Divider className="my-sp-7" />
-                  <div className="t-micro text-ink-4">
-                    {copy.assistant.summary.changed}
-                  </div>
+                  <div className="t-micro text-ink-4">{copy.assistant.summary.changed}</div>
                   <ul className="mt-sp-4 space-y-sp-3">
                     {active.changed.map((c) => (
                       <li key={c} className="t-ui flex gap-sp-4 text-ink-2">

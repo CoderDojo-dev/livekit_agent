@@ -34,13 +34,7 @@ const ICONS: Record<string, LucideIcon> = {
  * components/shell/portal-rail.tsx — chapitre 11.
  * Dix destinations, trois groupes, un pied de marque.
  */
-export function PortalRail({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
+export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
@@ -114,9 +108,7 @@ export function PortalRail({
           className="focus-ring flex h-9 w-full items-center gap-sp-5 rounded-r-2 px-sp-4 text-ink-4 transition-colors duration-200 hover:bg-surface-2 hover:text-ink-2"
         >
           <PanelLeft size={16} strokeWidth={1.5} className="shrink-0" />
-          {!collapsed && (
-            <span className="t-label">{copy.shell.collapseRail}</span>
-          )}
+          {!collapsed && <span className="t-label">{copy.shell.collapseRail}</span>}
         </button>
       </div>
     </nav>

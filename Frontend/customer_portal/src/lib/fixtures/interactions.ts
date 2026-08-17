@@ -75,22 +75,29 @@ export const interactions: readonly Interaction[] = [
         text: "Of course. What is the new number?",
         at: "00:06",
       },
-      { speaker: "you", text: "Plus four four, seven seven zero zero, nine zero zero one four two.", at: "00:11" },
+      {
+        speaker: "you",
+        text: "Plus four four, seven seven zero zero, nine zero zero one four two.",
+        at: "00:11",
+      },
       {
         speaker: "assistant",
         text: "I have +44 7700 900142. Shall I save it as your main number?",
         at: "00:19",
       },
       { speaker: "you", text: "Yes please.", at: "00:24" },
-      { speaker: "assistant", text: "Saved. Your phone number is now +44 7700 900142.", at: "00:27" },
+      {
+        speaker: "assistant",
+        text: "Saved. Your phone number is now +44 7700 900142.",
+        at: "00:27",
+      },
     ],
   },
   {
     id: "int_2279",
     kind: "callback",
     title: "Callback with a billing specialist",
-    summary:
-      "Scheduled for Thursday at 14:30 to review the annual plan options before renewal.",
+    summary: "Scheduled for Thursday at 14:30 to review the annual plan options before renewal.",
     at: "9 March, 11:20",
     relative: "9 days ago",
     duration: null,
