@@ -102,7 +102,7 @@ function ServicesScreen() {
         )}
       </PageSection>
 
-      {dataBalances.length > 0 && (
+      {(dataBalances.length > 0 || balanceQuery.isError) && (
         <PageSection label={copy.services.balances}>
           {balanceQuery.isError ? (
             <Card>

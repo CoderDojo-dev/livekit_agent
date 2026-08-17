@@ -53,7 +53,15 @@ export const createVoiceGrant = createServerFn({ method: "POST" })
     try {
       const response = await fetch(`${serverConfig.tokenServiceUrl()}/token`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          // Proves this /token call comes from the portal server, which is the
+          // only reason token-service will trust caller_msisdn. Never reaches
+          // the browser: this handler runs server-side only.
+          ...(serverConfig.internalApiKey()
+            ? { "x-internal-api-key": serverConfig.internalApiKey() }
+            : {}),
+        },
         signal: controller.signal,
         body: JSON.stringify({
           room,

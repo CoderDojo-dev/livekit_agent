@@ -227,7 +227,7 @@ def conversation_detail(
             Turn.created_at,
         )
         .where(Turn.session_id == session_id)
-        .order_by(Turn.turn_index.asc(), Turn.speaker.asc())
+        .order_by(Turn.turn_index.asc(), Turn.created_at.asc())
         .limit(_TURN_MAX)
     ).all()
 

@@ -41,5 +41,9 @@ export const serverConfig = {
   /** Upstream timeout in ms. */
   requestTimeoutMs: () => Number(optional("BUSINESS_API_TIMEOUT_MS", "15000")),
 
+  /** Server-only. Empty string means "not configured", which downgrades the
+   *  grant to PILOT_MSISDN rather than failing the call. */
+  internalApiKey: () => (process.env["INTERNAL_API_KEY"] ?? "").trim(),
+
   isProduction: () => process.env["NODE_ENV"] === "production",
 } as const;

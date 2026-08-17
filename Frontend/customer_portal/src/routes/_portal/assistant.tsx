@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAgent, useSessionContext } from "@livekit/components-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Mic, MicOff, PhoneCall, PhoneOff, LockKeyhole } from "lucide-react";
@@ -22,6 +22,8 @@ import { T_BASE } from "@/components/portal/data";
 import { duration } from "@/lib/format";
 import { copy } from "@/lib/copy";
 import { reportVoiceEvent } from "@/lib/api/voice.server";
+import { fetchConversations } from "@/lib/api/activity.server";
+import { qk } from "@/lib/query-keys";
 
 export const Route = createFileRoute("/_portal/assistant")({
   head: () => ({
@@ -120,17 +122,33 @@ function AssistantStage() {
     if (isWriteTool(event.name)) setHadWriteTools(true);
   }, []);
 
-  // Post-call reconciliation: if a tool wrote to the account during the call,
-  // the worker's writers commit after the call. Give them a moment, then let
-  // the server be the source of truth for anything that changed.
+  // Post-call reconciliation, in two tiers.
+  //  - Every call, write tools or not, produced a session row: the conversation
+  //    list must show it, otherwise Activity silently lags behind reality.
+  //  - Only a write tool can have changed billing, requests or balances, so the
+  //    broad sweep stays gated on that.
+  // The worker commits after the call ends, hence the delay.
   const customerId = portalSession?.customerId;
   useEffect(() => {
-    if (session.connectionState !== "disconnected" || !hadWriteTools) return;
+    if (session.connectionState !== "disconnected" || !startedAt || !customerId) return;
     const timer = window.setTimeout(() => {
-      if (customerId) void queryClient.invalidateQueries({ queryKey: ["me", customerId] });
+      void queryClient.invalidateQueries({ queryKey: ["me", customerId, "conversations"] });
+      if (hadWriteTools) void queryClient.invalidateQueries({ queryKey: ["me", customerId] });
     }, 4000);
     return () => window.clearTimeout(timer);
-  }, [session.connectionState, hadWriteTools, queryClient, customerId]);
+  }, [session.connectionState, startedAt, hadWriteTools, queryClient, customerId]);
+
+  // After the call the server is the only honest source for how many turns it
+  // contained: the browser never sees the persisted turn rows. Enabled only
+  // once a call has finished, so an idle Assistant tab issues no requests.
+  const recap = useQuery({
+    queryKey: qk.conversations(customerId ?? "unknown", 1, 0),
+    queryFn: () => fetchConversations({ data: { limit: 1, offset: 0 } }),
+    enabled: Boolean(customerId) && !inCall && startedAt !== null,
+    staleTime: 0,
+    refetchInterval: (query) => (query.state.data?.items.length ? false : 2000),
+  });
+  const lastCall = recap.data?.items[0];
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center gap-sp-9">
@@ -214,18 +232,22 @@ function AssistantStage() {
       {/* LIVE STREAM — keyed on callId so each call starts with a clean stack. */}
       <LiveStream key={callId} participantName={name} onToolEvent={handleToolEvent} />
 
-      {/* SUMMARY — real duration, never a hardcoded string. */}
+      {/* SUMMARY — real duration from server, real turn count from recap query. */}
       {!inCall && startedAt ? (
         <Card className="w-full max-w-lg">
           <div className="t-micro-2 text-ink-5">{copy.assistant.summary.heading}</div>
           <div className="mt-sp-5 grid grid-cols-2 gap-sp-6">
             <MetricPair
               label={copy.assistant.summary.duration}
-              value={duration((Date.now() - startedAt) / 1000)}
+              value={
+                lastCall?.duration_seconds != null
+                  ? duration(lastCall.duration_seconds)
+                  : duration((Date.now() - startedAt) / 1000)
+              }
             />
             <MetricPair
               label={copy.assistant.summary.turns}
-              value={copy.assistant.summary.turnsPending}
+              value={lastCall ? String(lastCall.turns) : copy.assistant.summary.turnsPending}
             />
           </div>
           <p className="t-caption mt-sp-6 text-ink-4">{copy.assistant.summary.savedNote}</p>

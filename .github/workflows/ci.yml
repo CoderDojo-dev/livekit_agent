@@ -73,6 +73,12 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      # The 12-check guard has never run on a developer machine (no working
+      # bash). Ubuntu runners have one, so this is the first and only place it
+      # is actually enforced. Before the build so a banned string or a deleted
+      # fixture fails fast.
+      - name: Guard (verify-portal.sh)
+        run: npm run verify
       - name: Test
         run: npm test
       - name: Build

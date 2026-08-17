@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from livekit import api
 from pydantic import BaseModel, Field
@@ -22,12 +22,19 @@ LIVEKIT_AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "telecom-agent").strip()
 PILOT_MSISDN = os.getenv("PILOT_MSISDN", "").strip()
 CALLER_MSISDN_ATTRIBUTE = "telecom.caller_msisdn"
 
+# A caller-supplied MSISDN decides which subscriber the agent resolves, so it is
+# only trusted from a caller that proves it is one of our own servers. The
+# customer portal's voice.server.ts holds this key already (server-side only);
+# apps/client-widget sends neither key nor MSISDN and is unaffected.
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "").strip()
+INTERNAL_KEY_HEADER = "x-internal-api-key"
+
 app = FastAPI(title="token-service")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173").split(","),
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", INTERNAL_KEY_HEADER],
 )
 
 
@@ -65,15 +72,30 @@ async def health() -> dict:
 
 
 @app.post("/token", response_model=TokenResponse)
-async def token(req: TokenRequest) -> TokenResponse:
-    """Mint a 1-hour room-join token (reads LIVEKIT_API_KEY/SECRET from the environment)."""
+async def token(req: TokenRequest, request: Request) -> TokenResponse:
+    """Mint a 15-minute room-join token (reads LIVEKIT_API_KEY/SECRET from the environment).
+
+    caller_msisdn is honoured only for trusted internal callers: it selects the
+    subscriber the agent will serve, so an anonymous browser must never choose
+    it. Untrusted callers fall back to PILOT_MSISDN, which is the pre-existing
+    behaviour for every current client.
+    """
     room_config = None
     if LIVEKIT_AGENT_NAME:
         room_config = api.RoomConfiguration(
             agents=[api.RoomAgentDispatch(agent_name=LIVEKIT_AGENT_NAME)]
         )
 
-    caller_msisdn = req.caller_msisdn or PILOT_MSISDN
+    trusted = bool(INTERNAL_API_KEY) and (
+        request.headers.get(INTERNAL_KEY_HEADER, "") == INTERNAL_API_KEY
+    )
+    if req.caller_msisdn and not trusted:
+        logger.warning(
+            "ignored caller_msisdn from untrusted caller identity=%s room=%s",
+            req.identity,
+            req.room,
+        )
+    caller_msisdn = (req.caller_msisdn if trusted else None) or PILOT_MSISDN
     access_token = (
         api.AccessToken()
         .with_identity(req.identity)

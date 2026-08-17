@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button, Card, EmptyState, SectionLabel } from "@/components/portal/primitives";
@@ -98,7 +98,7 @@ export function TopProgress({ active }: { active: boolean }) {
       {active ? (
         <motion.div
           key="progress"
-          className="pointer-events-none fixed inset-x-0 top-16 z-30 h-px overflow-hidden"
+          className="pointer-events-none fixed inset-x-0 top-16 z-30 h-0.5 overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -106,7 +106,7 @@ export function TopProgress({ active }: { active: boolean }) {
           aria-hidden="true"
         >
           <motion.div
-            className="h-px w-1/3 bg-ink-3"
+            className="h-0.5 w-1/3 bg-ink-3"
             initial={{ x: "-100%" }}
             animate={reduce ? { x: "0%" } : { x: ["-100%", "300%"] }}
             transition={reduce ? T_MICRO : { duration: 0.9, ease: "linear", repeat: Infinity }}
@@ -247,14 +247,14 @@ export function DataSection<T>({
 }: {
   label?: string;
   right?: ReactNode;
-  state: { isPending: boolean; isFetching: boolean; error: unknown };
+  state: { isPending: boolean; isFetching: boolean; isPlaceholderData?: boolean; error: unknown };
   items: T[] | undefined;
   skeletonRows?: number;
   empty: { title: string; body: string; action?: ReactNode };
   onRetry?: () => void;
   children: (items: T[]) => ReactNode;
 }) {
-  const { isPending, isFetching, error } = state;
+  const { isPending, error } = state;
 
   return (
     <PageSection label={label} right={right}>
@@ -267,9 +267,11 @@ export function DataSection<T>({
           <EmptyState title={empty.title} body={empty.body} action={empty.action} />
         ) : (
           <motion.div
-            // Content fades in but does not move: no layout shift, no jump.
+            // Dim only when the rows on screen are about to be replaced by a
+            // different page. A background refresh of the same page must not
+            // flash: nothing the customer asked for is changing.
             initial={{ opacity: 0 }}
-            animate={{ opacity: isFetching ? 0.55 : 1 }}
+            animate={{ opacity: state.isPlaceholderData ? 0.55 : 1 }}
             transition={T_BASE}
           >
             {children(items)}
@@ -325,15 +327,52 @@ export function Panel({
   children: ReactNode;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) return;
+
+    // Remember where focus came from so Escape returns the customer to the row
+    // they opened, not to the top of the page.
+    const opener = document.activeElement as HTMLElement | null;
+
+    // Lock the page behind the sheet. Without this, a mobile bottom sheet
+    // scrolls the list underneath it.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      // Minimal, dependency-free focus cycle across the sheet's own tabbables.
+      const root = sheetRef.current;
+      if (!root) return;
+      const focusable = root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0] as HTMLElement;
+      const last = focusable[focusable.length - 1] as HTMLElement;
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
     };
+
     document.addEventListener("keydown", onKey);
     closeRef.current?.focus();
-    return () => document.removeEventListener("keydown", onKey);
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      opener?.focus?.();
+    };
   }, [open, onClose]);
 
   return (
@@ -350,6 +389,7 @@ export function Panel({
             aria-hidden="true"
           />
           <motion.aside
+            ref={sheetRef}
             role="dialog"
             aria-modal="true"
             aria-label={title}
@@ -407,16 +447,24 @@ export function InteractiveRow({
   );
 }
 
-/** Tabs with an animated underline. Wraps the existing Tabs contract. */
+/** Tabs with an animated underline. Accepts a groupId so multiple tab groups
+ * on one page each animate their own underline, preventing the underline from
+ * flying across the screen between unrelated groups. */
 export function AnimatedTabs<T extends string>({
   tabs,
   value,
   onChange,
+  /** Distinct per tab group on a page: a shared layoutId makes the underline
+   *  fly between unrelated groups. Defaults to a stable per-mount id. */
+  groupId,
 }: {
   tabs: Array<{ id: T; label: string; count?: number }>;
   value: T;
   onChange: (next: T) => void;
+  groupId?: string;
 }) {
+  const autoId = useId();
+  const underlineId = `tab-underline-${groupId ?? autoId}`;
   return (
     <div role="tablist" className="flex gap-sp-2 border-b border-stroke-subtle">
       {tabs.map((tab) => {
@@ -438,7 +486,7 @@ export function AnimatedTabs<T extends string>({
             ) : null}
             {active ? (
               <motion.span
-                layoutId="tab-underline"
+                layoutId={underlineId}
                 className="absolute inset-x-sp-4 -bottom-px h-px bg-ink-1"
                 transition={T_BASE}
               />
