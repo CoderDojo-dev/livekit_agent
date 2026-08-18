@@ -378,7 +378,7 @@ def billing(
             ),
             0,
         ),
-    ).where(Invoice.billing_account_id.in_(account_ids))
+    ).where(Invoice.account_id.in_(account_ids))
     invoice_total, outstanding_sum = session.execute(totals_stmt).one()
 
     invoice_rows = session.execute(
@@ -397,7 +397,7 @@ def billing(
             Invoice.currency_code,
             Invoice.status,
         )
-        .where(Invoice.billing_account_id.in_(account_ids))
+        .where(Invoice.account_id.in_(account_ids))
         .order_by(Invoice.issue_date.desc())
         .offset(start)
         .limit(size)
@@ -592,6 +592,7 @@ def notifications(
         )
         .where(Notification.customer_id == customer_id)
         .order_by(Notification.created_at.desc())
+        .offset(start)
         .limit(size)
     ).all()
 
@@ -644,6 +645,7 @@ def callbacks(
         )
         .where(CallbackSchedule.customer_id == customer_id)
         .order_by(CallbackSchedule.scheduled_time.desc())
+        .offset(start)
         .limit(size)
     ).all()
 

@@ -9,7 +9,7 @@ import os
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -920,8 +920,8 @@ def me_requests(
 async def me_billing(
     principal: ClientPrincipal,
     db: DbSession,
-    limit: int = 20,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
     return me_reads.billing(
         db,
@@ -943,8 +943,8 @@ def me_balance(
 async def me_notifications(
     principal: ClientPrincipal,
     db: DbSession,
-    limit: int = 20,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
     return me_reads.notifications(
         db,
@@ -958,8 +958,8 @@ async def me_notifications(
 async def me_callbacks(
     principal: ClientPrincipal,
     db: DbSession,
-    limit: int = 20,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
     return me_reads.callbacks(
         db,
