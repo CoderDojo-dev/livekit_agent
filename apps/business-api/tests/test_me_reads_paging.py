@@ -100,7 +100,7 @@ def test_billing_totals_do_not_follow_the_invoice_page(db_session, seeded_custom
 
 
 def test_conversation_turns_are_chronological(db_session, seeded_customer_id):
-    """CB8.4: created_at, never speaker, is the tiebreak inside a turn index."""
+    """CB8.4: turn_index asc, then created_at asc, is the sort order."""
     listing = me_reads.conversations(db_session, customer_id=seeded_customer_id, limit=50, offset=0)
     for summary in listing["items"]:
         detail = me_reads.conversation_detail(

@@ -30,8 +30,9 @@ export function PortalTopbar() {
   const [openTray, setOpenTray] = useState(false);
   const session = usePortalSession();
   const profile = useQuery({
-    queryKey: ["me", "profile", "detail"],
+    queryKey: qk.profileDetail(session?.customerId ?? "unknown"),
     queryFn: () => fetchProfileDetail(),
+    staleTime: 30_000,
   });
   const notifications = useQuery({
     queryKey: qk.notifications(session?.customerId ?? "unknown", 20, 0),
