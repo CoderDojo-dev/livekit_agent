@@ -117,9 +117,26 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-telecom}:${POSTGRES_PASSWORD:-telecom}@postgres:5432/${POSTGRES_DB:-telecom}"
       MINIO_ENDPOINT: "minio:9000"
-      SERVICE_HEALTH_TIMEOUT_MS: "1500"
+      SERVICE_HEALTH_TIMEOUT_MS: '1500'
+      SERVICE_HEALTH_CACHE_TTL_MS: '15000'
+      SERVICE_HEALTH_CONCURRENCY: '8'
       SERVICE_HEALTH_TARGETS: >-
-        [{"name":"context-service","domain":"conversation context","url":"http://context-service:8101/health"},{"name":"knowledge-service","domain":"retrieval","url":"http://knowledge-service:8102/health"},{"name":"decision-service","domain":"decisioning","url":"http://decision-service:8103/health"},{"name":"policy-service","domain":"policy","url":"http://policy-service:8104/health"},{"name":"execution-service","domain":"actions","url":"http://execution-service:8105/health"},{"name":"notification-service","domain":"notifications","url":"http://notification-service:8106/health"},{"name":"token-service","domain":"voice admission","url":"http://token-service:8107/health"},{"name":"ticketing-glpi","domain":"ticketing","url":"http://ticketing-glpi:8202/health","required":false}]
+        [
+          {"id":"context-service","name":"context-service","domain":"conversation context","origin":"http://context-service:8101","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"knowledge-service","name":"knowledge-service","domain":"retrieval","origin":"http://knowledge-service:8102","path":"/health","probe_kind":"readiness","required":true},
+          {"id":"decision-service","name":"decision-service","domain":"decisioning","origin":"http://decision-service:8103","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"policy-service","name":"policy-service","domain":"policy","origin":"http://policy-service:8104","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"execution-service","name":"execution-service","domain":"actions","origin":"http://execution-service:8105","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"notification-service","name":"notification-service","domain":"notifications","origin":"http://notification-service:8106","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"token-service","name":"token-service","domain":"voice admission","origin":"http://token-service:8107","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"ocs-billing-sim","name":"ocs-billing-sim","domain":"billing simulation","origin":"http://ocs-billing-sim:8107","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"nms-sim","name":"nms-sim","domain":"network simulation","origin":"http://nms-sim:8108","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"provisioning-sim","name":"provisioning-sim","domain":"provisioning simulation","origin":"http://provisioning-sim:8109","path":"/health","probe_kind":"liveness","required":true},
+          {"id":"ticketing-glpi","name":"ticketing-glpi","domain":"ticketing","origin":"http://ticketing-glpi:8202","path":"/health","probe_kind":"liveness","required":false},
+          {"id":"ai-knowledge-rag","name":"ai-knowledge-rag","domain":"knowledge MCP","probe_kind":"none","required":true},
+          {"id":"messaging-gateway","name":"messaging-gateway","domain":"messaging MCP","probe_kind":"none","required":false},
+          {"id":"agent-worker","name":"agent-worker","domain":"voice orchestration","probe_kind":"none","required":true}
+        ]
     depends_on:
       postgres: { condition: service_healthy }
       minio: { condition: service_healthy }

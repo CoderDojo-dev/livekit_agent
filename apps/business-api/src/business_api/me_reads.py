@@ -24,8 +24,8 @@ from uuid import UUID
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from persistence.models.billing import Account, Invoice, Notification, NotificationLog, Payment
-from persistence.models.conversation import CallbackRequest, CallbackSchedule, CallSession, Turn
+from persistence.models.billing import Account, Invoice, Notification, Payment
+from persistence.models.conversation import CallbackSchedule, CallSession, Turn
 from persistence.models.crm import Subscription
 from persistence.models.ocs import BalanceAccount, Recharge
 from persistence.models.portal_identity import PortalAccount, PortalSession
@@ -576,8 +576,8 @@ def notifications(
     size, start = _page(limit, offset)
 
     total = session.scalar(
-        select(func.count(NotificationLog.id)).where(
-            NotificationLog.customer_id == customer_id
+        select(func.count(Notification.id)).where(
+            Notification.customer_id == customer_id
         )
     )
 
@@ -628,8 +628,8 @@ def callbacks(
     size, start = _page(limit, offset)
 
     total = session.scalar(
-        select(func.count(CallbackRequest.id)).where(
-            CallbackRequest.customer_id == customer_id
+        select(func.count(CallbackSchedule.id)).where(
+            CallbackSchedule.customer_id == customer_id
         )
     )
 

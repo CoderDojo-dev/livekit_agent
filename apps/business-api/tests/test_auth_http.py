@@ -116,3 +116,39 @@ def test_wrong_internal_key_is_refused(api_client, monkeypatch):
     monkeypatch.setenv("INTERNAL_API_KEY", "test-internal-key")
     response = api_client.get("/api/v1/advisors/on-call", headers={"X-API-Key": "nope"})
     assert response.status_code == 401
+
+
+# ---- service-health endpoint RBAC -------------------------------------------------
+
+def test_system_health_requires_auth(api_client):
+    assert api_client.get("/api/v1/system/health").status_code == 401
+
+
+def test_system_health_requires_administrator(api_client, db_session: Session):
+    make_staff_account(db_session, email=ADVISOR[0], password=ADVISOR[1], role="conseiller")
+    token = _login(api_client, *ADVISOR)
+    response = api_client.get("/api/v1/system/health", headers=_auth(token))
+    assert response.status_code == 403
+    assert response.json()["detail"] == "requires role >= administrateur"
+
+
+def test_system_health_admin_response(api_client, db_session: Session, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    report = {
+        "schema_version": 1,
+        "overall": "reachable",
+        "checked_at": "2026-01-01T12:00:00+00:00",
+        "cache_ttl_ms": 15000,
+        "probe_timeout_ms": 1500,
+        "business_api_liveness": {"status": "reachable", "reason": "request_served"},
+        "services": [],
+    }
+    monkeypatch.setattr("business_api.main.aggregate_service_health", AsyncMock(return_value=report))
+
+    make_staff_account(db_session, email=ADMIN[0], password=ADMIN[1], role="administrateur")
+    token = _login(api_client, *ADMIN)
+    response = api_client.get("/api/v1/system/health", headers=_auth(token))
+    assert response.status_code == 200
+    assert response.json() == report
+    assert "no-store" in response.headers["cache-control"].lower()
