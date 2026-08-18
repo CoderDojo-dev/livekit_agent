@@ -1,7 +1,7 @@
 # Version 94 — Client portal cookbooks 8-11 applied, extended platform service-health panel, customer portal /me reads and token-service admission fixes
 
 > **Base branch:** `version_93` (`3faf945`)
-> **Commits:** 7 (cookbook 8 `dad9643`, cookbook 9 `eeb6bf9`, cookbook 10 `2bca172`, unused-Query fix `50fd2c2`, ruff/mypy fixes `dcb1cda`, service-health panel + portal deps `48004d6`, cookbooks-v94 docs `10966c9`)
+> **Commits:** 9 (cookbook 8 `dad9643`, cookbook 9 `eeb6bf9`, cookbook 10 `2bca172`, unused-Query fix `50fd2c2`, ruff/mypy fixes `dcb1cda`, service-health panel + portal deps `48004d6`, cookbooks-v94 docs `10966c9`, /me pagination + invoice filter `d1a395a`, version doc `df684ff`)
 > **New containers:** None
 > **livekit-agents SDK:** 1.6.5 (no bump)
 > **Dependency change:** customer_portal env example extended; no runtime dep bumps
@@ -29,7 +29,7 @@
 
 ### Cookbook 8 — Correctness and security fixes (`dad9643`)
 
-- business-api `main.py` — removed unused `Query` import (`50fd2c2`); `me_reads.py` / customer portal self-service reads hardened.
+- business-api `main.py` — removed unused `Query` import (`50fd2c2`); `/me` reads now take validated pagination params (`limit` ge 1 le 50, `offset` ge 0) and `me_reads.py` filters billing totals/rows on `Invoice.account_id` instead of the non-existent `billing_account_id` (`d1a395a`).
 - token-service `main.py` — admission flow now carries the request context (`Request`), fixing per-request identity handling in voice admission.
 - retention `jobs/retention.py` — session purge behaviour preserved and covered by tests.
 
@@ -57,4 +57,4 @@
 
 ## Validation
 
-- `scripts/test_committed.ps1 -Ref version_94` → **GREEN, exit 0** — 132 + 109 + 10 + 17 = **268 passed**, 0 failed.
+- `scripts/test_committed.ps1 -Ref version_94` → **GREEN, exit 0** — 132 + 109 + 10 + 17 = **268 passed**, 0 failed; business-api working-tree suite re-validated after `d1a395a` (132 passed).
