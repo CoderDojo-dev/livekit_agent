@@ -521,17 +521,25 @@ export function MetricTile({
   value,
   hint,
   size = "m",
+  pending,
 }: {
   label: string;
   value: string;
   hint?: string | undefined;
   size?: "m" | "l" | "xl";
+  pending?: boolean;
 }) {
   const type = size === "xl" ? "t-metric-xl" : size === "l" ? "t-metric-l" : "t-metric-m";
   return (
     <div className="min-w-0">
       <div className="t-micro-2 text-ink-5">{label}</div>
-      <div className={cn(type, "mt-sp-3 truncate text-ink-1")}>{value}</div>
+      {pending ? (
+        <div className="mt-sp-3">
+          <SkeletonMetric />
+        </div>
+      ) : (
+        <div className={cn(type, "mt-sp-3 truncate text-ink-1")}>{value}</div>
+      )}
       {hint ? <div className="t-caption mt-sp-2 truncate text-ink-4">{hint}</div> : null}
     </div>
   );

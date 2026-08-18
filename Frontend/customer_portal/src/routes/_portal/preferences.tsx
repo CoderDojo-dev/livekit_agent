@@ -33,7 +33,9 @@ const SECTIONS = [
 function PreferencesScreen() {
   const [section, setSection] = useState<(typeof SECTIONS)[number]["id"]>("appearance");
   const [prefs, setPrefs] = useState<PortalPreferences>(() => readPreferences());
-  const T = useReducedMotion() ? { duration: 0 } : { duration: 0.2 };
+  // A motion toggle that animates anyway is the same class of bug as a
+  // language toggle that changes nothing.
+  const T = useReducedMotion() || prefs.reduceMotion ? { duration: 0 } : { duration: 0.2 };
 
   function update(next: Partial<PortalPreferences>) {
     const merged = { ...prefs, ...next };

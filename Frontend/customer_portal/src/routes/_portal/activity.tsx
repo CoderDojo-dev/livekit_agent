@@ -13,6 +13,7 @@ import {
   type ConversationSummary,
 } from "@/lib/api/activity.server";
 import { fetchRequests, type RequestItem } from "@/lib/api/requests.server";
+import { fetchNotifications, type NotificationItem } from "@/lib/api/notifications.server";
 import { REQUEST_TONE } from "@/lib/request-status";
 import { dateTime, duration, relative } from "@/lib/format";
 import {
@@ -58,6 +59,7 @@ export const Route = createFileRoute("/_portal/activity")({
 
 const PAGE_SIZE = 10;
 const FULL_LIMIT = 50;
+const NOTIF_PAGE_SIZE = 10;
 
 const TABS = [
   { id: "all", label: copy.activity.tabs.all },
@@ -76,6 +78,15 @@ const CALLBACK_TONE: Record<CallbackItem["status"], "solid" | "outline" | "dashe
   pending: "dashed",
   completed: "outline",
   cancelled: "muted",
+};
+
+const NOTIFICATION_TONE: Record<
+  NotificationItem["status"],
+  "solid" | "outline" | "dashed" | "muted"
+> = {
+  queued: "dashed",
+  sent: "outline",
+  failed: "muted",
 };
 
 type ListItem = {
@@ -339,6 +350,8 @@ function ActivityScreen() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Selection | null>(null);
+  const [secondaryTab, setSecondaryTab] = useState<"calls" | "messages">("calls");
+  const [notifPage, setNotifPage] = useState(0);
   const session = usePortalSession();
   const cid = session?.customerId ?? "unknown";
   const searching = query.trim() !== "";
@@ -366,6 +379,13 @@ function ActivityScreen() {
   const callbacksQuery = useQuery({
     queryKey: qk.callbacks(cid, 20, 0),
     queryFn: () => fetchCallbacks({ data: { limit: 20, offset: 0 } }),
+    staleTime: 30_000,
+  });
+  const notificationsQuery = useQuery({
+    queryKey: qk.notifications(cid, NOTIF_PAGE_SIZE, notifPage * NOTIF_PAGE_SIZE),
+    queryFn: () =>
+      fetchNotifications({ data: { limit: NOTIF_PAGE_SIZE, offset: notifPage * NOTIF_PAGE_SIZE } }),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
 
@@ -442,15 +462,30 @@ function ActivityScreen() {
           </Button>
         ),
       }
-    : {
-        title: copy.empty.activityA.title,
-        body: copy.empty.activityA.body,
-        action: (
-          <Button variant="primary" onClick={() => void navigate({ to: "/assistant" })}>
-            {copy.empty.activityA.action}
-          </Button>
-        ),
-      };
+    : tab === "request"
+      ? {
+          title: copy.requests.empty.title,
+          body: copy.requests.empty.body,
+          action: (
+            <Button variant="secondary" onClick={() => setTab("all")}>
+              {copy.requests.empty.action}
+            </Button>
+          ),
+        }
+      : tab === "callback"
+        ? {
+            title: copy.empty.callbacks.title,
+            body: copy.empty.callbacks.body,
+          }
+        : {
+            title: copy.empty.activityA.title,
+            body: copy.empty.activityA.body,
+            action: (
+              <Button variant="primary" onClick={() => void navigate({ to: "/assistant" })}>
+                {copy.empty.activityA.action}
+              </Button>
+            ),
+          };
 
   const panelTitle =
     selected?.kind === "request"
@@ -565,6 +600,99 @@ function ActivityScreen() {
           </>
         )}
       </DataSection>
+
+      <div className="space-y-sp-6">
+        <AnimatedTabs
+          groupId="activity-secondary"
+          tabs={[
+            { id: "calls", label: copy.activity.tabs.secondary.calls },
+            { id: "messages", label: copy.activity.tabs.secondary.messages },
+          ]}
+          value={secondaryTab}
+          onChange={setSecondaryTab}
+        />
+        {secondaryTab === "calls" ? (
+          <DataSection
+            state={callbacksQuery}
+            items={callbacksQuery.data?.items ?? []}
+            skeletonRows={4}
+            empty={copy.empty.callbacks}
+            onRetry={() => void callbacksQuery.refetch()}
+          >
+            {(items) => (
+              <ul className="divide-y divide-stroke-subtle">
+                {items.map((cb, i) => (
+                  <li
+                    key={cb.scheduled_time ?? `${cb.reason ?? "callback"}-${i}`}
+                    className="flex items-baseline justify-between gap-sp-5 py-sp-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="t-body-strong text-ink-1">
+                        {copy.labels.callbackStatus[
+                          cb.status as keyof typeof copy.labels.callbackStatus
+                        ] ?? cb.status}
+                      </p>
+                      <p className="t-caption text-ink-4">{cb.reason ?? "—"}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="t-caption text-ink-4">{dateTime(cb.scheduled_time)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DataSection>
+        ) : (
+          <DataSection
+            state={notificationsQuery}
+            items={notificationsQuery.data?.items ?? []}
+            skeletonRows={4}
+            empty={copy.empty.notifications}
+            onRetry={() => void notificationsQuery.refetch()}
+          >
+            {(items) => (
+              <>
+                <ul className="divide-y divide-stroke-subtle">
+                  {items.map((n, i) => (
+                    <li
+                      key={`${n.created_at ?? "na"}-${i}`}
+                      className="flex items-baseline justify-between gap-sp-5 py-sp-4"
+                    >
+                      <div className="min-w-0">
+                        <p className="t-body-strong text-ink-1">
+                          {copy.labels.notificationChannel[n.channel]}
+                        </p>
+                        <p className="t-caption text-ink-4">
+                          {n.template_code
+                            ? (copy.notificationTemplates[
+                                n.template_code as keyof typeof copy.notificationTemplates
+                              ] ?? copy.notifications.genericMessage)
+                            : copy.notifications.genericMessage}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <StatusChip tone={NOTIFICATION_TONE[n.status]}>
+                          {copy.labels.notificationStatus[n.status]}
+                        </StatusChip>
+                        <p className="t-caption text-ink-4">
+                          {relative(n.sent_at ?? n.created_at)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <Pagination
+                  total={notificationsQuery.data?.total ?? 0}
+                  limit={NOTIF_PAGE_SIZE}
+                  offset={notifPage * NOTIF_PAGE_SIZE}
+                  onOffsetChange={(next) => setNotifPage(Math.floor(next / NOTIF_PAGE_SIZE))}
+                  busy={notificationsQuery.isFetching}
+                />
+              </>
+            )}
+          </DataSection>
+        )}
+      </div>
 
       <Panel open={selected !== null} onClose={() => setSelected(null)} title={panelTitle}>
         {selected?.kind === "conversation" ? (

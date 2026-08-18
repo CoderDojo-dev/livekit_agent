@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Button,
@@ -215,6 +215,10 @@ function ProfilePage() {
             </div>
           </Card>
         ) : null}
+
+        <Link to="/security" className="t-caption text-ink-3 hover:text-ink-1 focus-ring">
+          {copy.profile.sessionsMoved}
+        </Link>
       </div>
     </div>
   );

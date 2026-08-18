@@ -207,7 +207,7 @@ function SecurityScreen() {
               {copy.security.sessions}
             </SectionLabel>
             {sessions.length === 0 ? (
-              <p className="t-caption mt-sp-6 text-ink-5">{copy.empty.generic}</p>
+              <p className="t-caption mt-sp-6 text-ink-5">{copy.security.sessionsEmpty}</p>
             ) : (
               <ul className="mt-sp-6 divide-y divide-stroke-subtle">
                 {sessions.map((s, i) => {

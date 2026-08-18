@@ -132,6 +132,10 @@ export const copy = {
       conversations: "Conversations",
       requests: "Requests",
       callbacks: "Callbacks",
+      secondary: {
+        calls: "Calls",
+        messages: "Messages",
+      },
     },
     search: "Search activity",
     duration: "duration",
@@ -158,7 +162,7 @@ export const copy = {
     timeline: "TIMELINE",
     empty: {
       title: "No requests here",
-      body: "When you open a request with the assistant, it appears here.",
+      body: "No requests open. If something is wrong, ask the assistant and it can raise one for you.",
       action: "Show all requests",
     },
   },
@@ -168,6 +172,49 @@ export const copy = {
     overAllowance: "You are over your monthly allowance.",
     renews: (date: string) => `Renews on ${date}`,
     activeSince: (date: string) => `Active since ${date}`,
+    tiles: {
+      credit: "Credit",
+      data: "Data remaining",
+      plan: "Your plan",
+    },
+    balanceTypes: {
+      main: "Credit",
+      data: "Data",
+      voice: "Calls",
+      sms: "Messages",
+    },
+    balanceStatus: {
+      active: "Active",
+      expired: "Expired",
+      suspended: "Suspended",
+    },
+    balancesEmpty: {
+      title: "No balances yet",
+      body: "No balances on your line yet.",
+    },
+    subscriptions: "Subscriptions",
+    subscriptionsEmpty: {
+      title: "No subscriptions yet",
+      body: "No active subscriptions on your account.",
+    },
+    expires: "Expires",
+    recharges: "Recent top-ups",
+    rechargesEmpty: {
+      title: "No top-ups yet",
+      body: "No top-ups in the last few months.",
+    },
+    rechargeChannels: {
+      app: "Mobile app",
+      web: "Online",
+      ussd: "USSD",
+      scratch_card: "Scratch card",
+      agent: "In store",
+    },
+    rechargeStatus: {
+      pending: "Pending",
+      completed: "Done",
+      failed: "Did not complete",
+    },
   },
   billing: {
     amountDue: "AMOUNT DUE",
@@ -180,7 +227,7 @@ export const copy = {
     due: "DUE",
     noInvoices: {
       title: "No invoices yet",
-      body: "Every invoice appears here as soon as one is issued.",
+      body: "Postpaid invoices appear here after your first billing cycle.",
     },
     noRecharges: {
       title: "No recharges yet",
@@ -246,6 +293,7 @@ export const copy = {
     save: "Save changes",
     saved: "Profile updated",
     customerSince: (date: string) => `Customer since ${date}`,
+    sessionsMoved: "Manage where you are signed in ->",
     fields: {
       fullName: "Full name",
       preferredName: "Preferred name",
@@ -310,6 +358,7 @@ export const copy = {
     thisDevice: "This device",
     signOutAll: "Sign out of every device",
     signedIn: "Signed in",
+    sessionsEmpty: "Only this device is signed in.",
   },
   about: {
     tagline: "Voice support that respects your time.",
@@ -362,8 +411,16 @@ export const copy = {
   empty: {
     activityA: {
       title: "No activity yet",
-      body: "When you talk to the assistant, every conversation appears here so you can come back to it.",
+      body: "No calls yet. Start one from the Assistant tab and it will appear here.",
       action: "Start your first conversation",
+    },
+    callbacks: {
+      title: "No callbacks scheduled",
+      body: "The assistant can arrange one at a time that suits you.",
+    },
+    notifications: {
+      title: "No messages from us recently",
+      body: "Alerts about your line appear here.",
     },
     filtered: {
       title: "Nothing matches",
@@ -443,7 +500,7 @@ export const copy = {
   notifications: {
     heading: "RECENT MESSAGES",
     genericMessage: "A message about your account",
-    empty: "Nothing new.",
+    empty: "No messages from us recently. Alerts about your line appear here.",
   },
   errors: {
     notFoundTitle: "We could not find that page",
