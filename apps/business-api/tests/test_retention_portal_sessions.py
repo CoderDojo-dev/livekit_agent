@@ -10,9 +10,8 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import delete, or_
-
 from business_api.jobs.retention import _SESSION_GRACE_DAYS, run_retention
+from sqlalchemy import delete, or_
 
 from persistence.models.conversation import CallSession, Turn
 from persistence.models.portal_identity import PortalAccount, PortalSession

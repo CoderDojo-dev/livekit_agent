@@ -19,6 +19,7 @@ from persistence.models import (
 )
 
 __all__ = [
+    "AgentUsageEvent",
     "audit",
     "auth",
     "billing",
@@ -35,6 +36,5 @@ __all__ = [
     "routing",
     "sim",
     "ticketing",
-    "AgentUsageEvent",
 ]
 from persistence.models.conversation import AgentUsageEvent

@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from business_api.kpis import Kpis, compute_kpis
 from persistence.models.billing import Account, Invoice, Notification, Payment, PaymentPlan
-from persistence.models.conversation import AgentUsageEvent, CallSession, EscalationCase, SentimentSample, Turn
+from persistence.models.conversation import (
+    AgentUsageEvent,
+    CallSession,
+    EscalationCase,
+    SentimentSample,
+    Turn,
+)
 from persistence.models.crm import ConsentRecord, Customer, Subscription
 from persistence.models.execution import ActionLedger
 from persistence.models.ocs import BalanceAccount, Recharge
@@ -1095,9 +1101,13 @@ class SupervisionRepository:
             usage = self._s.execute(select(func.sum(AgentUsageEvent.input_tokens), func.sum(AgentUsageEvent.output_tokens), func.count(func.distinct(AgentUsageEvent.session_id))).where(AgentUsageEvent.agent == agent, AgentUsageEvent.occurred_at >= since)).one()
             daily_rows = self._s.execute(select(func.date(CallSession.start_time).label("day"), func.coalesce(func.sum(CallSession.duration_seconds), 0)).where(CallSession.start_time >= since, CallSession.id.in_(session_ids)).group_by(func.date(CallSession.start_time)).order_by(func.date(CallSession.start_time))).all()
             sessions, seconds = int(stats[0] or 0), int(stats[1] or 0)
-            inp = int(usage[0]) if usage[0] is not None else None; out = int(usage[1]) if usage[1] is not None else None
+            inp = int(usage[0]) if usage[0] is not None else None
+            out = int(usage[1]) if usage[1] is not None else None
             result.append({"agent": agent, "sessions": sessions, "duration_seconds": seconds, "average_duration_seconds": float(stats[2]) if stats[2] is not None else None, "last_seen": stats[3].isoformat() if stats[3] else None, "input_tokens": inp, "output_tokens": out, "total_tokens": inp + out if inp is not None and out is not None else None, "token_sessions": int(usage[2] or 0), "coverage": "available" if usage[2] == sessions and sessions else ("partial" if usage[2] else "unavailable"), "daily": [{"day": str(r[0]), "duration_seconds": int(r[1])} for r in daily_rows]})
-            total_sessions += sessions; total_seconds += seconds; total_input += inp or 0; total_output += out or 0
+            total_sessions += sessions
+            total_seconds += seconds
+            total_input += inp or 0
+            total_output += out or 0
         return {"window_days": window_days, "total_sessions": total_sessions, "total_duration_seconds": total_seconds, "input_tokens": total_input if any(r["input_tokens"] is not None for r in result) else None, "output_tokens": total_output if any(r["output_tokens"] is not None for r in result) else None, "agents": sorted(result, key=lambda r: r["duration_seconds"], reverse=True), "token_history": "forward_only_no_backfill"}
 
     def audit_entries(self, limit: int = 50, before_seq: int | None = None,
