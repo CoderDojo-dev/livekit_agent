@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { copy } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
-import { fetchProfile360, type Subscription360 } from "@/lib/api/me.server";
+import { fetchProfile360 } from "@/lib/api/me.server";
 import { fetchBalance, type BalanceItem, type RechargeItem } from "@/lib/api/billing.server";
 import { date, dateTime, money, quantity } from "@/lib/format";
 import { Card, StatusChip } from "@/components/portal/primitives";
-import { DataSection, MetricTile } from "@/components/portal/data";
+import { DataSection, MetricTile, PageSection } from "@/components/portal/data";
 
 export const Route = createFileRoute("/_portal/services")({
   head: () => ({
@@ -27,59 +27,25 @@ export const Route = createFileRoute("/_portal/services")({
   component: ServicesScreen,
 });
 
-// The API returns main credit, data, voice and SMS. Order is presentation
-// priority, not API order.
+/* Balance types in the order a customer thinks about them: money first, then
+ * the bundles that money bought. Anything the OCS invents later sorts last
+ * instead of vanishing - the version_94 data-only filter is exactly the bug
+ * this ordering replaces. */
 const BALANCE_ORDER: Array<BalanceItem["balance_type"]> = ["main", "data", "voice", "sms"];
 
-type BalanceGroup = {
-  type: BalanceItem["balance_type"];
-  label: string;
-  items: BalanceItem[];
-};
-
-function groupBalances(items: BalanceItem[]): BalanceGroup[] {
-  return BALANCE_ORDER.map((type) => ({
-    type,
-    label: copy.services.balanceTypes[type],
-    items: items.filter((b) => b.balance_type === type),
-  })).filter((group) => group.items.length > 0);
+function orderBalances(items: BalanceItem[]): BalanceItem[] {
+  return [...items].sort((a, b) => {
+    const ai = BALANCE_ORDER.indexOf(a.balance_type);
+    const bi = BALANCE_ORDER.indexOf(b.balance_type);
+    return (ai < 0 ? BALANCE_ORDER.length : ai) - (bi < 0 ? BALANCE_ORDER.length : bi);
+  });
 }
 
+/** Main balance is currency; every other type is a metered quantity. */
 function balanceValue(item: BalanceItem): string {
-  if (item.value == null) return "-";
-  // TND is money and must carry the currency code; GB/MB/MIN/SMS are counts
-  // and must not be formatted as money.
-  return item.unit === "TND" ? money(item.value) : quantity(item.value, item.unit);
-}
-
-const BALANCE_TONE: Record<BalanceItem["status"], "outline" | "muted" | "dashed"> = {
-  active: "outline",
-  expired: "muted",
-  suspended: "dashed",
-};
-
-const RECHARGE_TONE: Record<RechargeItem["status"], "dashed" | "outline" | "muted"> = {
-  pending: "dashed",
-  completed: "outline",
-  failed: "muted",
-};
-
-function SubscriptionCards({ items }: { items: Subscription360[] }) {
-  return (
-    <div className="grid gap-sp-6 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((sub) => (
-        <Card key={sub.subscription_id}>
-          <div className="flex items-start justify-between gap-sp-5">
-            <div className="min-w-0">
-              <div className="t-metric-l truncate text-ink-1">{sub.plan ?? "—"}</div>
-              <div className="t-mono-s mt-sp-4 text-ink-5">{sub.msisdn ?? "—"}</div>
-            </div>
-            {sub.status ? <StatusChip tone="solid">{sub.status}</StatusChip> : null}
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
+  return item.balance_type === "main" && item.unit === "TND"
+    ? money(item.value, "TND")
+    : quantity(item.value, item.unit);
 }
 
 function ServicesScreen() {
@@ -89,122 +55,171 @@ function ServicesScreen() {
   const profileQuery = useQuery({
     queryKey: qk.profile360(cid),
     queryFn: () => fetchProfile360(),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
   const balanceQuery = useQuery({
     queryKey: qk.balance(cid),
     queryFn: () => fetchBalance(),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
 
-  // No early return. Each section owns its own pending and error state, so a
-  // failing balance request can never hide the plan, and a slow profile can
-  // never blank the page.
-  const balances = balanceQuery.data?.balances ?? [];
-  const recharges = balanceQuery.data?.recharges ?? [];
   const subscriptions = profileQuery.data?.subscriptions ?? [];
-  const groups = groupBalances(balances);
-  const credit = balances.find((b) => b.balance_type === "main");
-  const data = balances.find((b) => b.balance_type === "data");
-  const plan = subscriptions[0]?.plan;
+  const balances = orderBalances(balanceQuery.data?.balances ?? []);
+  const recharges = balanceQuery.data?.recharges ?? [];
+  const main = balances.find((b) => b.balance_type === "main");
+  const activeLines = subscriptions.filter((s) => s.status === "active").length;
 
   return (
-    <div className="flex flex-col gap-sp-8">
-      <div className="grid grid-cols-1 gap-sp-4 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricTile
-          label={copy.services.tiles.credit}
-          value={credit ? balanceValue(credit) : "-"}
-          pending={balanceQuery.isPending}
-        />
-        <MetricTile
-          label={copy.services.tiles.data}
-          value={data ? balanceValue(data) : "-"}
-          pending={balanceQuery.isPending}
-        />
-        <MetricTile
-          label={copy.services.tiles.plan}
-          value={plan ?? "-"}
-          pending={profileQuery.isPending}
-        />
-      </div>
+    <div className="space-y-sp-9">
+      <PageSection>
+        <Card>
+          <div className="grid gap-sp-7 sm:grid-cols-3">
+            <MetricTile
+              label={copy.services.tiles.credit}
+              value={main ? balanceValue(main) : copy.common.notApplicable}
+              hint={main?.expires_on ? copy.services.expires(date(main.expires_on)) : undefined}
+              size="xl"
+              pending={balanceQuery.isPending}
+            />
+            <MetricTile
+              label={copy.services.tiles.lines}
+              value={String(activeLines)}
+              hint={
+                subscriptions.length > activeLines
+                  ? copy.services.tiles.linesHint(subscriptions.length)
+                  : undefined
+              }
+              size="l"
+              pending={profileQuery.isPending}
+            />
+            <MetricTile
+              label={copy.services.tiles.plan}
+              value={subscriptions[0]?.plan ?? copy.common.notApplicable}
+              hint={subscriptions[0]?.msisdn ?? undefined}
+              size="l"
+              pending={profileQuery.isPending}
+            />
+          </div>
+        </Card>
+      </PageSection>
 
       <DataSection
-        label={copy.services.balances}
-        state={balanceQuery}
-        items={groups}
-        empty={copy.services.balancesEmpty}
-        onRetry={() => void balanceQuery.refetch()}
+        label={copy.services.plan}
+        state={{
+          isPending: profileQuery.isPending,
+          isFetching: profileQuery.isFetching,
+          isPlaceholderData: profileQuery.isPlaceholderData,
+          error: profileQuery.error,
+        }}
+        items={subscriptions}
+        skeletonRows={2}
+        empty={{
+          title: copy.services.subscriptionsEmpty.title,
+          body: copy.services.subscriptionsEmpty.body,
+        }}
+        onRetry={() => void profileQuery.refetch()}
       >
-        {(groups) => (
-          <div className="flex flex-col gap-sp-6">
-            {groups.map((group) => (
-              <section key={group.type}>
-                <h3 className="t-label text-ink-4">{group.label}</h3>
-                <ul className="mt-sp-3 grid grid-cols-1 gap-sp-3 lg:grid-cols-2">
-                  {group.items.map((item, i) => (
-                    <li
-                      key={`${item.msisdn ?? "na"}-${i}`}
-                      className="portal-section flex items-baseline justify-between gap-sp-4"
-                    >
-                      <div className="min-w-0">
-                        <p className="t-body-l text-ink-1">{balanceValue(item)}</p>
-                        {item.msisdn ? <p className="t-caption text-ink-4">{item.msisdn}</p> : null}
-                      </div>
-                      <div className="text-right">
-                        <StatusChip tone={BALANCE_TONE[item.status]}>
-                          {copy.services.balanceStatus[item.status]}
-                        </StatusChip>
-                        {item.expires_on ? (
-                          <p className="t-caption text-ink-4">
-                            {copy.services.expires} {date(item.expires_on)}
-                          </p>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+        {(items) => (
+          <div className="grid gap-sp-6 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((sub) => (
+              <Card key={sub.subscription_id}>
+                <div className="flex items-start justify-between gap-sp-5">
+                  <div className="min-w-0">
+                    <div className="t-metric-l truncate text-ink-1">{sub.plan ?? "—"}</div>
+                    <div className="t-mono-s mt-sp-4 text-ink-5">{sub.msisdn ?? "—"}</div>
+                  </div>
+                  {sub.status ? <StatusChip tone="solid">{sub.status}</StatusChip> : null}
+                </div>
+              </Card>
             ))}
           </div>
         )}
       </DataSection>
 
-      <DataSection
-        label={copy.services.subscriptions}
-        state={profileQuery}
-        items={subscriptions}
-        empty={copy.services.subscriptionsEmpty}
-        onRetry={() => void profileQuery.refetch()}
+      <DataSection<BalanceItem>
+        label={copy.services.balances}
+        state={{
+          isPending: balanceQuery.isPending,
+          isFetching: balanceQuery.isFetching,
+          isPlaceholderData: balanceQuery.isPlaceholderData,
+          error: balanceQuery.error,
+        }}
+        items={balances}
+        skeletonRows={3}
+        empty={{
+          title: copy.services.balancesEmpty.title,
+          body: copy.services.balancesEmpty.body,
+        }}
+        onRetry={() => void balanceQuery.refetch()}
       >
-        {(items) => <SubscriptionCards items={items} />}
+        {(items) => (
+          <div className="grid gap-sp-6 sm:grid-cols-2">
+            {items.map((b, i) => (
+              <div
+                key={b.msisdn + b.balance_type + i}
+                className="rounded-r-3 border border-stroke-subtle p-sp-6"
+              >
+                <div className="flex items-center justify-between gap-sp-5">
+                  <span className="t-micro-2 text-ink-5">
+                    {copy.labels.balanceType[b.balance_type]}
+                  </span>
+                  <StatusChip tone={b.status === "active" ? "outline" : "muted"}>
+                    {b.status}
+                  </StatusChip>
+                </div>
+                <div className="t-metric-l mt-sp-5 text-ink-1">{balanceValue(b)}</div>
+                <div className="t-caption mt-sp-2 text-ink-4">
+                  {b.msisdn ?? "—"}
+                  {b.expires_on ? ` · ${copy.services.expires(date(b.expires_on))}` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </DataSection>
 
-      <DataSection
+      <DataSection<RechargeItem>
         label={copy.services.recharges}
-        state={balanceQuery}
+        state={{
+          isPending: balanceQuery.isPending,
+          isFetching: balanceQuery.isFetching,
+          isPlaceholderData: balanceQuery.isPlaceholderData,
+          error: balanceQuery.error,
+        }}
         items={recharges}
-        empty={copy.services.rechargesEmpty}
+        skeletonRows={3}
+        empty={{
+          title: copy.services.rechargesEmpty.title,
+          body: copy.services.rechargesEmpty.body,
+        }}
         onRetry={() => void balanceQuery.refetch()}
       >
         {(items) => (
           <ul className="divide-y divide-stroke-subtle">
             {items.map((r, i) => (
               <li
-                key={`${r.created_at ?? "na"}-${i}`}
-                className="flex items-baseline justify-between gap-sp-4 py-sp-3"
+                key={(r.msisdn ?? "na") + (r.created_at ?? "na") + i}
+                className="flex items-center justify-between gap-sp-5 py-sp-6 first:pt-0 last:pb-0"
               >
                 <div className="min-w-0">
-                  <p className="t-body text-ink-1">{money(r.amount ?? 0)}</p>
-                  <p className="t-caption text-ink-4">
-                    {copy.services.rechargeChannels[r.channel]}
-                    {r.bonus_amount ? ` - includes ${money(r.bonus_amount)} bonus` : ""}
-                  </p>
+                  <div className="t-body-strong text-ink-1">
+                    {money(r.amount)}
+                    {r.bonus_amount ? (
+                      <span className="t-caption text-ink-4">
+                        {" "}
+                        {copy.billing.bonus(money(r.bonus_amount))}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="t-caption mt-sp-1 truncate text-ink-5">
+                    {r.msisdn ?? "—"} · {copy.labels.rechargeChannel[r.channel]}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <StatusChip tone={RECHARGE_TONE[r.status]}>
-                    {copy.services.rechargeStatus[r.status]}
-                  </StatusChip>
-                  <p className="t-caption text-ink-4">{dateTime(r.created_at)}</p>
+                <div className="shrink-0 text-right">
+                  <div className="t-ui text-ink-3">{r.status}</div>
+                  <div className="t-mono-s mt-sp-1 text-ink-5">{dateTime(r.created_at)}</div>
                 </div>
               </li>
             ))}

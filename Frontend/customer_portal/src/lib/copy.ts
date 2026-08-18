@@ -174,53 +174,28 @@ export const copy = {
     activeSince: (date: string) => `Active since ${date}`,
     tiles: {
       credit: "Credit",
-      data: "Data remaining",
-      plan: "Your plan",
+      lines: "Active lines",
+      linesHint: (total: number) => `of ${total} total`,
+      plan: "Plan",
     },
-    balanceTypes: {
-      main: "Credit",
-      data: "Data",
-      voice: "Calls",
-      sms: "Messages",
-    },
-    balanceStatus: {
-      active: "Active",
-      expired: "Expired",
-      suspended: "Suspended",
-    },
+    expires: (on: string) => `expires ${on}`,
+    recharges: "Top-ups",
     balancesEmpty: {
       title: "No balances yet",
-      body: "No balances on your line yet.",
+      body: "Balances appear here once your line is active. If you expect credit, ask the assistant to check the line.",
     },
-    subscriptions: "Subscriptions",
-    subscriptionsEmpty: {
-      title: "No subscriptions yet",
-      body: "No active subscriptions on your account.",
-    },
-    expires: "Expires",
-    recharges: "Recent top-ups",
     rechargesEmpty: {
       title: "No top-ups yet",
-      body: "No top-ups in the last few months.",
+      body: "Top-ups you make by app, web, USSD, scratch card or at an agent appear here with any bonus credit.",
     },
-    rechargeChannels: {
-      app: "Mobile app",
-      web: "Online",
-      ussd: "USSD",
-      scratch_card: "Scratch card",
-      agent: "In store",
-    },
-    rechargeStatus: {
-      pending: "Pending",
-      completed: "Done",
-      failed: "Did not complete",
+    subscriptionsEmpty: {
+      title: "No lines on this account",
+      body: "If you have a line that is missing here, open a request and we will connect it to your account.",
     },
   },
   billing: {
     amountDue: "AMOUNT DUE",
     invoices: "INVOICES",
-    balances: "BALANCES",
-    recharges: "RECHARGE HISTORY",
     bonus: (n: string) => `Plus ${n} bonus`,
     total: "TOTAL",
     issued: "ISSUED",
@@ -229,16 +204,16 @@ export const copy = {
       title: "No invoices yet",
       body: "Postpaid invoices appear here after your first billing cycle.",
     },
-    noRecharges: {
-      title: "No recharges yet",
-      body: "When you top up, the record appears here.",
-    },
+    prepaidPointer: "Your prepaid credit, bundles and top-ups live in Services.",
+    prepaidPointerAction: "Open Services",
   },
   help: {
     browse: "BROWSE BY TOPIC",
     stillStuck: "STILL NEED HELP?",
     contactBody:
       "The assistant can answer most questions instantly, and hand you to a specialist when it cannot.",
+    talkToAssistant: "Talk to the assistant",
+    openRequest: "Open a request",
     topics: {
       plan: {
         title: "Plans and subscriptions",
@@ -434,6 +409,7 @@ export const copy = {
     tryAgain: "Try again",
     close: "Close",
     loading: "Loading",
+    notApplicable: "\u2014",
     couldNotLoad: "We could not load this",
     pagination: "Pages",
     previous: "Previous page",

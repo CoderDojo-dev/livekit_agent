@@ -357,13 +357,15 @@ def billing(
         return {
             "accounts": [],
             "total_outstanding": 0.0,
+            "next_due_date": None,
             "currency_code": "",
             "invoices": {"total": 0, "limit": size, "offset": start, "items": []},
             "payments": [],
         }
 
     # Whole-account figures must not follow the invoice page: an outstanding
-    # balance computed from 20 visible rows would understate what is owed.
+    # balance or a next-due date computed from 20 visible rows would misstate
+    # what is owed and when.
     totals_stmt = select(
         func.count(Invoice.id),
         func.coalesce(
@@ -378,8 +380,18 @@ def billing(
             ),
             0,
         ),
+        # Earliest due date still owing, across every account invoice.
+        func.min(
+            case(
+                (
+                    Invoice.status.notin_(_EXCLUDED_OUTSTANDING),
+                    Invoice.due_date,
+                ),
+                else_=None,
+            )
+        ),
     ).where(Invoice.account_id.in_(account_ids))
-    invoice_total, outstanding_sum = session.execute(totals_stmt).one()
+    invoice_total, outstanding_sum, next_due_date = session.execute(totals_stmt).one()
 
     invoice_rows = session.execute(
         select(
@@ -467,6 +479,7 @@ def billing(
         ],
         # Account-wide, deliberately independent of the invoice page below.
         "total_outstanding": _num(outstanding_sum) or 0.0,
+        "next_due_date": _iso(next_due_date),
         "currency_code": currency_code,
         "invoices": {
             "total": int(invoice_total or 0),
@@ -591,7 +604,7 @@ def notifications(
             Notification.created_at,
         )
         .where(Notification.customer_id == customer_id)
-        .order_by(Notification.created_at.desc())
+        .order_by(Notification.created_at.desc(), Notification.id.asc())
         .offset(start)
         .limit(size)
     ).all()
@@ -644,7 +657,7 @@ def callbacks(
             CallbackSchedule.completed_at,
         )
         .where(CallbackSchedule.customer_id == customer_id)
-        .order_by(CallbackSchedule.scheduled_time.desc())
+        .order_by(CallbackSchedule.scheduled_time.desc(), CallbackSchedule.id.asc())
         .offset(start)
         .limit(size)
     ).all()

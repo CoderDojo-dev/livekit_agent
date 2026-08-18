@@ -17,6 +17,15 @@ from observability_kit import record_ttfa, record_ttft
 logger = logging.getLogger(__name__)
 
 
+def _token_count(metric: object, primary: str, fallback: str) -> int | None:
+    value = getattr(metric, primary, None)
+    if value is None:
+        value = getattr(metric, fallback, None)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
 def attach_metrics(session, writer=None):
     """Wire usage collection + TTFA/TTFT logging/export onto ``session``; return a shutdown callback."""
     usage_collector = metrics.UsageCollector()
@@ -30,24 +39,22 @@ def attach_metrics(session, writer=None):
             last_eou_metrics["value"] = metric
         if metric_type == "llm_metrics":
             ttft = getattr(metric, "ttft", None)
-            if ttft:
-                record_ttft(float(ttft))  # export time-to-first-token
-            inp = getattr(metric, "prompt_tokens", None)
-            if inp is None: inp = getattr(metric, "input_tokens", None)
-            out = getattr(metric, "completion_tokens", None)
-            if out is None: out = getattr(metric, "output_tokens", None)
-            if writer is not None and isinstance(inp, int) and isinstance(out, int):
-                try: agent = type(session.current_agent).__name__
-                except Exception: agent = "UnknownAgent"
-                writer.record_llm_usage(agent=agent, input_tokens=inp, output_tokens=out, provider=getattr(metric, "provider", None), model=getattr(metric, "model_name", None))
-            inp = getattr(metric, "prompt_tokens", None)
-            if inp is None: inp = getattr(metric, "input_tokens", None)
-            out = getattr(metric, "completion_tokens", None)
-            if out is None: out = getattr(metric, "output_tokens", None)
-            if writer is not None and isinstance(inp, int) and isinstance(out, int):
-                try: agent = type(session.current_agent).__name__
-                except Exception: agent = "UnknownAgent"
-                writer.record_llm_usage(agent=agent, input_tokens=inp, output_tokens=out, provider=getattr(metric, "provider", None), model=getattr(metric, "model_name", None))
+            if isinstance(ttft, (int, float)) and not isinstance(ttft, bool) and ttft > 0:
+                record_ttft(float(ttft))
+            input_tokens = _token_count(metric, "prompt_tokens", "input_tokens")
+            output_tokens = _token_count(metric, "completion_tokens", "output_tokens")
+            if writer is not None and input_tokens is not None and output_tokens is not None:
+                try:
+                    persona = type(session.current_agent).__name__
+                except Exception:
+                    persona = "UnknownAgent"
+                writer.record_llm_usage(
+                    agent=persona,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    provider=getattr(metric, "provider", None),
+                    model=getattr(metric, "model_name", None),
+                )
         metrics.log_metrics(metric)
         usage_collector.collect(metric)
 

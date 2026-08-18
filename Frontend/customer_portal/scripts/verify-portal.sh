@@ -26,4 +26,25 @@ check "no min. 8 characters"        "min\. 8|minLength=\{8\}"                   
 # Raw enum values must only appear inside label maps, never in a route file.
 check "no raw enums in routes"      "in_progress|network_complaint|scratch_card|pre-connect-buffering" "src/routes"
 
+# 13. Any projection that reports an offset must apply one. A function that
+#     resolves _page(limit, offset) and never calls .offset() is the version_94
+#     notifications()/callbacks() bug.
+if grep -n "_page(limit, offset)" ../../apps/business-api/src/business_api/me_reads.py >/dev/null; then
+  missing=$(python3 - <<'PY'
+import re, pathlib
+src = pathlib.Path("../../apps/business-api/src/business_api/me_reads.py").read_text()
+bad = []
+for block in re.split(r"\ndef ", src):
+    if "_page(limit, offset)" in block and ".offset(start)" not in block:
+        bad.append(block.split("(")[0].strip())
+print(",".join(bad))
+PY
+)
+  if [ -n "$missing" ]; then
+    echo "FAIL 13: these readers resolve a page window but never apply it: $missing"
+    exit 1
+  fi
+fi
+echo "PASS 13: every paged reader applies its offset"
+
 exit "$fail"

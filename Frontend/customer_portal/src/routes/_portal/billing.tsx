@@ -1,19 +1,13 @@
-import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { copy } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { fetchBalance, fetchBilling, type InvoiceItem } from "@/lib/api/billing.server";
-import { date, dateTime, money, quantity } from "@/lib/format";
+import { date, money } from "@/lib/format";
 import type { Paged } from "@/lib/api/activity.server";
-import {
-  Card,
-  Divider,
-  EmptyState,
-  SectionLabel,
-  StatusChip,
-} from "@/components/portal/primitives";
+import { Card, Divider, SectionLabel, StatusChip } from "@/components/portal/primitives";
 import {
   DataSection,
   ErrorState,
@@ -22,8 +16,6 @@ import {
   PageSection,
   Pagination,
   Panel,
-  SkeletonList,
-  SkeletonMetric,
 } from "@/components/portal/data";
 
 export const Route = createFileRoute("/_portal/billing")({
@@ -86,57 +78,30 @@ function BillingScreen() {
 
   const billing = billingQuery.data;
   const balance = balanceQuery.data ?? { balances: [], recharges: [] };
+  // Postpaid is unknown until the payload lands. Rendering the invoice section
+  // during load is correct: DataSection owns the skeleton, and a customer with
+  // no accounts sees it collapse once, not a page that rebuilds itself.
+  const postpaid = billing ? billing.accounts.length > 0 : true;
   const hasBalances = balance.balances.length > 0;
 
   const invoices = billing?.invoices.items ?? [];
   const invoiceTotal = billing?.invoices.total ?? 0;
 
-  const nextDue = useMemo(() => {
-    const dues = invoices
-      .filter((i) => i.status !== "paid" && i.status !== "void")
-      .map((i) => i.due_date)
-      .filter((d): d is string => Boolean(d))
-      .sort();
-    return dues[0];
-  }, [invoices]);
-
-  if (billingQuery.isPending || balanceQuery.isPending) {
-    return (
-      <div className="space-y-sp-9">
-        <PageSection>
-          <Card>
-            <SkeletonMetric />
-          </Card>
-        </PageSection>
-        <PageSection label={copy.billing.invoices}>
-          <Card>
-            <SkeletonList rows={4} />
-          </Card>
-        </PageSection>
-      </div>
-    );
-  }
-
-  if (billingQuery.isError || !billing) {
-    return (
-      <Card>
-        <ErrorState error={billingQuery.error} onRetry={() => void billingQuery.refetch()} />
-      </Card>
-    );
-  }
-
-  const postpaid = billing.accounts.length > 0;
-
   return (
     <div className="space-y-sp-9">
       <PageSection>
         <Card>
-          <MetricTile
-            size="xl"
-            label={copy.billing.amountDue}
-            value={money(billing.total_outstanding, billing.currency_code)}
-            hint={nextDue ? date(nextDue) : undefined}
-          />
+          {billingQuery.isError ? (
+            <ErrorState error={billingQuery.error} onRetry={() => void billingQuery.refetch()} />
+          ) : (
+            <MetricTile
+              size="xl"
+              pending={billingQuery.isPending}
+              label={copy.billing.amountDue}
+              value={billing ? money(billing.total_outstanding, billing.currency_code) : ""}
+              hint={billing?.next_due_date ? date(billing.next_due_date) : undefined}
+            />
+          )}
         </Card>
       </PageSection>
 
@@ -194,69 +159,20 @@ function BillingScreen() {
       )}
 
       {hasBalances && (
-        <PageSection label={copy.billing.balances}>
-          <div className="grid gap-sp-6 sm:grid-cols-2">
-            {balance.balances.map((b, i) => (
-              <Card key={`${b.msisdn}-${b.balance_type}-${i}`}>
-                <div className="flex items-center justify-between gap-sp-5">
-                  <div className="t-caption text-ink-5">{b.msisdn ?? "—"}</div>
-                  <StatusChip tone={b.status === "active" ? "outline" : "muted"}>
-                    {b.status}
-                  </StatusChip>
-                </div>
-                <div className="t-metric-l mt-sp-5 text-ink-1">{quantity(b.value, b.unit)}</div>
-                <div className="t-caption mt-sp-2 text-ink-4">
-                  {copy.labels.balanceType[b.balance_type] ?? b.balance_type}
-                  {b.expires_on ? ` · expires ${date(b.expires_on)}` : ""}
-                </div>
-              </Card>
-            ))}
-          </div>
+        <PageSection>
+          <Card className="flex items-center justify-between gap-sp-6">
+            <p className="t-caption max-w-md text-ink-4">{copy.billing.prepaidPointer}</p>
+            <Link
+              to="/services"
+              className="focus-ring t-ui shrink-0 rounded-r-2 px-sp-5 py-sp-3 text-ink-2 transition-colors duration-200 hover:bg-surface-2 hover:text-ink-1"
+            >
+              {copy.billing.prepaidPointerAction}
+            </Link>
+          </Card>
         </PageSection>
       )}
 
-      {hasBalances && (
-        <PageSection label={copy.billing.recharges}>
-          {balance.recharges.length === 0 ? (
-            <EmptyState
-              title={copy.billing.noRecharges.title}
-              body={copy.billing.noRecharges.body}
-            />
-          ) : (
-            <Card>
-              <ul className="divide-y divide-stroke-subtle">
-                {balance.recharges.map((r, i) => (
-                  <li
-                    key={`${r.msisdn}-${i}`}
-                    className="flex items-center justify-between gap-sp-5 py-sp-5 first:pt-0 last:pb-0"
-                  >
-                    <div className="min-w-0">
-                      <div className="t-body-strong text-ink-1">
-                        {money(r.amount)}
-                        {r.bonus_amount ? (
-                          <span className="t-caption text-ink-4">
-                            {" "}
-                            {copy.billing.bonus(money(r.bonus_amount))}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="t-caption text-ink-5">
-                        {r.msisdn ?? "—"} · {copy.labels.rechargeChannel[r.channel] ?? r.channel}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="t-ui text-ink-3">{r.status}</div>
-                      <div className="t-mono-s mt-sp-1 text-ink-5">{dateTime(r.created_at)}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-        </PageSection>
-      )}
-
-      {!postpaid && !hasBalances && (
+      {!billingQuery.isPending && !balanceQuery.isPending && !postpaid && !hasBalances && (
         <Card>
           <p className="t-caption text-ink-5">{copy.empty.generic}</p>
         </Card>

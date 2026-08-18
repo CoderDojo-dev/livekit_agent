@@ -48,7 +48,7 @@ function HelpScreen() {
                 <div className="min-w-0">
                   <p className="t-body-l text-ink-1">{t.title}</p>
                   <p className="t-caption mt-sp-2 text-ink-4">{t.body}</p>
-                  <span className="t-caption text-ink-3 opacity-0 transition-opacity group-hover:opacity-100">
+                  <span className="t-caption mt-sp-2 block text-ink-5 transition-colors group-hover:text-ink-3">
                     {t.action}
                   </span>
                 </div>
@@ -67,6 +67,15 @@ function HelpScreen() {
             <div className="t-micro text-ink-5">{copy.help.stillStuck}</div>
             <p className="t-body mt-sp-3 max-w-xl text-ink-3">{copy.help.contactBody}</p>
           </div>
+        </div>
+        {/* Two real exits, in the order most customers want them. */}
+        <div className="flex shrink-0 gap-sp-4">
+          <Link to="/assistant">
+            <Button>{copy.help.talkToAssistant}</Button>
+          </Link>
+          <Link to="/requests">
+            <Button variant="secondary">{copy.help.openRequest}</Button>
+          </Link>
         </div>
       </Card>
     </div>

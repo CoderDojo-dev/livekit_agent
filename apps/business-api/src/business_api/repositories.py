@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -222,7 +223,6 @@ class SupervisionRepository:
             "address_lines": address_lines,
             "account_number": account_number,
             "customer_since": customer.created_at.isoformat() if customer.created_at else None,
-            "vip": customer.vip_flag,
             "status": customer.status,
             "plan": (subscription.plan_code or subscription.plan_type) if subscription else None,
             "msisdn": subscription.msisdn if subscription else None,
@@ -1088,27 +1088,212 @@ class SupervisionRepository:
         }
 
     def agent_activity(self, days: int = 30) -> dict:
-        """Truthful per-agent session duration and provider-reported token usage."""
-        from datetime import UTC, datetime, timedelta
-        window_days = max(1, min(int(days or 30), 365))
-        since = datetime.now(UTC) - timedelta(days=window_days)
-        agents = self._s.execute(select(Turn.active_agent).join(CallSession, CallSession.id == Turn.session_id).where(CallSession.start_time >= since, Turn.active_agent.isnot(None), Turn.active_agent != "").distinct()).scalars().all()
-        result = []
-        total_sessions = total_seconds = total_input = total_output = 0
-        for agent in agents:
-            session_ids = select(Turn.session_id).where(Turn.active_agent == agent).distinct()
-            stats = self._s.execute(select(func.count(CallSession.id), func.coalesce(func.sum(CallSession.duration_seconds), 0), func.avg(CallSession.duration_seconds), func.max(CallSession.start_time)).where(CallSession.start_time >= since, CallSession.id.in_(session_ids))).one()
-            usage = self._s.execute(select(func.sum(AgentUsageEvent.input_tokens), func.sum(AgentUsageEvent.output_tokens), func.count(func.distinct(AgentUsageEvent.session_id))).where(AgentUsageEvent.agent == agent, AgentUsageEvent.occurred_at >= since)).one()
-            daily_rows = self._s.execute(select(func.date(CallSession.start_time).label("day"), func.coalesce(func.sum(CallSession.duration_seconds), 0)).where(CallSession.start_time >= since, CallSession.id.in_(session_ids)).group_by(func.date(CallSession.start_time)).order_by(func.date(CallSession.start_time))).all()
-            sessions, seconds = int(stats[0] or 0), int(stats[1] or 0)
-            inp = int(usage[0]) if usage[0] is not None else None
-            out = int(usage[1]) if usage[1] is not None else None
-            result.append({"agent": agent, "sessions": sessions, "duration_seconds": seconds, "average_duration_seconds": float(stats[2]) if stats[2] is not None else None, "last_seen": stats[3].isoformat() if stats[3] else None, "input_tokens": inp, "output_tokens": out, "total_tokens": inp + out if inp is not None and out is not None else None, "token_sessions": int(usage[2] or 0), "coverage": "available" if usage[2] == sessions and sessions else ("partial" if usage[2] else "unavailable"), "daily": [{"day": str(r[0]), "duration_seconds": int(r[1])} for r in daily_rows]})
-            total_sessions += sessions
-            total_seconds += seconds
-            total_input += inp or 0
-            total_output += out or 0
-        return {"window_days": window_days, "total_sessions": total_sessions, "total_duration_seconds": total_seconds, "input_tokens": total_input if any(r["input_tokens"] is not None for r in result) else None, "output_tokens": total_output if any(r["output_tokens"] is not None for r in result) else None, "agents": sorted(result, key=lambda r: r["duration_seconds"], reverse=True), "token_history": "forward_only_no_backfill"}
+        """Truthful per-persona call attribution and provider token telemetry.
+
+        Five fixed set-based aggregations (no N+1): distinct (persona, call)
+        pairs from turns, per-persona call/duration rolls, per-persona token
+        rolls, and a global unique-call series. Windows are UTC half-open
+        ranges [midnight of oldest day, now). Durations are non-exclusive
+        attributed call durations: every persona observed in a call receives
+        that call's full persisted duration.
+        """
+        days = max(1, min(int(days), 365))
+        now = datetime.now(UTC)
+        from_day = now.date() - timedelta(days=days - 1)
+        from_ts = datetime.combine(from_day, time.min, tzinfo=UTC)
+        to_ts = now
+        day_keys = [
+            (from_day + timedelta(days=offset)).isoformat()
+            for offset in range(days)
+        ]
+
+        persona_calls = (
+            select(
+                Turn.active_agent.label("persona"),
+                Turn.session_id.label("session_id"),
+            )
+            .join(CallSession, CallSession.id == Turn.session_id)
+            .where(
+                CallSession.start_time >= from_ts,
+                CallSession.start_time < to_ts,
+                Turn.active_agent.isnot(None),
+                Turn.active_agent != "",
+            )
+            .distinct()
+            .cte("persona_calls")
+        )
+        call_day = func.date(func.timezone("UTC", CallSession.start_time))
+        token_day = func.date(func.timezone("UTC", AgentUsageEvent.occurred_at))
+
+        call_rows = self._s.execute(
+            select(
+                persona_calls.c.persona,
+                func.count().label("attributed_calls"),
+                func.count(CallSession.duration_seconds).label("completed_calls"),
+                func.coalesce(
+                    func.sum(CallSession.duration_seconds),
+                    0,
+                ).label("attributed_duration"),
+                func.avg(CallSession.duration_seconds).label("average_duration"),
+                func.max(CallSession.start_time).label("last_call_at"),
+            )
+            .join(CallSession, CallSession.id == persona_calls.c.session_id)
+            .group_by(persona_calls.c.persona)
+        ).all()
+
+        call_daily_rows = self._s.execute(
+            select(
+                persona_calls.c.persona,
+                call_day.label("day"),
+                func.count().label("attributed_calls"),
+                func.coalesce(
+                    func.sum(CallSession.duration_seconds),
+                    0,
+                ).label("attributed_duration"),
+            )
+            .join(CallSession, CallSession.id == persona_calls.c.session_id)
+            .group_by(persona_calls.c.persona, call_day)
+        ).all()
+
+        token_rows = self._s.execute(
+            select(
+                AgentUsageEvent.agent.label("persona"),
+                func.count().label("token_event_count"),
+                func.sum(AgentUsageEvent.input_tokens).label("input_tokens"),
+                func.sum(AgentUsageEvent.output_tokens).label("output_tokens"),
+                func.max(AgentUsageEvent.occurred_at).label("last_token_at"),
+            )
+            .where(
+                AgentUsageEvent.occurred_at >= from_ts,
+                AgentUsageEvent.occurred_at < to_ts,
+            )
+            .group_by(AgentUsageEvent.agent)
+        ).all()
+
+        token_daily_rows = self._s.execute(
+            select(
+                AgentUsageEvent.agent.label("persona"),
+                token_day.label("day"),
+                func.count().label("token_event_count"),
+                func.sum(AgentUsageEvent.input_tokens).label("input_tokens"),
+                func.sum(AgentUsageEvent.output_tokens).label("output_tokens"),
+            )
+            .where(
+                AgentUsageEvent.occurred_at >= from_ts,
+                AgentUsageEvent.occurred_at < to_ts,
+            )
+            .group_by(AgentUsageEvent.agent, token_day)
+        ).all()
+
+        global_call_rows = self._s.execute(
+            select(
+                call_day.label("day"),
+                func.count(CallSession.id).label("unique_calls"),
+            )
+            .where(
+                CallSession.start_time >= from_ts,
+                CallSession.start_time < to_ts,
+            )
+            .group_by(call_day)
+        ).all()
+
+        call_stats = {row.persona: row for row in call_rows}
+        call_daily = {(row.persona, row.day.isoformat()): row for row in call_daily_rows}
+        token_stats = {row.persona: row for row in token_rows}
+        token_daily = {(row.persona, row.day.isoformat()): row for row in token_daily_rows}
+        global_daily = {row.day.isoformat(): row.unique_calls for row in global_call_rows}
+
+        personas = sorted(set(call_stats) | set(token_stats))
+
+        persona_rows = []
+        for persona in personas:
+            call = call_stats.get(persona)
+            token = token_stats.get(persona)
+            last_observed = max(
+                (
+                    value
+                    for value in (
+                        call.last_call_at if call else None,
+                        token.last_token_at if token else None,
+                    )
+                    if value is not None
+                ),
+                default=None,
+            )
+            daily = []
+            for day in day_keys:
+                call_point = call_daily.get((persona, day))
+                token_point = token_daily.get((persona, day))
+                daily.append(
+                    {
+                        "day": day,
+                        "attributed_calls": call_point.attributed_calls if call_point else 0,
+                        "attributed_call_duration_seconds": (
+                            call_point.attributed_duration if call_point else 0
+                        ),
+                        "provider_input_tokens": (
+                            token_point.input_tokens if token_point else None
+                        ),
+                        "provider_output_tokens": (
+                            token_point.output_tokens if token_point else None
+                        ),
+                    }
+                )
+            persona_rows.append(
+                {
+                    "persona": persona,
+                    "attributed_calls": int(call.attributed_calls) if call else 0,
+                    "completed_calls": int(call.completed_calls) if call else 0,
+                    "attributed_call_duration_seconds": int(call.attributed_duration) if call else 0,
+                    "average_completed_call_duration_seconds": (
+                        float(call.average_duration) if call and call.average_duration is not None else None
+                    ),
+                    "last_observed_at": last_observed.isoformat() if last_observed is not None else None,
+                    "provider_input_tokens": int(token.input_tokens) if token else None,
+                    "provider_output_tokens": int(token.output_tokens) if token else None,
+                    "token_event_count": int(token.token_event_count) if token else 0,
+                    "daily": daily,
+                }
+            )
+
+        persona_rows.sort(
+            key=lambda row: (row["attributed_call_duration_seconds"], row["attributed_calls"]),
+            reverse=True,
+        )
+
+        token_totals = [row["provider_input_tokens"] for row in persona_rows if row["provider_input_tokens"] is not None]
+        has_token_events = any(token is not None for token in token_totals)
+
+        return {
+            "window": {
+                "days": days,
+                "timezone": "UTC",
+                "from": from_ts.isoformat(),
+                "to": to_ts.isoformat(),
+            },
+            "definitions": {
+                "agent_kind": "persona_class",
+                "duration_kind": "non_exclusive_attributed_call_duration",
+                "token_source": "provider_reported",
+                "token_history": "forward_only_no_backfill",
+            },
+            "totals": {
+                "global_unique_calls": sum(global_daily.values()),
+                "persona_call_attributions": sum(row["attributed_calls"] for row in persona_rows),
+                "attributed_call_duration_seconds": sum(
+                    row["attributed_call_duration_seconds"] for row in persona_rows
+                ),
+                "provider_input_tokens": (
+                    sum(int(row["provider_input_tokens"]) for row in persona_rows if row["provider_input_tokens"] is not None)
+                    if has_token_events else None
+                ),
+                "provider_output_tokens": (
+                    sum(int(row["provider_output_tokens"]) for row in persona_rows if row["provider_output_tokens"] is not None)
+                    if has_token_events else None
+                ),
+            },
+            "personas": persona_rows,
+        }
 
     def audit_entries(self, limit: int = 50, before_seq: int | None = None,
                       event_type: str | None = None) -> dict:

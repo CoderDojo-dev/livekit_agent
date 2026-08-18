@@ -152,3 +152,48 @@ def test_system_health_admin_response(api_client, db_session: Session, monkeypat
     assert response.status_code == 200
     assert response.json() == report
     assert "no-store" in response.headers["cache-control"].lower()
+
+
+# ---- audit-surface authorization matrix (Cookbook 3) -----------------------
+# Every audit operation independently requires administrateur, in both the API
+# and the BFF. Retention is exercised with dry_run=true only: RBAC must never
+# require mutating runtime data to be proven.
+
+AUDIT_ENDPOINTS = [
+    ("GET", "/api/v1/audit/entries"),
+    ("GET", "/api/v1/audit/verify"),
+    ("GET", "/api/v1/jobs/integrity"),
+    ("POST", "/api/v1/jobs/retention?retention_days=90&dry_run=true"),
+]
+
+
+def test_audit_surface_requires_auth(api_client):
+    for method, path in AUDIT_ENDPOINTS:
+        response = api_client.request(method, path)
+        assert response.status_code == 401, (method, path)
+
+
+def test_audit_surface_forbids_conseiller(api_client, db_session: Session):
+    make_staff_account(db_session, email=ADVISOR[0], password=ADVISOR[1], role="conseiller")
+    token = _login(api_client, *ADVISOR)
+    for method, path in AUDIT_ENDPOINTS:
+        response = api_client.request(method, path, headers=_auth(token))
+        assert response.status_code == 403, (method, path)
+        assert response.json()["detail"] == "requires role >= administrateur"
+
+
+def test_audit_surface_forbids_superviseur(api_client, db_session: Session):
+    make_staff_account(db_session, email=ADVISOR[0], password=ADVISOR[1], role="superviseur")
+    token = _login(api_client, *ADVISOR)
+    for method, path in AUDIT_ENDPOINTS:
+        response = api_client.request(method, path, headers=_auth(token))
+        assert response.status_code == 403, (method, path)
+        assert response.json()["detail"] == "requires role >= administrateur"
+
+
+def test_audit_surface_allows_administrateur(api_client, db_session: Session):
+    make_staff_account(db_session, email=ADMIN[0], password=ADMIN[1], role="administrateur")
+    token = _login(api_client, *ADMIN)
+    for method, path in AUDIT_ENDPOINTS:
+        response = api_client.request(method, path, headers=_auth(token))
+        assert response.status_code == 200, (method, path)

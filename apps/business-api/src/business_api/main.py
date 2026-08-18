@@ -256,6 +256,10 @@ def me_profile(session: DbSession, principal: ClientPrincipal) -> dict:
     data = SupervisionRepository(session).customer_360(str(principal.customer_id))
     if data is None:
         raise HTTPException(status_code=404, detail="customer not found")
+    # VIP tiering is internal commercial segmentation (CB12 12.5.4): the shared
+    # 360 builder serves it to advisors, and this customer-facing route drops it
+    # before the response leaves the boundary.
+    data.pop("vip", None)
     return data
 
 
@@ -490,8 +494,12 @@ def telemetry_timeline(session: DbSession, role: SuperviseurRole) -> dict:
 
 
 @app.get("/api/v1/agents/activity")
-def agent_activity(session: DbSession, role: SuperviseurRole, days: int = 30) -> dict:
-    """Per-persona activity aggregated from conversation turns."""
+def agent_activity(
+    session: DbSession,
+    role: SuperviseurRole,
+    days: Annotated[int, Query(ge=1, le=365)] = 30,
+) -> dict:
+    """Return truthful per-persona call attribution and provider token telemetry."""
     return SupervisionRepository(session).agent_activity(days)
 
 

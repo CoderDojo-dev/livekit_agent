@@ -1,10 +1,27 @@
 import { Modal } from "@/components/nexus/modal";
-import { Token } from "@/components/nexus/primitives";
+import { Td, Th, Token } from "@/components/nexus/primitives";
+import {
+  AgentActivitySparkline,
+  type AgentSparklineMetric,
+} from "@/components/nexus/agent-activity-sparkline";
 import { AGENT_LANGUAGES, DOMAIN_CATALOG, INSTRUCTION_LAYERS } from "@/lib/nexus/agent-catalog";
 import { formatInteger } from "@/lib/nexus/format";
-import { formatLastSeen, sharePercent, type AgentRow } from "@/lib/nexus/agent-view";
+import {
+  formatDuration,
+  formatLastSeen,
+  sharePercent,
+  type AgentRow,
+} from "@/lib/nexus/agent-view";
 
-export function AgentDetail({ row, onClose }: { row: AgentRow; onClose: () => void }) {
+export function AgentDetail({
+  row,
+  metric,
+  onClose,
+}: {
+  row: AgentRow;
+  metric: AgentSparklineMetric;
+  onClose: () => void;
+}) {
   const entry = row.catalog;
   const owned = entry?.owns ? DOMAIN_CATALOG.find((domain) => domain.key === entry.owns) : null;
   const routed = entry ? DOMAIN_CATALOG.filter((domain) => entry.routes.includes(domain.key)) : [];
@@ -23,19 +40,116 @@ export function AgentDetail({ row, onClose }: { row: AgentRow; onClose: () => vo
 
         <section className="mt-sp-6 border-t border-stroke-subtle pt-sp-5">
           <p className="t-label text-ink-3">Observed activity</p>
-          <div className="mt-sp-5 grid grid-cols-3 gap-sp-5">
+          <p className="t-caption mt-sp-4 text-ink-4">
+            Duration is the complete persisted call duration attributed non-exclusively to this AI
+            persona. Calls involving multiple personas contribute duration to each persona.
+          </p>
+          <div className="mt-sp-5 grid grid-cols-2 gap-sp-5 md:grid-cols-4">
             <div>
-              <p className="t-mono-l text-ink-1">{formatInteger(row.turns)}</p>
-              <p className="t-caption text-ink-4">Caller turns</p>
+              <p className="t-mono-l text-ink-1">{formatInteger(row.attributedCalls)}</p>
+              <p className="t-caption text-ink-4">Attributed calls</p>
             </div>
             <div>
-              <p className="t-mono-l text-ink-1">{sharePercent(row.turnShare)}</p>
-              <p className="t-caption text-ink-4">Share of turns</p>
+              <p className="t-mono-l text-ink-1">{sharePercent(row.attributionShare)}</p>
+              <p className="t-caption text-ink-4">Share of persona-call attributions</p>
             </div>
             <div>
-              <p className="t-mono-l text-ink-1">{formatLastSeen(row.lastSeen)}</p>
-              <p className="t-caption text-ink-4">Last seen</p>
+              <p className="t-mono-l text-ink-1">{formatInteger(row.completedCalls)}</p>
+              <p className="t-caption text-ink-4">Completed calls</p>
             </div>
+            <div>
+              <p className="t-mono-l text-ink-1">
+                {formatDuration(row.attributedCallDurationSeconds)}
+              </p>
+              <p className="t-caption text-ink-4">Attributed call duration</p>
+            </div>
+            <div>
+              <p className="t-mono-l text-ink-1">
+                {row.averageCompletedCallDurationSeconds === null
+                  ? "\u2014"
+                  : formatDuration(row.averageCompletedCallDurationSeconds)}
+              </p>
+              <p className="t-caption text-ink-4">Average completed-call duration</p>
+            </div>
+            <div>
+              <p className="t-mono-l text-ink-1">
+                {row.providerInputTokens === null
+                  ? "Unavailable"
+                  : formatInteger(row.providerInputTokens)}
+              </p>
+              <p className="t-caption text-ink-4">Input tokens</p>
+            </div>
+            <div>
+              <p className="t-mono-l text-ink-1">
+                {row.providerOutputTokens === null
+                  ? "Unavailable"
+                  : formatInteger(row.providerOutputTokens)}
+              </p>
+              <p className="t-caption text-ink-4">Output tokens</p>
+            </div>
+            <div>
+              <p className="t-mono-l text-ink-1">{formatLastSeen(row.lastObservedAt)}</p>
+              <p className="t-caption text-ink-4">Last observed</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-sp-6 border-t border-stroke-subtle pt-sp-5">
+          <p className="t-label text-ink-3">Daily trend</p>
+          <div className="mt-sp-5">
+            <AgentActivitySparkline
+              points={row.daily}
+              metric={metric}
+              label={`${row.label} ${
+                metric === "duration" ? "attributed call duration" : "provider token"
+              } trend over ${row.daily.length} days`}
+            />
+          </div>
+          <div className="mt-sp-6 overflow-hidden rounded-r-4 border border-stroke-default">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <Th>Day</Th>
+                  <Th align="right">Attributed calls</Th>
+                  <Th align="right">Duration</Th>
+                  <Th align="right">Input tokens</Th>
+                  <Th align="right">Output tokens</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {row.daily.map((point) => (
+                  <tr key={point.day} className="border-b border-stroke-subtle last:border-b-0">
+                    <Td>
+                      <span className="t-mono text-ink-2">{point.day}</span>
+                    </Td>
+                    <Td align="right">
+                      <span className="t-mono text-ink-3">
+                        {formatInteger(point.attributed_calls)}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span className="t-mono text-ink-3">
+                        {formatDuration(point.attributed_call_duration_seconds)}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span className="t-mono text-ink-3">
+                        {point.provider_input_tokens === null
+                          ? "Unavailable"
+                          : formatInteger(point.provider_input_tokens)}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span className="t-mono text-ink-3">
+                        {point.provider_output_tokens === null
+                          ? "Unavailable"
+                          : formatInteger(point.provider_output_tokens)}
+                      </span>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
 

@@ -7,14 +7,19 @@ import { HeroStat, StatCard } from "@/components/nexus/blocks";
 import { EmptyState, Segmented, TableShell, Td, Th, Token } from "@/components/nexus/primitives";
 import { CardSkeleton, ErrorState, TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { AgentDetail } from "@/components/nexus/agent-detail";
+import {
+  AgentActivitySparkline,
+  type AgentSparklineMetric,
+} from "@/components/nexus/agent-activity-sparkline";
 import { getAgentActivity } from "@/lib/api/agents.server";
 import { agentKeys } from "@/lib/nexus/query-keys";
 import { formatInteger } from "@/lib/nexus/format";
 import {
+  formatDuration,
   formatLastSeen,
   mergeAgentRows,
+  providerTokenTotal,
   routesLabel,
-  sharePercent,
   type AgentRow,
 } from "@/lib/nexus/agent-view";
 
@@ -26,15 +31,16 @@ export const Route = createFileRoute("/agents")({
       { title: "Agents \u2014 Nexus" },
       {
         name: "description",
-        content: "Agent catalog entries and observed activity for the selected window.",
+        content: "AI persona activity and provider token telemetry for the selected window.",
       },
     ],
   }),
   component: AgentsPage,
 });
 
-function AgentsPage() {
+export function AgentsPage() {
   const [days, setDays] = useState<number>(30);
+  const [metric, setMetric] = useState<AgentSparklineMetric>("duration");
   const [selected, setSelected] = useState<AgentRow | null>(null);
 
   const activity = useQuery({
@@ -42,9 +48,13 @@ function AgentsPage() {
     queryFn: () => getAgentActivity({ data: { days } }),
   });
 
-  const rows = activity.data ? mergeAgentRows(activity.data.agents, activity.data.total_sessions) : [];
-  const unrecognized = rows.filter((row) => row.catalog === null);
-  const idle = rows.filter((row) => row.catalog !== null && row.turns === 0);
+  const rows = activity.data
+    ? mergeAgentRows(
+        activity.data.personas,
+        activity.data.totals.persona_call_attributions,
+        activity.data.window,
+      )
+    : [];
 
   return (
     <>
@@ -63,24 +73,32 @@ function AgentsPage() {
         ) : (
           <>
             <HeroStat
-              label="Agent sessions"
-              value={formatInteger(activity.data.total_sessions)}
-              context={`${Math.round(activity.data.total_duration_seconds / 60)} persisted minutes`}
+              label="Unique calls"
+              value={formatInteger(activity.data.totals.global_unique_calls)}
+              context={`${activity.data.window.days} days / UTC`}
             />
             <StatCard
-              label="Time spent"
-              value={`${Math.round(activity.data.total_duration_seconds / 60)}m`}
-              context="Sum of persisted session durations"
+              label="Persona-call attributions"
+              value={formatInteger(activity.data.totals.persona_call_attributions)}
+              context="One call may be attributed to multiple AI personas"
             />
             <StatCard
-              label="Input tokens"
-              value={activity.data.input_tokens === null ? "Unavailable" : formatInteger(activity.data.input_tokens)}
-              context="Provider-reported; forward-only"
+              label="Attributed call duration"
+              value={formatDuration(activity.data.totals.attributed_call_duration_seconds)}
+              context="Non-exclusive whole-call attribution"
             />
             <StatCard
-              label="Output tokens"
-              value={activity.data.output_tokens === null ? "Unavailable" : formatInteger(activity.data.output_tokens)}
-              context="No historical backfill"
+              label="Provider tokens"
+              value={
+                activity.data.totals.provider_input_tokens === null &&
+                activity.data.totals.provider_output_tokens === null
+                  ? "Unavailable"
+                  : formatInteger(
+                      (activity.data.totals.provider_input_tokens ?? 0) +
+                        (activity.data.totals.provider_output_tokens ?? 0),
+                    )
+              }
+              context="Provider-reported, forward-only"
             />
           </>
         )}
@@ -89,36 +107,44 @@ function AgentsPage() {
       <PageSection>
         <TableShell
           toolbar={
-            <Segmented
-              items={WINDOWS.map((value) => `${value}d`)}
-              active={`${days}d`}
-              onSelect={(label) => setDays(Number(label.replace("d", "")))}
-            />
+            <>
+              <Segmented
+                items={WINDOWS.map((value) => `${value}d`)}
+                active={`${days}d`}
+                onSelect={(label) => setDays(Number(label.replace("d", "")))}
+              />
+              <Segmented
+                items={["Duration", "Tokens"]}
+                active={metric === "duration" ? "Duration" : "Tokens"}
+                onSelect={(label) => setMetric(label === "Tokens" ? "tokens" : "duration")}
+              />
+            </>
           }
           head={
             <tr>
-              <Th>Persona</Th>
+              <Th>AI persona</Th>
               <Th>Role in graph</Th>
-              <Th align="right">Time spent</Th>
-              <Th align="right">Avg duration</Th>
-              <Th align="right">Tokens</Th>
-              <Th align="right">Last seen</Th>
+              <Th align="right">Attributed calls</Th>
+              <Th align="right">Attributed duration</Th>
+              <Th align="right">Trend</Th>
+              <Th align="right">Provider tokens</Th>
+              <Th align="right">Last observed</Th>
             </tr>
           }
         >
-          {activity.isPending ? <TableSkeleton rows={5} columns={6} /> : null}
+          {activity.isPending ? <TableSkeleton rows={5} columns={7} /> : null}
 
           {activity.isError ? (
-            <TableErrorRow columns={6} error={activity.error} onRetry={() => activity.refetch()} />
+            <TableErrorRow columns={7} error={activity.error} onRetry={() => activity.refetch()} />
           ) : null}
 
-          {activity.isSuccess && rows.length === 0 ? (
+          {activity.isSuccess && activity.data.personas.length === 0 ? (
             <tr>
-              <td colSpan={6} className="h-[52px] border-b border-stroke-subtle px-sp-6">
+              <td colSpan={7} className="h-[52px] border-b border-stroke-subtle px-sp-6">
                 <EmptyState
                   icon={Bot}
-                  title="No persona activity"
-                  description="No caller turns were handled by a persona in this window."
+                  title="No AI persona activity"
+                  description="No persona-call attribution or provider token event exists in this window."
                 />
               </td>
             </tr>
@@ -173,16 +199,31 @@ function AgentsPage() {
                     )}
                   </Td>
                   <Td align="right">
-                    <span className="t-mono text-ink-3">{Math.round(row.durationSeconds / 60)}m</span>
+                    <span className="t-mono text-ink-3">{formatInteger(row.attributedCalls)}</span>
                   </Td>
                   <Td align="right">
-                    <span className="t-mono text-ink-3">{row.averageDurationSeconds === null ? "ΓÇö" : `${Math.round(row.averageDurationSeconds)}s`}</span>
+                    <span className="t-mono text-ink-3">
+                      {formatDuration(row.attributedCallDurationSeconds)}
+                    </span>
                   </Td>
                   <Td align="right">
-                    <span className="t-mono text-ink-3">{row.totalTokens === null ? "Unavailable" : formatInteger(row.totalTokens)}</span>
+                    <AgentActivitySparkline
+                      points={row.daily}
+                      metric={metric}
+                      label={`${row.label} ${
+                        metric === "duration" ? "attributed call duration" : "provider token"
+                      } trend over ${activity.data.window.days} days`}
+                    />
                   </Td>
                   <Td align="right">
-                    <span className="t-mono text-ink-3">{formatLastSeen(row.lastSeen)}</span>
+                    <span className="t-mono text-ink-3">
+                      {providerTokenTotal(row) === null
+                        ? "Unavailable"
+                        : formatInteger(providerTokenTotal(row) ?? 0)}
+                    </span>
+                  </Td>
+                  <Td align="right">
+                    <span className="t-mono text-ink-3">{formatLastSeen(row.lastObservedAt)}</span>
                   </Td>
                 </tr>
               ))
@@ -190,7 +231,9 @@ function AgentsPage() {
         </TableShell>
       </PageSection>
 
-      {selected ? <AgentDetail row={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? (
+        <AgentDetail row={selected} metric={metric} onClose={() => setSelected(null)} />
+      ) : null}
     </>
   );
 }

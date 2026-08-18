@@ -38,7 +38,6 @@ export type ProfileDetail = {
   address_lines: string[];
   account_number: string | null;
   customer_since: string | null;
-  vip: boolean;
   status: string;
   plan: string | null;
   msisdn: string | null;
@@ -60,7 +59,6 @@ export type Subscription360 = {
 export type Customer360 = {
   customer_id: string;
   name: string;
-  vip: boolean;
   preferred_language: string;
   subscriptions: Subscription360[];
   open_invoices: {

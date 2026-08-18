@@ -1,15 +1,20 @@
-import type { AgentActivityRow } from "@/lib/api/agents.server";
+import type { AgentActivityPersona, AgentDailyPoint } from "@/lib/api/agents.server";
 import { AGENT_CATALOG, type AgentCatalogEntry } from "@/lib/nexus/agent-catalog";
 
 export type AgentRow = {
   className: string;
   label: string;
   catalog: AgentCatalogEntry | null;
-  turns: number;
-  durationSeconds: number; averageDurationSeconds: number | null; inputTokens: number | null; outputTokens: number | null; totalTokens: number | null; coverage: "available" | "partial" | "unavailable"; daily: Array<{ day: string; duration_seconds: number }>;
-  sessions: number;
-  lastSeen: string | null;
-  turnShare: number;
+  attributedCalls: number;
+  completedCalls: number;
+  attributedCallDurationSeconds: number;
+  averageCompletedCallDurationSeconds: number | null;
+  providerInputTokens: number | null;
+  providerOutputTokens: number | null;
+  tokenEventCount: number;
+  lastObservedAt: string | null;
+  attributionShare: number;
+  daily: AgentDailyPoint[];
 };
 
 const BY_CLASS = new Map(AGENT_CATALOG.map((entry) => [entry.className, entry]));
@@ -33,44 +38,81 @@ export function isKnownAgent(className: string): boolean {
   return BY_CLASS.has(className);
 }
 
-/** Union of the static catalog and everything actually observed. */
-export function mergeAgentRows(observed: AgentActivityRow[], totalTurns: number): AgentRow[] {
-  const byClass = new Map<string, AgentActivityRow>();
-  for (const row of observed) byClass.set(row.agent, row);
+/** UTC day keys for a window: midnight of the oldest day through day `days - 1`. */
+function denseDayKeys(from: string, days: number): string[] {
+  const start = new Date(from);
+  const keys: string[] = [];
+  for (let offset = 0; offset < days; offset += 1) {
+    keys.push(new Date(start.getTime() + offset * 86_400_000).toISOString().slice(0, 10));
+  }
+  return keys;
+}
 
-  const seen = new Set<string>();
+function emptyDay(day: string): AgentDailyPoint {
+  return {
+    day,
+    attributed_calls: 0,
+    attributed_call_duration_seconds: 0,
+    provider_input_tokens: null,
+    provider_output_tokens: null,
+  };
+}
+
+/** Union of the static catalog and everything actually observed. */
+export function mergeAgentRows(
+  observed: AgentActivityPersona[],
+  totalAttributions: number,
+  window: { from: string; days: number },
+): AgentRow[] {
+  const byClass = new Map(observed.map((row) => [row.persona, row]));
+  const dayKeys = denseDayKeys(window.from, window.days);
   const rows: AgentRow[] = [];
 
   for (const entry of AGENT_CATALOG) {
     const hit = byClass.get(entry.className);
-    seen.add(entry.className);
     rows.push({
       className: entry.className,
       label: entry.label,
       catalog: entry,
-      turns: hit?.sessions ?? 0,
-      durationSeconds: hit?.duration_seconds ?? 0, averageDurationSeconds: hit?.average_duration_seconds ?? null, inputTokens: hit?.input_tokens ?? null, outputTokens: hit?.output_tokens ?? null, totalTokens: hit?.total_tokens ?? null, coverage: hit?.coverage ?? "unavailable", daily: hit?.daily ?? [],
-      sessions: hit?.sessions ?? 0,
-      lastSeen: hit?.last_seen ?? null,
-      turnShare: totalTurns > 0 ? (hit?.turns ?? 0) / totalTurns : 0,
+      attributedCalls: hit?.attributed_calls ?? 0,
+      completedCalls: hit?.completed_calls ?? 0,
+      attributedCallDurationSeconds: hit?.attributed_call_duration_seconds ?? 0,
+      averageCompletedCallDurationSeconds: hit?.average_completed_call_duration_seconds ?? null,
+      providerInputTokens: hit?.provider_input_tokens ?? null,
+      providerOutputTokens: hit?.provider_output_tokens ?? null,
+      tokenEventCount: hit?.token_event_count ?? 0,
+      lastObservedAt: hit?.last_observed_at ?? null,
+      attributionShare:
+        totalAttributions > 0 ? (hit?.attributed_calls ?? 0) / totalAttributions : 0,
+      daily: hit?.daily ?? dayKeys.map(emptyDay),
     });
   }
 
+  const seen = new Set(AGENT_CATALOG.map((entry) => entry.className));
   for (const row of observed) {
-    if (seen.has(row.agent)) continue;
+    if (seen.has(row.persona)) continue;
     rows.push({
-      className: row.agent,
-      label: humanizeClassName(row.agent),
+      className: row.persona,
+      label: humanizeClassName(row.persona),
       catalog: null,
-      turns: row.sessions,
-      durationSeconds: row.duration_seconds, averageDurationSeconds: row.average_duration_seconds, inputTokens: row.input_tokens, outputTokens: row.output_tokens, totalTokens: row.total_tokens, coverage: row.coverage, daily: row.daily,
-      sessions: row.sessions,
-      lastSeen: row.last_seen,
-      turnShare: totalTurns > 0 ? row.turns / totalTurns : 0,
+      attributedCalls: row.attributed_calls,
+      completedCalls: row.completed_calls,
+      attributedCallDurationSeconds: row.attributed_call_duration_seconds,
+      averageCompletedCallDurationSeconds: row.average_completed_call_duration_seconds,
+      providerInputTokens: row.provider_input_tokens,
+      providerOutputTokens: row.provider_output_tokens,
+      tokenEventCount: row.token_event_count,
+      lastObservedAt: row.last_observed_at,
+      attributionShare: totalAttributions > 0 ? row.attributed_calls / totalAttributions : 0,
+      daily: row.daily,
     });
   }
 
-  return rows.sort((a, b) => b.turns - a.turns);
+  return rows.sort(
+    (a, b) =>
+      b.attributedCalls - a.attributedCalls ||
+      b.attributedCallDurationSeconds - a.attributedCallDurationSeconds,
+  );
 }
 
 /**
@@ -95,4 +137,26 @@ export function routesLabel(entry: AgentCatalogEntry | null): string {
   if (entry.terminal) return "Terminal";
   if (entry.routes.length === 0) return "Specialist";
   return `Routes ${entry.routes.length}`;
+}
+
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.round((seconds % 3600) / 60);
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+}
+
+export function providerTokenTotal(row: AgentRow): number | null {
+  if (row.providerInputTokens === null && row.providerOutputTokens === null) {
+    return null;
+  }
+  return (row.providerInputTokens ?? 0) + (row.providerOutputTokens ?? 0);
+}
+
+export function dailyTokenTotal(point: AgentDailyPoint): number | null {
+  if (point.provider_input_tokens === null && point.provider_output_tokens === null) {
+    return null;
+  }
+  return (point.provider_input_tokens ?? 0) + (point.provider_output_tokens ?? 0);
 }

@@ -121,7 +121,7 @@ export function TopProgress({ active }: { active: boolean }) {
  * Pagination — bottom page indicators, never endless scroll.
  * Windowed 1 … 4 5 6 … 12 so the control never wraps on mobile.
  * -------------------------------------------------------------------------- */
-function pageWindow(current: number, total: number): Array<number | "gap"> {
+export function pageWindow(current: number, total: number): Array<number | "gap"> {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
   const pages = new Set<number>([1, total, current, current - 1, current + 1]);
   const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
@@ -521,7 +521,9 @@ export function MetricTile({
   value,
   hint,
   size = "m",
-  pending,
+  /** Shows a shimmer at the value's own type size instead of a placeholder
+   *  glyph, so "still loading" is never read as "zero" or "nothing". */
+  pending = false,
 }: {
   label: string;
   value: string;
@@ -530,17 +532,23 @@ export function MetricTile({
   pending?: boolean;
 }) {
   const type = size === "xl" ? "t-metric-xl" : size === "l" ? "t-metric-l" : "t-metric-m";
+  const barHeight = size === "xl" ? "h-10" : size === "l" ? "h-8" : "h-6";
   return (
     <div className="min-w-0">
       <div className="t-micro-2 text-ink-5">{label}</div>
       {pending ? (
-        <div className="mt-sp-3">
-          <SkeletonMetric />
-        </div>
+        <div
+          className={cn("skeleton mt-sp-3 w-32 rounded-r-2", barHeight)}
+          role="status"
+          aria-busy="true"
+          aria-label={copy.common.loading}
+        />
       ) : (
         <div className={cn(type, "mt-sp-3 truncate text-ink-1")}>{value}</div>
       )}
-      {hint ? <div className="t-caption mt-sp-2 truncate text-ink-4">{hint}</div> : null}
+      {hint && !pending ? (
+        <div className="t-caption mt-sp-2 truncate text-ink-4">{hint}</div>
+      ) : null}
     </div>
   );
 }

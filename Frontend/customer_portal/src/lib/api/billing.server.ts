@@ -39,6 +39,8 @@ export type PaymentItem = {
 export type BillingPayload = {
   accounts: BillingAccount[];
   total_outstanding: number;
+  /** Earliest unpaid due date across every account invoice - not the page. */
+  next_due_date: string | null;
   currency_code: string;
   /** Paged: the account figures above are whole-account and do not follow it. */
   invoices: Paged<InvoiceItem>;

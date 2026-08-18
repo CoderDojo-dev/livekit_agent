@@ -113,3 +113,29 @@ def make_staff_account(session: Session, *, email: str, password: str, role: str
     session.add(account)
     session.flush()
     return account
+
+
+def _seeded_customer_id(session: Session, national_id: str):
+    """The seeded demo customers carry the portal's richest fixture data. Looked
+    up by national_id so the tests stay readable and the seeds stay source."""
+    from sqlalchemy import select
+
+    from persistence.models.crm import Customer
+
+    return session.scalar(
+        select(Customer.id).where(Customer.national_id == national_id)
+    )
+
+
+@pytest.fixture
+def seeded_customer_id(db_session: Session):
+    """Amine Ben Salah (postpaid pilot, 11224087) - the customer with rows in
+    every projection the portal reads."""
+    return _seeded_customer_id(db_session, "11224087")
+
+
+@pytest.fixture
+def other_customer_id(db_session: Session):
+    """Karim Gharbi (postpaid fibre, CIN 55662256) - a second seeded customer
+    with rows of his own, so isolation is asserted against real data."""
+    return _seeded_customer_id(db_session, "55662256")

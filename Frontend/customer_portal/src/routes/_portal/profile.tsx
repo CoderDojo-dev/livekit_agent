@@ -1,17 +1,12 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Button,
-  Card,
-  Divider,
-  FieldRow,
-  SectionLabel,
-  StatusChip,
-} from "@/components/portal/primitives";
+import { Card, Divider, FieldRow, SectionLabel } from "@/components/portal/primitives";
+import { ErrorState, SkeletonLine, SkeletonList, SkeletonMetric } from "@/components/portal/data";
 import { fetchProfileDetail } from "@/lib/api/me.server";
-import { errorMessage } from "@/lib/api/errors";
 import { copy } from "@/lib/copy";
+import { qk } from "@/lib/query-keys";
+import { usePortalSession } from "@/lib/use-portal-session";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
@@ -72,28 +67,38 @@ export const Route = createFileRoute("/_portal/profile")({
 function ProfilePage() {
   const [section, setSection] = useState<(typeof SECTIONS)[number]["id"]>("identity");
 
+  const session = usePortalSession();
+  const cid = session?.customerId ?? "unknown";
+
   const query = useQuery({
-    queryKey: ["me", "profile", "detail"],
+    // Customer-scoped like every other portal read: an unscoped key can serve
+    // the previous account's details after a sign-out/sign-in in the same tab.
+    queryKey: qk.profileDetail(cid),
     queryFn: () => fetchProfileDetail(),
+    staleTime: 30_000,
   });
 
   if (query.isPending) {
     return (
-      <Card>
-        <p className="t-caption text-ink-5">Loading your details\u2026</p>
-      </Card>
+      <div className="grid gap-sp-7 lg:grid-cols-[200px_1fr]">
+        <div className="flex gap-sp-3 lg:flex-col">
+          {SECTIONS.map((s) => (
+            <SkeletonLine key={s.id} className="h-8 w-24 lg:w-full" />
+          ))}
+        </div>
+        <Card>
+          <SkeletonMetric />
+          <Divider className="mt-sp-7" />
+          <SkeletonList rows={3} />
+        </Card>
+      </div>
     );
   }
 
   if (query.isError || !query.data) {
     return (
       <Card>
-        <p role="alert" className="t-body text-ink-1">
-          {errorMessage(query.error)}
-        </p>
-        <Button variant="secondary" className="mt-sp-6" onClick={() => void query.refetch()}>
-          {copy.common.tryAgain}
-        </Button>
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       </Card>
     );
   }
@@ -138,11 +143,6 @@ function ProfilePage() {
                   {copy.profile.customerSince(dateSample)}
                 </div>
               </div>
-              {me.vip ? (
-                <StatusChip tone="solid" className="ml-auto">
-                  VIP
-                </StatusChip>
-              ) : null}
             </div>
             <Divider className="mt-sp-7" />
             <FieldRow label={copy.profile.fields.fullName} value={me.full_name} />
@@ -164,17 +164,12 @@ function ProfilePage() {
           <Card>
             <SectionLabel>{copy.profile.contact}</SectionLabel>
             <div className="mt-sp-5">
-              <FieldRow
-                label={copy.profile.fields.email}
-                value={me.email ?? "\u2014"}
-                action={me.email ? <StatusChip tone="outline">VERIFIED</StatusChip> : null}
-              />
+              <FieldRow label={copy.profile.fields.email} value={me.email ?? "\u2014"} />
               <Divider />
               <FieldRow
                 label={copy.profile.fields.phone}
                 value={me.phone ?? me.msisdn ?? "\u2014"}
                 mono
-                action={<StatusChip tone="dashed">UNVERIFIED</StatusChip>}
               />
             </div>
           </Card>
