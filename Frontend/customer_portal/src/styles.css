@@ -89,8 +89,8 @@
   --glow-line: 0 0 12px rgba(255, 255, 255, 0.14);
 
   /* --- 14 : le quadrillage premium --- */
-  --grid-line: rgba(255, 255, 255, 0.028);
-  --grid-line-major: rgba(255, 255, 255, 0.045);
+  --grid-line: rgba(255, 255, 255, 0.07);
+  --grid-line-major: rgba(255, 255, 255, 0.1);
   --grid-cell: 64px;
   --grid-major: 256px;
   --grid-fade: 62%;
@@ -174,8 +174,8 @@
   --focus-ring-color: var(--n-12);
 
   /* Dark lines on light need marginally more opacity than light lines on dark. */
-  --grid-line: rgba(0, 0, 0, 0.035);
-  --grid-line-major: rgba(0, 0, 0, 0.055);
+  --grid-line: rgba(0, 0, 0, 0.08);
+  --grid-line-major: rgba(0, 0, 0, 0.12);
 
   /* The grain's overlay blend lightens a light field; multiply reads as
      texture instead. */
