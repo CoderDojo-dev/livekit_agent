@@ -15,7 +15,7 @@ HONCHO := $(shell if [ -x .venv/bin/honcho ]; then echo $(CURDIR)/.venv/bin/honc
 DOCKER := $(shell if command -v docker >/dev/null 2>&1; then echo docker; elif [ -x "/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe" ]; then echo "'/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe'"; elif [ -x "/mnt/c/Program Files/Docker/Docker/resources/bin/docker" ]; then echo "'/mnt/c/Program Files/Docker/Docker/resources/bin/docker'"; elif [ -x "/usr/bin/docker" ]; then echo docker; else echo docker; fi)
 
 .DEFAULT_GOAL := help
-.PHONY: help install infra infra-livekit create-db migrate seed dev up down rebuild health live-logs test frontends frontends-clean
+.PHONY: help install infra infra-livekit create-db migrate seed dev up down rebuild health live-logs test frontends frontends-clean frontend frontend-portal frontend-admin frontend-stop
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
@@ -36,6 +36,36 @@ frontends-clean:  ## Reinstall frontend deps for the current OS (fixes Rollup op
 	cd Frontend/admin_dashboard && rm -rf node_modules && npm install
 	cd Frontend/customer_portal && rm -rf node_modules && npm install
 	cd apps/client-widget && rm -rf node_modules && npm install
+
+# Frontend dev servers: the shipped node_modules hold WINDOWS native bindings
+# (rolldown/esbuild), so npm must be the Windows one. When make runs inside WSL
+# (the only make on this machine), call it through cmd.exe; otherwise use npm directly.
+ifeq ($(wildcard /mnt/c/*),)
+FRONTEND_ADMIN_CMD := cd Frontend/admin_dashboard && npm run dev -- --port 8081 --strictPort
+FRONTEND_PORTAL_CMD := cd Frontend/customer_portal && npm run dev -- --port 8080 --strictPort
+else
+WIN_CURDIR := $(shell wslpath -w "$(CURDIR)")
+FRONTEND_ADMIN_CMD := cmd.exe /c "cd /d $(WIN_CURDIR)\Frontend\admin_dashboard && npm run dev -- --port 8081 --strictPort"
+FRONTEND_PORTAL_CMD := cmd.exe /c "cd /d $(WIN_CURDIR)\Frontend\customer_portal && npm run dev -- --port 8080 --strictPort"
+endif
+
+frontend:  ## Run BOTH frontends: admin dashboard (http://localhost:8081) + customer portal (http://localhost:8080). Ctrl-C stops both.
+	@echo "→ admin dashboard   http://localhost:8081  (Frontend/admin_dashboard)"
+	@echo "→ customer portal   http://localhost:8080  (Frontend/customer_portal)"
+	@trap 'kill 0' INT TERM EXIT; \
+	($(FRONTEND_ADMIN_CMD)) & \
+	($(FRONTEND_PORTAL_CMD)) & \
+	wait
+
+frontend-portal:  ## Run the customer portal (client) frontend on http://localhost:8080
+	@$(FRONTEND_PORTAL_CMD)
+
+frontend-admin:  ## Run the admin dashboard frontend on http://localhost:8081
+	@$(FRONTEND_ADMIN_CMD)
+
+frontend-stop:  ## Stop both frontend dev servers (kills whatever listens on :8080/:8081)
+	@powershell.exe -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 8080,8081 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $$_.OwningProcess -Force -ErrorAction SilentlyContinue }"
+	@echo "→ frontend dev servers stopped (ports 8080/8081)"
 
 infra:  ## Start infrastructure containers (postgres/redis/qdrant/minio/otel)
 	$(DOCKER) compose -f $(INFRA) up -d
