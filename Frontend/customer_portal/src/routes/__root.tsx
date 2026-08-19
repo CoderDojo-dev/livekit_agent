@@ -122,7 +122,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              '(function(){try{var t=localStorage.getItem("portal_preferences");if(t){var p=JSON.parse(t);if(p&&p.theme==="light"){document.documentElement.dataset.theme="light";}}}catch(e){}})();',
+              '(function(){try{var t=localStorage.getItem("portal_preferences");if(!t){t=localStorage.getItem("nexus_portal_preferences");}if(t){var p=JSON.parse(t);if(p&&p.theme==="light"){document.documentElement.dataset.theme="light";}}}catch(e){}})();',
           }}
         />
         <HeadContent />

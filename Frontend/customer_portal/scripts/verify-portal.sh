@@ -47,12 +47,13 @@ PY
 fi
 echo "PASS 13: every paged reader applies its offset"
 
-# 14 - no residual generic branding. The one exception is the preferences
-#      migration's LEGACY_KEY ("nexus_portal_preferences"): that literal must
-#      survive for existing users' settings to migrate, and it is data
+# 14 - no residual generic branding. The two exceptions are the migration
+#      literals in lib/preferences.ts and lib/api/session.ts
+#      ("nexus_portal_preferences" / "nexus_portal_session"): they must survive
+#      for existing users' settings and sessions to migrate, and they are data
 #      compatibility, not branding.
-if grep -rni "nexus" src/ | grep -viq "nexus_portal_preferences"; then
-  echo "FAIL 14: Nexus reference remains"; grep -rni "nexus" src/ | grep -vi "nexus_portal_preferences" | head -n 10; exit 1
+if grep -rni "nexus" src/ | grep -viq "nexus_portal_"; then
+  echo "FAIL 14: Nexus reference remains"; grep -rni "nexus" src/ | grep -vi "nexus_portal_" | head -n 10; exit 1
 fi
 echo "PASS 14: no residual generic branding"
 

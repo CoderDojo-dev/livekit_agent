@@ -1,6 +1,12 @@
 import { getCookie, setCookie } from "@tanstack/react-start/server";
 import { serverConfig } from "./config";
-import { SESSION_COOKIE, signSession, verifySession, type ClientSession } from "./session";
+import {
+  LEGACY_SESSION_COOKIE,
+  SESSION_COOKIE,
+  signSession,
+  verifySession,
+  type ClientSession,
+} from "./session";
 
 /* ---------- cookie I/O ---------- */
 
@@ -15,15 +21,20 @@ export async function writeSessionCookie(session: ClientSession): Promise<void> 
 }
 
 export function clearSessionCookie(): void {
-  setCookie(SESSION_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: serverConfig.isProduction(),
-    path: "/",
-    maxAge: 0,
-  });
+  // Both names: a pre-rebrand cookie must not resurrect a session after logout.
+  for (const name of [SESSION_COOKIE, LEGACY_SESSION_COOKIE]) {
+    setCookie(name, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: serverConfig.isProduction(),
+      path: "/",
+      maxAge: 0,
+    });
+  }
 }
 
 export async function readSession(): Promise<ClientSession | null> {
-  return verifySession(getCookie(SESSION_COOKIE), serverConfig.sessionSecret());
+  // The pre-rebrand name is a fallback so the rename is not a logout.
+  const raw = getCookie(SESSION_COOKIE) ?? getCookie(LEGACY_SESSION_COOKIE);
+  return verifySession(raw, serverConfig.sessionSecret());
 }

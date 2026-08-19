@@ -1,4 +1,8 @@
 export const SESSION_COOKIE = "portal_session";
+// Cookie name written by the pre-rebrand release. Read as a fallback so a
+// signed-in user is not logged out by the rename; the new name is written on
+// their next response and the legacy entry ages out naturally.
+export const LEGACY_SESSION_COOKIE = "nexus_portal_session";
 
 /** The only role a customer's portal session ever carries. Rank 0: it can pass every client gate. */
 export type ClientRole = "client";
