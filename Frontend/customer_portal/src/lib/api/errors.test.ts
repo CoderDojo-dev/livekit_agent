@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, errorMessage, isApiError, isForbidden, isRateLimited, isUnauthenticated, toApiError } from "./errors";
+import {
+  ApiError,
+  errorMessage,
+  isApiError,
+  isForbidden,
+  isRateLimited,
+  isUnauthenticated,
+  toApiError,
+} from "./errors";
 
 /** The shape TanStack Start's RPC delivers: a plain Error whose message only survives. */
 function serialized(apiError: ApiError): Error {
@@ -35,7 +43,9 @@ describe("predicates", () => {
     expect(isApiError(serialized(STAFF_REFUSED))).toBe(true);
     expect(isForbidden(serialized(STAFF_REFUSED))).toBe(true);
     expect(isUnauthenticated(serialized(new ApiError(401, "nope", "/api/v1/me")))).toBe(true);
-    expect(isRateLimited(serialized(new ApiError(429, "slow down", "/api/v1/auth/login")))).toBe(true);
+    expect(isRateLimited(serialized(new ApiError(429, "slow down", "/api/v1/auth/login")))).toBe(
+      true,
+    );
   });
   it("stay false for unrelated errors", () => {
     expect(isApiError(new Error("boom"))).toBe(false);
@@ -51,32 +61,46 @@ describe("errorMessage", () => {
   });
 
   it("treats a login 401 as bad credentials, not an expired session", () => {
-    const message = errorMessage(serialized(new ApiError(401, "Incorrect email or password", "/api/v1/auth/login")));
+    const message = errorMessage(
+      serialized(new ApiError(401, "Incorrect email or password", "/api/v1/auth/login")),
+    );
     expect(message).toBe("Incorrect email or password.");
   });
 
   it("maps a login 429 to the lockout copy", () => {
-    expect(errorMessage(serialized(new ApiError(429, "Too many attempts. Try again later.", "/api/v1/auth/login")))).toBe(
-      "Too many attempts. For your safety, try again in about 15 minutes.",
-    );
+    expect(
+      errorMessage(
+        serialized(new ApiError(429, "Too many attempts. Try again later.", "/api/v1/auth/login")),
+      ),
+    ).toBe("Too many attempts. For your safety, try again in about 15 minutes.");
   });
 
   it("maps a login 503 to the connectivity copy", () => {
-    expect(errorMessage(serialized(new ApiError(503, "business-api is unreachable", "/api/v1/auth/login")))).toBe(
-      "Could not reach the service. Check that business-api is running.",
-    );
+    expect(
+      errorMessage(
+        serialized(new ApiError(503, "business-api is unreachable", "/api/v1/auth/login")),
+      ),
+    ).toBe("Could not reach the service. Check that business-api is running.");
   });
 
   it("surfaces signup failures verbatim", () => {
-    expect(errorMessage(serialized(new ApiError(401, "We could not match those details to an account.", "/api/v1/auth/signup")))).toBe(
-      "We could not match those details to an account.",
-    );
+    expect(
+      errorMessage(
+        serialized(
+          new ApiError(
+            401,
+            "We could not match those details to an account.",
+            "/api/v1/auth/signup",
+          ),
+        ),
+      ),
+    ).toBe("We could not match those details to an account.");
   });
 
   it("treats a password-change 401 as a wrong current password", () => {
-    expect(errorMessage(serialized(new ApiError(401, "Incorrect password", "/api/v1/auth/password")))).toBe(
-      "Incorrect password",
-    );
+    expect(
+      errorMessage(serialized(new ApiError(401, "Incorrect password", "/api/v1/auth/password"))),
+    ).toBe("Incorrect password");
   });
 
   it("keeps session-expired copy for data surfaces", () => {
@@ -92,7 +116,9 @@ describe("errorMessage", () => {
   });
 
   it("falls back to the connectivity copy for unknown errors", () => {
-    expect(errorMessage(new Error("boom"))).toBe("Could not reach the service. Check that business-api is running.");
+    expect(errorMessage(new Error("boom"))).toBe(
+      "Could not reach the service. Check that business-api is running.",
+    );
   });
 
   it("passes local validation strings through", () => {
