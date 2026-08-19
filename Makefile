@@ -65,6 +65,7 @@ down:  ## Stop everything (infra + apps + optional livekit)
 
 rebuild: down  ## Stop + rebuild + redeploy all containers (use after code changes)
 	$(DOCKER) compose -f $(INFRA) -f $(APPS) up -d --build --remove-orphans
+	$(DOCKER) builder prune -f
 	@echo "→ All images rebuilt & containers running. Run 'make health' to verify."
 
 health:  ## Probe every service /health
