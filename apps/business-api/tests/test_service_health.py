@@ -492,6 +492,7 @@ def test_cache_expires_and_advances(monkeypatch):
          "path": "/health", "probe_kind": "liveness"}))
     monkeypatch.setenv("SERVICE_HEALTH_CACHE_TTL_MS", "0")
     first = _run(service_health.aggregate_service_health())
+    time.sleep(0.002)
     second = _run(service_health.aggregate_service_health())
     assert first["checked_at"] != second["checked_at"]
     assert calls["n"] == 2

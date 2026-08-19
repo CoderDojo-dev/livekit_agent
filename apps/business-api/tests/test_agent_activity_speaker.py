@@ -10,16 +10,40 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import event
+from sqlalchemy import delete, event
 from sqlalchemy.orm import Session
 
 from business_api.repositories import SupervisionRepository
 
 from conftest import make_staff_account
-from persistence.models.conversation import AgentUsageEvent, CallSession, Turn
+from persistence.models.conversation import (
+    AgentUsageEvent,
+    CallSession,
+    CallbackSchedule,
+    EscalationCase,
+    SentimentSample,
+    Turn,
+)
 
 ADMIN = ("admin@test.local", "a-long-enough-password")
 ADVISOR = ("advisor@test.local", "another-long-password")
+
+
+def _purge_conversation(db_session) -> None:
+    """Self-heal: migration 0019 unlocked real usage-event inserts, so the dev
+    database carries live calls/usage inside the aggregation window. These tests
+    assert global totals over an empty table; purge children first (FK order)
+    inside the rolled-back transaction so no trace is left."""
+    for model in (
+        AgentUsageEvent,
+        Turn,
+        SentimentSample,
+        EscalationCase,
+        CallbackSchedule,
+        CallSession,
+    ):
+        db_session.execute(delete(model))
+    db_session.flush()
 
 
 class _FrozenClock(datetime.datetime):
@@ -93,6 +117,7 @@ def _persona(report: dict, name: str) -> dict:
 # ---- call attribution ------------------------------------------------------
 
 def test_single_persona_call(db_session):
+    _purge_conversation(db_session)
     _seed_call(db_session, personas=["Cb4SingleAgent"], duration=120)
 
     report = SupervisionRepository(db_session).agent_activity(days=1)
@@ -114,6 +139,7 @@ def test_handoff_call(db_session):
 
 
 def test_global_call_counted_once(db_session):
+    _purge_conversation(db_session)
     _seed_call(db_session, personas=["Cb4TriageAgent", "Cb4BillingAgent", "Cb4ManagerAgent"], duration=300)
 
     report = SupervisionRepository(db_session).agent_activity(days=1)
@@ -122,6 +148,7 @@ def test_global_call_counted_once(db_session):
 
 
 def test_handoff_produces_two_persona_attributions(db_session):
+    _purge_conversation(db_session)
     _seed_call(db_session, personas=["Cb4TriageAgent", "Cb4BillingAgent"], duration=300)
 
     report = SupervisionRepository(db_session).agent_activity(days=1)
@@ -130,6 +157,7 @@ def test_handoff_produces_two_persona_attributions(db_session):
 
 
 def test_whole_duration_attributed_to_both_personas(db_session):
+    _purge_conversation(db_session)
     _seed_call(db_session, personas=["Cb4TriageAgent", "Cb4BillingAgent"], duration=300)
 
     report = SupervisionRepository(db_session).agent_activity(days=1)
@@ -179,6 +207,7 @@ def test_token_only_persona_remains(db_session):
 
 
 def test_persona_without_token_events_returns_null_tokens(db_session):
+    _purge_conversation(db_session)
     _seed_call(db_session, personas=["Cb4NoTokensAgent"], duration=60)
 
     report = SupervisionRepository(db_session).agent_activity(days=1)
@@ -192,6 +221,7 @@ def test_persona_without_token_events_returns_null_tokens(db_session):
 
 
 def test_real_zero_token_event_returns_zero(db_session):
+    _purge_conversation(db_session)
     sid = _seed_call(db_session)
     _seed_tokens(db_session, sid, "Cb4ZeroTokensAgent", input_tokens=0, output_tokens=0)
 
@@ -205,6 +235,7 @@ def test_real_zero_token_event_returns_zero(db_session):
 
 
 def test_input_output_token_sums(db_session):
+    _purge_conversation(db_session)
     sid = _seed_call(db_session)
     _seed_tokens(db_session, sid, "Cb4SumsAgent", input_tokens=10, output_tokens=5)
     _seed_tokens(db_session, sid, "Cb4SumsAgent", input_tokens=20, output_tokens=7)
@@ -327,6 +358,7 @@ def test_contract_shape_and_definitions(db_session):
 
 
 def test_empty_database(db_session):
+    _purge_conversation(db_session)
     report = SupervisionRepository(db_session).agent_activity(days=1)
 
     assert report["personas"] == []
