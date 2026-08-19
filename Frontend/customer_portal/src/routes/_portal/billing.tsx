@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { fetchBalance, fetchBilling, type InvoiceItem } from "@/lib/api/billing.server";
 import { date, money } from "@/lib/format";
@@ -21,12 +21,12 @@ import {
 export const Route = createFileRoute("/_portal/billing")({
   head: () => ({
     meta: [
-      { title: "Billing — Nexus Customer Portal" },
+      { title: pageTitle("Billing") },
       {
         name: "description",
-        content: "What you owe Nexus, every invoice, and your prepaid balances and recharges.",
+        content: "What you owe, every invoice, and your prepaid balances and recharges.",
       },
-      { property: "og:title", content: "Billing — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "Your amount due, invoices, and balances in plain numbers.",
@@ -84,8 +84,8 @@ function BillingScreen() {
   const postpaid = billing ? billing.accounts.length > 0 : true;
   const hasBalances = balance.balances.length > 0;
 
-  const invoices = billing?.invoices.items ?? [];
-  const invoiceTotal = billing?.invoices.total ?? 0;
+  const invoices = billing?.invoices?.items ?? [];
+  const invoiceTotal = billing?.invoices?.total ?? 0;
 
   return (
     <div className="space-y-sp-9">

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button, Card } from "@/components/portal/primitives";
 import { login } from "@/lib/api/auth.server";
 import { errorMessage } from "@/lib/api/errors";
-import { copy } from "@/lib/copy";
+import { copy, pageTitle } from "@/lib/copy";
 
 export const Route = createFileRoute("/login")({
   validateSearch: z.object({
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/login")({
   }),
   head: () => ({
     meta: [
-      { title: "Sign in — Nexus Customer Portal" },
+      { title: pageTitle("Sign in") },
       { name: "description", content: "Authenticate to your self-service portal." },
     ],
   }),

@@ -1,11 +1,26 @@
 /**
  * lib/copy.ts — chapitre 55. Aucune chaine visible n'est ecrite dans un composant.
  */
+
+/** The one place the product name lives. Every wordmark, document title and
+ *  metadata entry derives from this object — a rebrand is a one-line change. */
+export const brand = {
+  name: "Client Portal",
+  /** Suffix for document titles. Every route head must derive from this. */
+  titleSuffix: "Client Portal",
+  tagline: "Voice support that respects your time.",
+  version: "Version 1.0.0",
+} as const;
+
+/** Build a document title. Use this in every route head — never a literal. */
+export const pageTitle = (section?: string) =>
+  section ? `${section} - ${brand.titleSuffix}` : brand.titleSuffix;
+
 export const copy = {
   brand: {
-    name: "Nexus",
-    tagline: "Voice support that respects your time.",
-    version: "Version 1.0.0",
+    name: brand.name,
+    tagline: brand.tagline,
+    version: brand.version,
   },
   shell: {
     search: "Search",
@@ -20,7 +35,7 @@ export const copy = {
     menu: { profile: "Your profile", security: "Security" },
   },
   login: {
-    title: "Nexus",
+    title: brand.name,
     subtitle: "Sign in to your self-service portal.",
     submit: "Sign in",
     pending: "Signing in…",
@@ -292,10 +307,14 @@ export const copy = {
     },
     appearance: "APPEARANCE",
     voice: "VOICE AND AUDIO",
+    theme: "Theme",
+    themes: ["Dark", "Light"],
     density: "Density",
     densities: ["Comfortable", "Compact"],
     textSize: "Text size",
     textSizes: ["Default", "Large"],
+    agentLanguage: "Agent language",
+    agentLanguageHint: "The language the assistant uses when it calls you.",
     switches: {
       captions: {
         label: "Show captions by default",

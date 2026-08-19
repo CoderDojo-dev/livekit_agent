@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">
+  <!-- The orb: a ring with a single node. The product's visual signature,
+       reduced to two strokes that survive 16px. -->
+  <circle cx="8" cy="8" r="5.25" stroke="currentColor" stroke-width="1.5" />
+  <circle cx="10.75" cy="5.25" r="1.875" fill="currentColor" />
+</svg>

@@ -15,12 +15,12 @@ export function Button({ className, variant = "secondary", size = "md", ...props
   return (
     <button
       className={cn(
-        "focus-ring inline-flex items-center justify-center gap-sp-4 whitespace-nowrap rounded-r-2 border transition-colors duration-200 disabled:pointer-events-none disabled:opacity-40",
+        "focus-ring inline-flex items-center justify-center gap-sp-4 whitespace-nowrap rounded-r-3 border transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.985] disabled:pointer-events-none disabled:opacity-40",
         size === "sm" && "t-label h-7 px-sp-5",
         size === "md" && "t-ui h-9 px-sp-6",
         size === "lg" && "t-ui h-11 px-sp-8",
         variant === "primary" &&
-          "border-transparent bg-n-12 text-ink-inverse hover:bg-n-11 active:bg-n-10",
+          "border-transparent bg-n-12 text-ink-inverse hover:bg-n-11 active:bg-n-10 hover:shadow-[var(--elev-2)]",
         variant === "secondary" &&
           "border-stroke-default bg-surface-3 text-ink-1 shadow-elev-1 hover:border-stroke-strong hover:bg-surface-4",
         variant === "ghost" && "border-transparent text-ink-3 hover:bg-surface-3 hover:text-ink-1",

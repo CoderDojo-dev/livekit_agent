@@ -2,7 +2,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { fetchRequests, type RequestItem } from "@/lib/api/requests.server";
 import { REQUEST_TONE, isActiveRequest } from "@/lib/request-status";
@@ -27,13 +27,13 @@ import {
 export const Route = createFileRoute("/_portal/requests")({
   head: () => ({
     meta: [
-      { title: "Requests â€” Nexus Customer Portal" },
+      { title: pageTitle("Requests") },
       {
         name: "description",
         content:
-          "Track everything Nexus is working on for you, from the moment a request is received to the day it is resolved.",
+          "Track everything we are working on for you, from the moment a request is received to the day it is resolved.",
       },
-      { property: "og:title", content: "Requests â€” Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "A plain timeline of what we are doing for you, and what needs your reply.",

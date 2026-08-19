@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">
+  <!-- Inverted mark for dark browser chrome (linked with
+       media="(prefers-color-scheme: dark)"). -->
+  <circle cx="8" cy="8" r="5.25" stroke="#ffffff" stroke-width="1.5" />
+  <circle cx="10.75" cy="5.25" r="1.875" fill="#ffffff" />
+</svg>

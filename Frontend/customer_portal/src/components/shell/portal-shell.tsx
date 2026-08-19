@@ -17,15 +17,18 @@ export function PortalShell({ children, scene = false }: { children: ReactNode; 
       <PortalTabbar />
       <div
         className={cn(
-          "flex min-h-screen flex-col transition-[padding] duration-300",
+          "flex flex-col transition-[padding] duration-300",
+          scene ? "h-screen overflow-hidden" : "min-h-screen",
           collapsed ? "lg:pl-16" : "lg:pl-64",
         )}
       >
         <PortalTopbar />
         <main
           className={cn(
-            "flex-1 pb-20 lg:pb-sp-12",
-            scene ? "flex" : "mx-auto w-full max-w-6xl px-sp-8 py-sp-9",
+            "flex-1",
+            scene
+              ? "flex min-h-0 flex-col overflow-hidden px-sp-8 py-sp-7"
+              : "mx-auto w-full max-w-6xl px-sp-8 py-sp-9 pb-20 lg:pb-sp-12",
           )}
         >
           {children}

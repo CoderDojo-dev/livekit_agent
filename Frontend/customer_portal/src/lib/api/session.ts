@@ -1,4 +1,4 @@
-export const SESSION_COOKIE = "nexus_portal_session";
+export const SESSION_COOKIE = "portal_session";
 
 /** The only role a customer's portal session ever carries. Rank 0: it can pass every client gate. */
 export type ClientRole = "client";

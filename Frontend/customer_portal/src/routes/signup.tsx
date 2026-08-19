@@ -4,12 +4,12 @@ import { Link } from "@tanstack/react-router";
 import { Button, Card } from "@/components/portal/primitives";
 import { signup } from "@/lib/api/auth.server";
 import { errorMessage } from "@/lib/api/errors";
-import { copy } from "@/lib/copy";
+import { copy, pageTitle } from "@/lib/copy";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "Create your sign-in — Nexus Customer Portal" },
+      { title: pageTitle("Create your sign-in") },
       { name: "description", content: "Secure your self-service access with a portal password." },
     ],
   }),

@@ -6,6 +6,22 @@ describe("format", () => {
     expect(money(12.5)).toContain("TND");
     expect(money(null)).toBe("—");
   });
+  it("renders a valid explicit currency", () => {
+    expect(money(12.5, "USD")).toContain("USD");
+  });
+  it('falls back to TND when currency is empty or absent - prepaid customers have no billing account, so me_reads.billing() returns currency_code ""', () => {
+    expect(money(12.5, "")).toContain("TND");
+    expect(money(12.5, null)).toContain("TND");
+    expect(money(12.5, undefined)).toContain("TND");
+  });
+  it("never lets a malformed currency code crash Intl.NumberFormat", () => {
+    // old behaviour threw RangeError for these - the page rendered "This page
+    // did not load" instead of the billing page
+    expect(() => money(12.5, "TND ")).not.toThrow();
+    expect(() => money(12.5, " tnd ")).not.toThrow();
+    expect(() => money(12.5, "USD-EUR")).not.toThrow();
+    expect(() => money(12.5, "123")).not.toThrow();
+  });
   it("renders units without pretending they are currency", () => {
     expect(quantity(2.5, "GB")).toBe("2.5 GB");
     expect(quantity(120, "MIN")).toBe("120 MIN");

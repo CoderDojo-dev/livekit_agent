@@ -1,17 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AudioLines, Compass, LifeBuoy, ReceiptText, Shield } from "lucide-react";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { Button, Card, SectionLabel } from "@/components/portal/primitives";
 
 export const Route = createFileRoute("/_portal/help")({
   head: () => ({
     meta: [
-      { title: "Help — Nexus Customer Portal" },
+      { title: pageTitle("Help") },
       {
         name: "description",
         content: "Browse help topics by theme, or hand the question to the assistant.",
       },
-      { property: "og:title", content: "Help — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "Answers, and a way to reach a person.",

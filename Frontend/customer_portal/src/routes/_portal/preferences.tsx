@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { Card, Divider, Segmented, SectionLabel, SwitchRow } from "@/components/portal/primitives";
 import { readPreferences, writePreferences, type PortalPreferences } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
@@ -9,13 +9,13 @@ import { useReducedMotion } from "motion/react";
 export const Route = createFileRoute("/_portal/preferences")({
   head: () => ({
     meta: [
-      { title: "Preferences — Nexus Customer Portal" },
+      { title: pageTitle("Preferences") },
       {
         name: "description",
         content:
-          "Presentation settings for the portal: density, text size, captions, and reduced motion.",
+          "Presentation settings for the portal: theme, density, text size, captions, and reduced motion.",
       },
-      { property: "og:title", content: "Preferences — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "How the portal looks, and how the assistant shows captions.",
@@ -70,6 +70,17 @@ function PreferencesScreen() {
           <Card>
             <SectionLabel>{copy.preferences.appearance}</SectionLabel>
             <div className="mt-sp-7 space-y-sp-7">
+              <div>
+                <div className="t-label text-ink-4">{copy.preferences.theme}</div>
+                <div className="mt-sp-4">
+                  <Segmented
+                    label={copy.preferences.theme}
+                    options={copy.preferences.themes}
+                    value={prefs.theme === "light" ? "Light" : "Dark"}
+                    onChange={(v) => update({ theme: v === "Light" ? "light" : "dark" })}
+                  />
+                </div>
+              </div>
               <div>
                 <div className="t-label text-ink-4">{copy.preferences.density}</div>
                 <div className="mt-sp-4">

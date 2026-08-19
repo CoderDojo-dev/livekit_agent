@@ -4,7 +4,7 @@ import { usePortalSession } from "@/lib/use-portal-session";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Monitor, Smartphone, Laptop } from "lucide-react";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { changePassword, fetchPortalSessions, revokeAllSessions } from "@/lib/api/account.server";
 import { errorMessage } from "@/lib/api/errors";
@@ -16,12 +16,12 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_portal/security")({
   head: () => ({
     meta: [
-      { title: "Security — Nexus Customer Portal" },
+      { title: pageTitle("Security") },
       {
         name: "description",
-        content: "Manage your Nexus sign-in and active devices.",
+        content: "Manage your sign-in and active devices.",
       },
-      { property: "og:title", content: "Security — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "Sign-in and active devices.",

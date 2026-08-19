@@ -2,7 +2,7 @@
 @source "../src";
 
 /*
- * NEXUS CUSTOMER PORTAL — THE MONOCHROME EXPERIENCE BIBLE
+ * CLIENT PORTAL — THE MONOCHROME EXPERIENCE BIBLE
  * Volume II. Strictly achromatic: every colour value satisfies R === G === B.
  * Thirteen greys. No hue, no saturation, no gradient tint.
  */
@@ -45,6 +45,9 @@
   --ink-5: var(--n-8);
   --ink-inverse: var(--n-0);
 
+  /* --- focus ring (the @utility reads this token, so it re-themes) --- */
+  --focus-ring-color: var(--n-12);
+
   /* --- 5.1 espacement, douze pas --- */
   --sp-1: 2px;
   --sp-2: 4px;
@@ -85,6 +88,13 @@
   --glow-strong: 0 0 48px rgba(255, 255, 255, 0.1);
   --glow-line: 0 0 12px rgba(255, 255, 255, 0.14);
 
+  /* --- 14 : le quadrillage premium --- */
+  --grid-line: rgba(255, 255, 255, 0.028);
+  --grid-line-major: rgba(255, 255, 255, 0.045);
+  --grid-cell: 64px;
+  --grid-major: 256px;
+  --grid-fade: 62%;
+
   /* --- 6.7 couches z --- */
   --z-base: 0;
   --z-sticky: 10;
@@ -115,6 +125,114 @@
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out-soft: cubic-bezier(0.33, 1, 0.68, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/*
+  Light theme. Dark remains the default and lives in :root; this block only
+  overrides. The scale is inverted in direction but compressed in range: the
+  page sits at #fafafa rather than pure white and ink tops out at #0a0a0a
+  rather than pure black, which preserves the dark theme's layered-surface
+  feel and avoids the glare of a pure-white sheet. Still strictly achromatic —
+  R === G === B on every value.
+
+  The --surface-* and --ink-* aliases reference --n-*, so they follow
+  automatically. The hardcoded rgba values below (strokes, elevations, glow,
+  grid lines, grain, hatch) hold literal colours and must be redeclared here.
+*/
+[data-theme="light"] {
+  --n-0: #ffffff;
+  --n-1: #fafafa;
+  --n-2: #f4f4f4;
+  --n-3: #ededed;
+  --n-4: #e4e4e4;
+  --n-5: #d8d8d8;
+  --n-6: #c4c4c4;
+  --n-7: #a8a8a8;
+  --n-8: #8a8a8a;
+  --n-9: #6b6b6b;
+  --n-10: #474747;
+  --n-11: #262626;
+  --n-12: #0a0a0a;
+
+  --stroke-subtle: rgba(0, 0, 0, 0.07);
+  --stroke-default: rgba(0, 0, 0, 0.1);
+  --stroke-strong: rgba(0, 0, 0, 0.16);
+  --stroke-ink: rgba(0, 0, 0, 0.26);
+
+  --elev-0: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --elev-2: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --elev-3: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --elev-4: 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  /* A white glow is invisible on a light field and a dark "glow" would be a
+     shadow; neither belongs here. */
+  --glow-soft: none;
+  --glow-strong: none;
+  --glow-line: none;
+
+  --focus-ring-color: var(--n-12);
+
+  /* Dark lines on light need marginally more opacity than light lines on dark. */
+  --grid-line: rgba(0, 0, 0, 0.035);
+  --grid-line-major: rgba(0, 0, 0, 0.055);
+
+  /* The grain's overlay blend lightens a light field; multiply reads as
+     texture instead. */
+  body::after {
+    opacity: 0.02;
+    mix-blend-mode: multiply;
+  }
+
+  /* Hatch is dark-on-transparent; on a light field it needs to step down. */
+  .hatch-45 {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(0, 0, 0, 0.08) 0px,
+      rgba(0, 0, 0, 0.08) 2px,
+      transparent 2px,
+      transparent 4px
+    );
+  }
+
+  /* The light-mode surface steps are closer together, so the shimmer needs a
+     wider range to stay perceptible. */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--surface-2) 0%,
+      var(--surface-4) 50%,
+      var(--surface-2) 100%
+    );
+  }
+}
+
+/*
+  Premium grid. Sits on body::before, beneath every app surface and beneath the
+  grain on body::after. Two scales - a fine 64px cell and a 256px major line -
+  give depth without adding density. A radial mask fades the grid out toward
+  the edges so it reads as depth rather than as graph paper, and keeps the
+  centre of the screen (where the orb and all primary text live) at its
+  quietest.
+*/
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--grid-cell)),
+    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--grid-cell)),
+    repeating-linear-gradient(to right, var(--grid-line-major) 0 1px, transparent 1px var(--grid-major)),
+    repeating-linear-gradient(to bottom, var(--grid-line-major) 0 1px, transparent 1px var(--grid-major));
+  mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent 100%);
+}
+
+/* Tighter cell on small screens so the grid does not read as three huge boxes. */
+@media (max-width: 640px) {
+  :root { --grid-cell: 44px; --grid-major: 176px; }
 }
 
 @theme inline {
@@ -292,7 +410,7 @@
 
 @utility focus-ring {
   &:focus-visible {
-    outline: 2px solid var(--n-12);
+    outline: 2px solid var(--focus-ring-color);
     outline-offset: 2px;
     border-radius: var(--r-2);
   }

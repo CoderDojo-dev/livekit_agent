@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { fetchProfile360 } from "@/lib/api/me.server";
 import { fetchBalance, type BalanceItem, type RechargeItem } from "@/lib/api/billing.server";
@@ -12,12 +12,12 @@ import { DataSection, MetricTile, PageSection } from "@/components/portal/data";
 export const Route = createFileRoute("/_portal/services")({
   head: () => ({
     meta: [
-      { title: "Services — Nexus Customer Portal" },
+      { title: pageTitle("Services") },
       {
         name: "description",
-        content: "See your Nexus plan, your credit, and what you have left on each balance.",
+        content: "See your plan, your credit, and what you have left on each balance.",
       },
-      { property: "og:title", content: "Services — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "Your plan, your balances, and your recent top-ups in plain numbers.",

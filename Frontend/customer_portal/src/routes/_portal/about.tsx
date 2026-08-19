@@ -1,18 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Check, Minus } from "lucide-react";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { Card, Divider, SectionLabel } from "@/components/portal/primitives";
 
 export const Route = createFileRoute("/_portal/about")({
   head: () => ({
     meta: [
-      { title: "About the assistant — Nexus Customer Portal" },
+      { title: pageTitle("About the assistant") },
       {
         name: "description",
         content:
-          "How the Nexus assistant works, what it can and cannot do, and exactly what happens to your voice and transcripts.",
+          "How the assistant works, what it can and cannot do, and exactly what happens to your voice and transcripts.",
       },
-      { property: "og:title", content: "About the assistant — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "What the assistant is, and what it is not.",
@@ -27,10 +27,10 @@ function AboutScreen() {
     <div className="mx-auto max-w-3xl space-y-sp-10">
       <header>
         <div className="flex h-12 w-12 items-center justify-center rounded-r-3 border border-stroke-strong bg-surface-4 shadow-elev-1">
-          <span className="t-mono-l text-ink-1">N</span>
+          <span className="t-mono-l text-ink-1">C</span>
         </div>
         <h2 className="t-display mt-sp-7 text-ink-1">{copy.about.tagline}</h2>
-        <p className="t-mono-s mt-sp-4 text-ink-5">{copy.brand.version}</p>
+        <p className="t-mono-s mt-sp-4 text-ink-5">{brand.version}</p>
       </header>
 
       <section className="space-y-sp-6">

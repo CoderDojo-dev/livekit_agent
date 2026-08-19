@@ -27,10 +27,11 @@ function PortalLayout() {
   const navigating = useRouterState({ select: (s) => s.status === "pending" });
   const fetching = useIsFetching() > 0;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const scene = pathname === "/assistant";
   return (
-    <PortalShell>
+    <PortalShell scene={scene}>
       <TopProgress active={navigating || fetching} />
-      <TabPanel id={pathname}>
+      <TabPanel id={pathname} className={scene ? "min-h-0 flex-1" : undefined}>
         <Outlet />
       </TabPanel>
     </PortalShell>

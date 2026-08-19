@@ -11,6 +11,7 @@ from clients import aclose_all_clients
 from clients.context_client import get_context_client
 from clients.nms_client import get_nms_client
 from config import get_settings
+from config.language_policy import resolve_session_language
 from conversation.writer import ConversationWriter
 from dotenv import load_dotenv
 from frontend_events import FrontendEventPublisher
@@ -70,11 +71,19 @@ async def _prefetch_user_data(
     snapshot = await get_context_client().get_snapshot(msisdn)
     if snapshot is not None:
         user_data.customer_context = snapshot
-        user_data.language = snapshot.preferred_language
+        # The caller's saved preference is a candidate, not an override. Before
+        # this, an unvalidated CRM value replaced the French default outright,
+        # which is why calls sometimes opened in Arabic.
+        user_data.language = resolve_session_language(
+            supported=settings.languages,
+            default_language=settings.default_language,
+            saved_preference=snapshot.preferred_language,
+        )
         logger.info(
-            "context prefetched: customer_id=%s vip=%s",
+            "context prefetched: customer_id=%s vip=%s language=%s",
             snapshot.customer_id,
             snapshot.is_vip,
+            user_data.language,
         )
     else:
         logger.info("no context snapshot for trusted calling line")
@@ -124,7 +133,14 @@ def _derive_disposition(user_data: SessionUserData) -> str:
 async def entrypoint(ctx: JobContext) -> None:
     """Assemble and start a Triage voice session for the configured language."""
     configure_tracer("agent-worker")
-    language = settings.session_language
+    # SESSION_LANGUAGE is a spike/console convenience; DEFAULT_LANGUAGE is the
+    # platform default. Both are validated, so a bad env value cannot start a
+    # call in a language with no preset.
+    language = resolve_session_language(
+        supported=settings.languages,
+        default_language=settings.default_language,
+        saved_preference=settings.session_language,
+    )
     room_name = getattr(ctx.room, "name", None)
     participant = await ctx.wait_for_participant()
     logger.info("agent job received room=%s language=%s", room_name, language)

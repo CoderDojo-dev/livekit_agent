@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, Divider, FieldRow, SectionLabel } from "@/components/portal/primitives";
 import { ErrorState, SkeletonLine, SkeletonList, SkeletonMetric } from "@/components/portal/data";
 import { fetchProfileDetail } from "@/lib/api/me.server";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { cn } from "@/lib/utils";
@@ -48,13 +48,13 @@ function formatDay(iso: string | null, tag: string) {
 export const Route = createFileRoute("/_portal/profile")({
   head: () => ({
     meta: [
-      { title: "Profile — Nexus Customer Portal" },
+      { title: pageTitle("Profile") },
       {
         name: "description",
         content:
-          "Your name, contact details, addresses, and regional settings — the information the Nexus assistant uses to reach you.",
+          "Your name, contact details, addresses, and regional settings — the information the assistant uses to reach you.",
       },
-      { property: "og:title", content: "Profile — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "Who you are and how we reach you.",

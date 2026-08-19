@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NAV } from "@/lib/nav";
-import { copy } from "@/lib/copy";
+import { brand, copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -52,8 +52,8 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="t-title-3 truncate text-ink-1">{copy.brand.name}</div>
-            <div className="t-micro-2 truncate text-ink-5">{copy.brand.version}</div>
+            <div className="t-title-3 truncate text-ink-1">{brand.name}</div>
+            <div className="t-micro-2 truncate text-ink-5">{brand.version}</div>
           </div>
         )}
       </div>

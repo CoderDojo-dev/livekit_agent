@@ -13,7 +13,7 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Button, Card } from "@/components/portal/primitives";
-import { copy } from "@/lib/copy";
+import { brand, copy, pageTitle } from "@/lib/copy";
 
 function NotFoundComponent() {
   return (
@@ -67,21 +67,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Nexus Customer Portal" },
+      { title: pageTitle() },
       {
         name: "description",
         content:
-          "A monochrome customer portal for Nexus voice support: talk to the assistant, track requests, and manage your account.",
+          "A monochrome customer portal for voice support: talk to the assistant, track requests, and manage your account.",
       },
-      { name: "author", content: "Nexus" },
-      { property: "og:title", content: "Nexus Customer Portal" },
+      { name: "author", content: brand.name },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "Private voice support that respects your time.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Nexus" },
     ],
     links: [
       {
@@ -94,7 +93,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      {
+        rel: "icon",
+        href: "/favicon-dark.svg",
+        type: "image/svg+xml",
+        media: "(prefers-color-scheme: dark)",
+      },
+      { rel: "icon", href: "/favicon.ico", sizes: "32x32" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -107,6 +114,17 @@ function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
+        {/*
+          Pre-paint theme: reads localStorage synchronously so a light-theme
+          user never sees a dark flash. The one inline script in the app; the
+          stylesheet link below has not loaded yet, so no paint has happened.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              '(function(){try{var t=localStorage.getItem("portal_preferences");if(t){var p=JSON.parse(t);if(p&&p.theme==="light"){document.documentElement.dataset.theme="light";}}}catch(e){}})();',
+          }}
+        />
         <HeadContent />
       </head>
       <body>

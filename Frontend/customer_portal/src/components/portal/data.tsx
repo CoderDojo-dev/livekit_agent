@@ -16,6 +16,9 @@ export const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 export const T_MICRO = { duration: 0.12, ease: EASE_OUT } as const;
 export const T_BASE = { duration: 0.22, ease: EASE_OUT } as const;
 export const T_PANEL = { duration: 0.28, ease: EASE_OUT } as const;
+/** Stage transition: the orb moving between centred and left. Slower than a
+ *  panel because it carries the largest element on screen. */
+export const T_STAGE = { duration: 0.48, ease: EASE_OUT } as const;
 
 /* --------------------------------------------------------------------------
  * PageSection — the only vertical rhythm in the portal.
@@ -498,12 +501,24 @@ export function AnimatedTabs<T extends string>({
   );
 }
 
-/** Panel body that cross-fades when the active tab changes. */
-export function TabPanel({ id, children }: { id: string; children: ReactNode }) {
+/** Panel body that cross-fades when the active tab changes. className lets a
+ *  scene route (the assistant, which owns its height) stretch this wrapper:
+ *  without a definite height here, h-full inside the route content resolves
+ *  to auto and the scene's internal scroll regions can never engage. */
+export function TabPanel({
+  id,
+  children,
+  className,
+}: {
+  id: string;
+  children: ReactNode;
+  className?: string | undefined;
+}) {
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={id}
+        className={cn(className)}
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}

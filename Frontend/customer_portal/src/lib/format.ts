@@ -8,11 +8,33 @@
 const LOCALE = "en-GB";
 export const TIME_ZONE = "Africa/Tunis";
 
-export function money(value: number | null | undefined, currency = "TND"): string {
+export const DEFAULT_CURRENCY = "TND";
+
+/**
+ * ISO 4217 alphabetic codes are exactly three letters. Intl.NumberFormat with
+ * style:"currency" throws RangeError on anything else, and a thrown RangeError
+ * inside render reaches the router's errorComponent - the customer then sees
+ * "This page did not load" instead of a billing page.
+ *
+ * me_reads.billing() legitimately returns currency_code "" for a customer with
+ * no billing accounts (every prepaid-only customer). That is an honest "no
+ * account, so no currency", not a malformed response, so the formatter absorbs
+ * it and falls back to the operational currency rather than the page dying.
+ */
+function currencyOrDefault(currency: string | null | undefined): string {
+  if (typeof currency !== "string") return DEFAULT_CURRENCY;
+  const code = currency.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : DEFAULT_CURRENCY;
+}
+
+export function money(
+  value: number | null | undefined,
+  currency: string | null | undefined = DEFAULT_CURRENCY,
+): string {
   if (value === null || value === undefined) return "—";
   return new Intl.NumberFormat(LOCALE, {
     style: "currency",
-    currency,
+    currency: currencyOrDefault(currency),
     currencyDisplay: "code",
     minimumFractionDigits: 2,
     maximumFractionDigits: 3, // TND is a 3-decimal currency (millimes)

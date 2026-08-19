@@ -47,4 +47,37 @@ PY
 fi
 echo "PASS 13: every paged reader applies its offset"
 
+# 14 - no residual generic branding. The one exception is the preferences
+#      migration's LEGACY_KEY ("nexus_portal_preferences"): that literal must
+#      survive for existing users' settings to migrate, and it is data
+#      compatibility, not branding.
+if grep -rni "nexus" src/ | grep -viq "nexus_portal_preferences"; then
+  echo "FAIL 14: Nexus reference remains"; grep -rni "nexus" src/ | grep -vi "nexus_portal_preferences" | head -n 10; exit 1
+fi
+echo "PASS 14: no residual generic branding"
+
+# 15 - route heads derive from the centralised title helper
+if grep -rq "Customer Portal\"" src/routes/_portal/; then
+  echo "FAIL 15: hardcoded title"; grep -rn "Customer Portal\"" src/routes/_portal/ | head -n 5; exit 1
+fi
+echo "PASS 15: route heads derive from pageTitle()"
+
+# 16 - light theme block present
+if ! grep -q '\[data-theme="light"\]' src/styles.css; then
+  echo "FAIL 16: no light theme"; exit 1
+fi
+echo "PASS 16: light theme block present"
+
+# 17 - focus ring is tokenised, not a literal grey
+if ! grep -q -- "--focus-ring-color" src/styles.css; then
+  echo "FAIL 17: focus ring not tokenised"; exit 1
+fi
+echo "PASS 17: focus ring tokenised"
+
+# 18 - grid background present on body::before
+if ! grep -q "body::before" src/styles.css; then
+  echo "FAIL 18: no grid background"; exit 1
+fi
+echo "PASS 18: grid background present"
+
 exit "$fail"

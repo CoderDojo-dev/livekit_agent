@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AudioLines, Inbox, PhoneCall } from "lucide-react";
-import { copy, personaLabel } from "@/lib/copy";
+import { brand, copy, pageTitle, personaLabel } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import {
   fetchCallbacks,
@@ -16,6 +16,7 @@ import { fetchRequests, type RequestItem } from "@/lib/api/requests.server";
 import { fetchNotifications, type NotificationItem } from "@/lib/api/notifications.server";
 import { REQUEST_TONE } from "@/lib/request-status";
 import { dateTime, duration, relative } from "@/lib/format";
+import { turnCount, turnLines } from "@/lib/conversation";
 import {
   Button,
   Card,
@@ -41,13 +42,13 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_portal/activity")({
   head: () => ({
     meta: [
-      { title: "Activity — Nexus Customer Portal" },
+      { title: pageTitle("Activity") },
       {
         name: "description",
         content:
-          "Every conversation, request, and callback between you and the Nexus assistant, with transcripts and what changed.",
+          "Every conversation, request, and callback between you and the assistant, with transcripts and what changed.",
       },
-      { property: "og:title", content: "Activity — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content: "Revisit any conversation and see exactly what the assistant did.",
@@ -109,6 +110,28 @@ function requestTitle(item: RequestItem): string {
   return item.subject ?? copy.labels.requestCategory[item.category] ?? item.category;
 }
 
+/*
+  Turn-density bar. Renders one real metric - this conversation's turn count as
+  a proportion of the busiest conversation in the loaded page. No synthetic
+  data, no per-turn timing (the list endpoint does not return any). Pure CSS,
+  no charting dependency: at this size a div is the correct implementation.
+*/
+function TurnDensity({ turns, max }: { turns: number; max: number }) {
+  const ratio = max > 0 ? Math.min(turns / max, 1) : 0;
+  return (
+    <div
+      className="h-1 w-full overflow-hidden rounded-r-0 bg-surface-3"
+      role="img"
+      aria-label={`${turns} ${copy.activity.turns}`}
+    >
+      <div
+        className="h-full bg-ink-4 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={{ width: `${ratio * 100}%` }}
+      />
+    </div>
+  );
+}
+
 function requestCaption(item: RequestItem): string {
   return copy.labels.requestCategory[item.category] ?? item.category;
 }
@@ -126,7 +149,7 @@ function toItems(
       caption: c.disposition
         ? (copy.labels.disposition[c.disposition as keyof typeof copy.labels.disposition] ??
           c.disposition)
-        : `${c.turns} ${copy.activity.turns}`,
+        : `${turnCount(c.turns)} ${copy.activity.turns}`,
       at: c.started_at,
       conversation: c,
     })),
@@ -199,7 +222,7 @@ function ConversationBody({ sessionId }: { sessionId: string }) {
         {[
           [copy.activity.when, dateTime(detail.started_at)],
           [copy.activity.duration, duration(detail.duration_seconds)],
-          [copy.activity.turns, String(detail.turns)],
+          [copy.activity.turns, String(turnCount(detail.turns))],
         ].map(([k, v]) => (
           <div key={k}>
             <dt className="t-micro-2 text-ink-5">{k}</dt>
@@ -208,12 +231,12 @@ function ConversationBody({ sessionId }: { sessionId: string }) {
         ))}
       </dl>
 
-      {detail.turns.length > 0 && (
+      {turnLines(detail).length > 0 && (
         <>
           <Divider className="my-sp-7" />
           <div className="t-micro text-ink-4">{copy.activity.transcript}</div>
           <div className="mt-sp-6 space-y-sp-6">
-            {detail.turns.map((line, turnIndex) => {
+            {turnLines(detail).map((line, turnIndex) => {
               // Persona label from the persisted active_agent; a raw
               // identifier must never reach the screen.
               const persona = personaLabel(line.agent);
@@ -411,6 +434,14 @@ function ActivityScreen() {
     return searched.slice(start, start + PAGE_SIZE);
   }, [searched, page]);
 
+  // Largest turn count on the loaded page, for the per-row density bar. The
+  // bar rescales as you paginate: honest for a comparative glance within a
+  // page, and the list endpoint provides no global max.
+  const maxTurns = useMemo(
+    () => rows.reduce((m, r) => Math.max(m, turnCount(r.conversation?.turns)), 0),
+    [rows],
+  );
+
   const counts: Record<(typeof TABS)[number]["id"], number> = {
     all:
       (conversationsQuery.data?.total ?? 0) +
@@ -525,7 +556,7 @@ function ActivityScreen() {
             <div className="grid gap-sp-6 sm:grid-cols-2 lg:grid-cols-3">
               <MetricTile label={copy.activity.when} value={dateTime(hero.started_at)} />
               <MetricTile label={copy.activity.duration} value={duration(hero.duration_seconds)} />
-              <MetricTile label={copy.activity.turns} value={String(hero.turns)} />
+              <MetricTile label={copy.activity.turns} value={String(turnCount(hero.turns))} />
             </div>
             <div className="mt-sp-7">
               <Button
@@ -581,6 +612,14 @@ function ActivityScreen() {
                         <span className="t-caption mt-sp-2 line-clamp-2 block text-ink-4">
                           {item.caption}
                         </span>
+                        {item.kind === "conversation" && item.conversation ? (
+                          <span className="mt-sp-4 block">
+                            <TurnDensity
+                              turns={turnCount(item.conversation.turns)}
+                              max={maxTurns}
+                            />
+                          </span>
+                        ) : null}
                       </span>
                       <span className="t-mono-s shrink-0 pt-sp-2 text-ink-5">
                         {relative(item.at)}

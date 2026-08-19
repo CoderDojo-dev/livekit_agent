@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAgent, useSessionContext } from "@livekit/components-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Mic, MicOff, PhoneCall, PhoneOff, LockKeyhole } from "lucide-react";
 import { Orb } from "@/components/orb/orb";
 import { OrbPlinth } from "@/components/orb/orb-plinth";
@@ -18,9 +18,10 @@ import { useParticipantName } from "@/components/assistant/participant-name";
 import { StartAudioButton } from "@/components/assistant/start-audio-button";
 import { LiveStream } from "@/components/assistant/live-stream";
 import { Button, Card, IconButton, StatusChip } from "@/components/portal/primitives";
-import { T_BASE } from "@/components/portal/data";
+import { T_BASE, T_MICRO, T_PANEL, T_STAGE } from "@/components/portal/data";
 import { duration } from "@/lib/format";
-import { copy } from "@/lib/copy";
+import { turnCount } from "@/lib/conversation";
+import { brand, copy, pageTitle } from "@/lib/copy";
 import { reportVoiceEvent } from "@/lib/api/voice.server";
 import { fetchConversations } from "@/lib/api/activity.server";
 import { qk } from "@/lib/query-keys";
@@ -28,13 +29,13 @@ import { qk } from "@/lib/query-keys";
 export const Route = createFileRoute("/_portal/assistant")({
   head: () => ({
     meta: [
-      { title: "Assistant — Nexus Customer Portal" },
+      { title: pageTitle("Assistant") },
       {
         name: "description",
         content:
-          "Start a private, encrypted voice conversation with the Nexus assistant and see every action it takes on your account.",
+          "Start a private, encrypted voice conversation with the assistant and see every action it takes on your account.",
       },
-      { property: "og:title", content: "Assistant — Nexus Customer Portal" },
+      { property: "og:title", content: brand.name },
       {
         property: "og:description",
         content:
@@ -74,6 +75,23 @@ function AssistantStage() {
   // connectionState is the only reliable latch: isConnected oscillates while
   // ICE settles and while the agent joins. Verified pattern from App.tsx.
   const inCall = session.connectionState !== "disconnected";
+
+  // The two-column grid exists only from lg up. Below lg the stage and the
+  // transcript stack in one scrolling column (a phone in a voice call has no
+  // use for side-by-side). Mirrors Tailwind's default lg breakpoint (64rem).
+  const [isLg, setIsLg] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 64rem)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 64rem)");
+    const onChange = (event: MediaQueryListEvent) => setIsLg(event.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  // Reduced motion is honoured explicitly on every JS-driven transition in
+  // this scene: styles.css only covers CSS transitions, not Framer Motion.
+  const reduce = useReducedMotion();
 
   const orbState: OrbState = toOrbState(agent.state, connected);
   const level = useOrbLevel(agent.microphoneTrack);
@@ -150,8 +168,10 @@ function AssistantStage() {
   });
   const lastCall = recap.data?.items[0];
 
-  return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center gap-sp-9">
+  // The stage column - the orb, its copy, and the controls. Shared verbatim by
+  // both layout branches below (desktop grid track and mobile stacked column).
+  const stage = (
+    <>
       {/* ORB — untouched component, real inputs. */}
       <div className="relative flex flex-col items-center">
         <Orb
@@ -178,6 +198,24 @@ function AssistantStage() {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Pre-call hint. The transcript column is zero-width until a call
+          starts, so this lives in the stage column instead of inside
+          LiveStream's pre-connect branch. */}
+      <AnimatePresence initial={false}>
+        {!inCall ? (
+          <motion.p
+            key="will-appear"
+            className="t-caption text-center text-ink-5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={reduce ? { duration: 0 } : T_MICRO}
+          >
+            {copy.assistant.stream.willAppear}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
 
       {error ? (
         <div
@@ -228,11 +266,69 @@ function AssistantStage() {
         </StatusChip>
         <StatusChip tone="dotted">{copy.assistant.assurance.audioOnly}</StatusChip>
       </div>
+    </>
+  );
 
-      {/* LIVE STREAM — keyed on callId so each call starts with a clean stack. */}
-      <LiveStream key={callId} participantName={name} onToolEvent={handleToolEvent} />
+  // LIVE STREAM — keyed on callId so each call starts with a clean stack.
+  const liveStream = (
+    <LiveStream key={callId} participantName={name} onToolEvent={handleToolEvent} />
+  );
 
-      {/* SUMMARY — real duration from server, real turn count from recap query. */}
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col">
+      {/*
+        One grid, two states. The stage column always exists; the transcript
+        column is a real grid track that animates from 0fr to 1fr, so the orb
+        slides left as a consequence of the track resizing rather than being
+        translated by hand. That keeps the orb in normal flow - no absolute
+        positioning, no transform origin to fight, and the restore on
+        disconnect is the same animation run backwards.
+      */}
+      {isLg ? (
+        <motion.div
+          layout
+          className="grid min-h-0 flex-1 items-center gap-sp-8 lg:gap-sp-10"
+          animate={{
+            gridTemplateColumns: inCall
+              ? "minmax(0,0.85fr) minmax(0,1.15fr)"
+              : "minmax(0,1fr) minmax(0,0fr)",
+          }}
+          transition={reduce ? { duration: 0 } : T_STAGE}
+        >
+          {/* Column 1 - the stage: orb, state copy, controls. Always mounted. */}
+          <motion.div layout className="flex min-h-0 flex-col items-center justify-center gap-sp-7">
+            {stage}
+          </motion.div>
+
+          {/* Column 2 - the transcript. Overflow lives here and nowhere else. */}
+          <div className="flex h-full min-h-0 items-center justify-center overflow-hidden">
+            <AnimatePresence initial={false}>
+              {inCall ? (
+                <motion.div
+                  key="transcript"
+                  className="flex h-full max-h-full min-h-0 w-full flex-col overflow-y-auto"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={reduce ? { duration: 0 } : T_PANEL}
+                >
+                  {liveStream}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      ) : (
+        // Below lg: plain stacked column. The whole thing scrolls as one
+        // region; pb-20 clears the mobile tabbar, lg:pb-0 is a no-op here.
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-sp-7 overflow-y-auto pb-20 lg:pb-0">
+          {stage}
+          {inCall ? liveStream : null}
+        </div>
+      )}
+
+      {/* SUMMARY — real duration from server, real turn count from recap query.
+          Stays below the stage, outside the grid. */}
       {!inCall && startedAt ? (
         <Card className="w-full max-w-lg">
           <div className="t-micro-2 text-ink-5">{copy.assistant.summary.heading}</div>
@@ -247,7 +343,9 @@ function AssistantStage() {
             />
             <MetricPair
               label={copy.assistant.summary.turns}
-              value={lastCall ? String(lastCall.turns) : copy.assistant.summary.turnsPending}
+              value={
+                lastCall ? String(turnCount(lastCall.turns)) : copy.assistant.summary.turnsPending
+              }
             />
           </div>
           <p className="t-caption mt-sp-6 text-ink-4">{copy.assistant.summary.savedNote}</p>

@@ -20,6 +20,11 @@ export type ConversationSummary = {
   ended_at: string | null;
   duration_seconds: number | null;
   disposition: string | null;
+  /**
+   * A count, not a transcript. The detail endpoint reuses this name for a
+   * ConversationTurn[] array - route through lib/conversation.ts (turnCount /
+   * turnLines) so the two shapes are never confused at a call site.
+   */
   turns: number;
 };
 

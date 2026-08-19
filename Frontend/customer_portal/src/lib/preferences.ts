@@ -7,8 +7,10 @@
  */
 export type Density = "comfortable" | "compact";
 export type TextSize = "default" | "large";
+export type PortalTheme = "dark" | "light";
 
 export type PortalPreferences = {
+  theme: PortalTheme;
   reduceMotion: boolean;
   density: Density;
   textSize: TextSize;
@@ -16,18 +18,22 @@ export type PortalPreferences = {
 };
 
 export const DEFAULT_PREFERENCES: PortalPreferences = {
+  theme: "dark",
   reduceMotion: false,
   density: "comfortable",
   textSize: "default",
   captions: true,
 };
 
-const KEY = "nexus_portal_preferences";
+const KEY = "portal_preferences";
+// Written by the pre-rebrand release. Read so existing settings survive the
+// key rename; writes go to KEY only and the legacy entry ages out naturally.
+const LEGACY_KEY = "nexus_portal_preferences";
 
 export function readPreferences(): PortalPreferences {
   if (typeof window === "undefined") return DEFAULT_PREFERENCES;
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(KEY) ?? window.localStorage.getItem(LEGACY_KEY);
     if (!raw) return DEFAULT_PREFERENCES;
     return { ...DEFAULT_PREFERENCES, ...(JSON.parse(raw) as Partial<PortalPreferences>) };
   } catch {
@@ -49,6 +55,7 @@ export function writePreferences(next: PortalPreferences): void {
 export function applyPreferences(next: PortalPreferences): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
+  root.dataset["theme"] = next.theme;
   root.dataset["reduceMotion"] = String(next.reduceMotion);
   root.dataset["density"] = next.density;
   root.dataset["textSize"] = next.textSize;
