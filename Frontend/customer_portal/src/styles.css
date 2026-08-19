@@ -434,8 +434,11 @@ body::before {
     hyphens: none;
   }
 
-  html,
-  body {
+  /* The page background lives on html only: html's background is the canvas,
+     painted first, so the grid on body::before (z-index -1) shows through a
+     transparent body. An opaque background on body would cover it - body is
+     an in-flow block and paints after negative-z pseudo-elements. */
+  html {
     background-color: var(--surface-0);
     color: var(--ink-2);
   }
