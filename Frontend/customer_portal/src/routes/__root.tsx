@@ -17,7 +17,7 @@ import { brand, copy, pageTitle } from "@/lib/copy";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
+    <div className="flex min-h-screen items-center justify-center px-sp-8">
       <Card className="w-full max-w-[420px] text-center">
         <div className="t-mono-l text-ink-4">404</div>
         <h1 className="t-title-2 mt-sp-5 text-ink-1">{copy.errors.notFoundTitle}</h1>
@@ -39,7 +39,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
+    <div className="flex min-h-screen items-center justify-center px-sp-8">
       <Card className="w-full max-w-[420px] text-center">
         <h1 className="t-title-2 text-ink-1">{copy.errors.brokenTitle}</h1>
         <p className="t-body mt-sp-3 text-ink-4">{copy.errors.brokenBody}</p>

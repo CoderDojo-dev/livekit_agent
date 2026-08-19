@@ -37,7 +37,7 @@ function LogoutPage() {
   }, [reason, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
+    <div className="flex min-h-screen items-center justify-center px-sp-8">
       <p className="t-caption text-ink-4" role="status">
         {MESSAGE[reason]}
       </p>

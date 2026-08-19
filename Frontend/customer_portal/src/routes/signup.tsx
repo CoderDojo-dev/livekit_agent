@@ -57,7 +57,7 @@ function SignupPage() {
     "focus-ring t-ui-regular inline-flex h-9 w-full rounded-r-2 border border-stroke-default bg-surface-2 px-sp-5 text-ink-1 placeholder:text-ink-5";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8 py-sp-10">
+    <div className="flex min-h-screen items-center justify-center px-sp-8 py-sp-10">
       <Card className="w-full max-w-[420px]">
         <div className="mb-sp-7 text-center">
           <h1 className="t-title-3 text-ink-1">{copy.signup.title}</h1>

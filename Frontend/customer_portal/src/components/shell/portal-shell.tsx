@@ -12,7 +12,7 @@ export function PortalShell({ children, scene = false }: { children: ReactNode; 
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-surface-0">
+    <div className="min-h-screen">
       <PortalRail collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
       <PortalTabbar />
       <div

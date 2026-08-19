@@ -46,7 +46,7 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
+    <div className="flex min-h-screen items-center justify-center px-sp-8">
       <Card className="w-full max-w-[380px]">
         <div className="mb-sp-7 flex flex-col items-center text-center">
           <h1 className="t-title-3 text-ink-1">{copy.login.title}</h1>

@@ -208,18 +208,19 @@
 }
 
 /*
-  Premium grid. Sits on body::before, beneath every app surface and beneath the
-  grain on body::after. Two scales - a fine 64px cell and a 256px major line -
-  give depth without adding density. A radial mask fades the grid out toward
-  the edges so it reads as depth rather than as graph paper, and keeps the
-  centre of the screen (where the orb and all primary text live) at its
-  quietest.
+  Premium grid. Sits on body::before at z-index -1: between the page canvas
+  (html/body background) and every app surface, so components are never
+  "gridded" - the lines read through the gaps between cards, never across
+  them. Two scales - a fine 64px cell and a 256px major line - give depth
+  without adding density. A radial mask fades the grid out toward the edges
+  so it reads as depth rather than as graph paper, and keeps the centre of
+  the screen (where the orb and all primary text live) at its quietest.
 */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   background-image:
     repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--grid-cell)),
