@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Radar, Search } from "lucide-react";
 import { Button, Card, CardHeader, TextField } from "@/components/nexus/primitives";
 import { InlineError } from "@/components/nexus/states";
 import { probeSearch } from "@/lib/api/knowledge.server";
@@ -36,24 +37,48 @@ export function RetrievalProbe() {
   return (
     <Card>
       <CardHeader
-        title="Retrieval probe"
-        subtitle="Runs the same query path the agent uses — what would it retrieve for this question?"
+        icon={Radar}
+        title="Ask what the agent would find"
+        subtitle="Runs the same retrieval path a live call uses, so you can see the passages before a customer does."
       />
-      <div className="mt-sp-6 flex items-start gap-sp-4">
+
+      {/*
+       * `items-start` put the button's top edge level with the "Query" LABEL, which floats ~18px
+       * above the input - so the button hung above the field it belongs to. `items-end` lines its
+       * baseline up with the input itself. It also stacks below the field on a narrow screen
+       * instead of squeezing the input to nothing.
+       */}
+      <div className="mt-sp-6 flex flex-col items-stretch gap-sp-4 sm:flex-row sm:items-end">
         <TextField
           label="Query"
           placeholder="e.g. How many days of roaming are included?"
-          className="max-w-[420px]"
+          className="w-full sm:max-w-[420px]"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") void run();
           }}
         />
-        <Button variant="primary" disabled={pending || !query.trim()} onClick={() => void run()}>
-          {pending ? "Searching\u2026" : "Probe"}
+        <Button
+          variant="primary"
+          {...(pending ? {} : { icon: Search })}
+          disabled={pending || !query.trim()}
+          onClick={() => void run()}
+          /* The stroke ring grows out of the button on hover - the "light stroke" treatment,
+           * built from the existing glow-soft shadow token rather than a new one. */
+          className="shrink-0 transition-shadow duration-[160ms] hover:shadow-glow-soft"
+        >
+          {pending ? "Searching…" : "Probe"}
         </Button>
       </div>
+
+      {/* Idle hint, so the card is never a bare input with nothing beneath it. */}
+      {!result && !error && !pending ? (
+        <p className="t-caption mt-sp-5 max-w-[64ch] text-ink-5">
+          Nothing is sent to a customer and nothing is stored - this reads the index exactly as it
+          stands right now.
+        </p>
+      ) : null}
 
       {error ? (
         <div className="mt-sp-6">

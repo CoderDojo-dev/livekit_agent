@@ -1,4 +1,4 @@
-import { maskPhone } from "./format";
+import { formatPhone } from "./format";
 import type { Callback } from "@/lib/api/callbacks.server";
 
 /** The five scopes. Each maps to one legal (status, overdue_only) pair — see F15. */
@@ -91,7 +91,7 @@ export function formatBusinessDayTime(iso: string | null, timeZone: string): str
 export function callbackCustomer(row: Callback): { name: string; phone: string } {
   return {
     name: row.customer_name?.trim() || "Unknown caller",
-    phone: row.customer_phone ? maskPhone(row.customer_phone) : "\u2014",
+    phone: row.customer_phone ? formatPhone(row.customer_phone) : "\u2014",
   };
 }
 

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { usePreferences } from "@/lib/nexus/preferences";
 
 /**
  * Rows per page, derived from the viewport instead of hard-coded.
@@ -32,15 +33,21 @@ function subscribe(onChange: () => void): () => void {
  * Quantised so that a few pixels of resize do not churn the page size (and with it the query key
  * on server-paginated pages). Only crossing a whole-row boundary changes the answer.
  */
-function measure({ rowHeight, chrome, min, max }: Options): number {
+function measure({ rowHeight, chrome, min, max }: Options, densityFactor: number): number {
   const available = window.innerHeight - chrome;
-  return Math.min(max, Math.max(min, Math.floor(available / rowHeight)));
+  return Math.min(max, Math.max(min, Math.floor(available / (rowHeight * densityFactor))));
 }
 
 export function useAdaptivePageSize(options: Options): number {
+  /* Compact density shortens every row (--row-h: 52px -> 42px), so the same screen holds more of
+   * them. Reading the preference here keeps the page size honest when the setting changes —
+   * usePreferences is reactive, so the snapshot below is recomputed on the next render. */
+  const { density } = usePreferences();
+  const densityFactor = density === "compact" ? 42 / 52 : 1;
+
   return useSyncExternalStore(
     subscribe,
-    () => measure(options),
+    () => measure(options, densityFactor),
     () => options.fallback,
   );
 }

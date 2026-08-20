@@ -1,13 +1,28 @@
 import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Palette, ShieldCheck, SlidersHorizontal, UserCog } from "lucide-react";
 import { pageTitle } from "@/lib/nexus/brand";
-import { Card, CardHeader, Button, TextField } from "@/components/nexus/primitives";
+import {
+  Avatar,
+  Button,
+  Card,
+  CardHeader,
+  Segmented,
+  TextField,
+  Token,
+} from "@/components/nexus/primitives";
+import { SectionHeading } from "@/components/nexus/blocks";
+import { SettingRow, SettingToggle } from "@/components/nexus/setting-row";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { InlineError } from "@/components/nexus/states";
 import { Modal } from "@/components/nexus/modal";
 import { changePassword, revokeAllSessions } from "@/lib/api/auth.server";
+import { updatePreferences, usePreferences } from "@/lib/nexus/preferences";
+import { Route as RootRoute } from "@/routes/__root";
+import { ROLE_LABEL } from "@/lib/api/session";
+import type { SessionView } from "@/lib/api/auth.server";
+import { initials } from "@/lib/nexus/format";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -22,10 +37,170 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const { session } = RootRoute.useRouteContext();
+
   return (
-    <PageSection index={0}>
-      <AccountSecurityPanel />
-    </PageSection>
+    <>
+      {/* Identity first: who you are signed in as frames everything below it. */}
+      <PageSection index={0}>
+        <SectionHeading title="Account" hint="This session" icon={UserCog} />
+        <IdentityCard session={session} />
+      </PageSection>
+
+      <PageSection index={1}>
+        <SectionHeading
+          title="Appearance"
+          hint="Stored on this device only — never sent to the server"
+          icon={Palette}
+        />
+        <AppearancePanel />
+      </PageSection>
+
+      <PageSection index={2}>
+        <SectionHeading
+          title="Interface"
+          hint="How much this console shows you"
+          icon={SlidersHorizontal}
+        />
+        <InterfacePanel />
+      </PageSection>
+
+      <PageSection index={3}>
+        <SectionHeading title="Security" hint="Password and active sessions" icon={ShieldCheck} />
+        <AccountSecurityPanel />
+      </PageSection>
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Identity
+ * ------------------------------------------------------------------------------------------- */
+
+function IdentityCard({ session }: { session: SessionView | null }) {
+  const name = session ? (session.sub.split("@")[0] ?? session.sub) : "—";
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center gap-sp-6">
+        <Avatar
+          size="xl"
+          initials={initials(name.replace(/[._-]/g, " ")) || "··"}
+          name={session?.sub ?? "Signed out"}
+        />
+        <div className="min-w-0">
+          <p className="t-title-2 truncate text-ink-1">{name}</p>
+          <p className="t-caption mt-sp-2 truncate text-ink-4">{session?.sub ?? "—"}</p>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-sp-4">
+          {/* The role is granted by the backend and is not editable here — a Token, not a control,
+           * so nobody mistakes it for something they can change. */}
+          <Token strong mono={false}>
+            {session ? ROLE_LABEL[session.role] : "—"}
+          </Token>
+          <span className="t-caption text-ink-5">Role is set by an administrator</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Appearance
+ * ------------------------------------------------------------------------------------------- */
+
+function AppearancePanel() {
+  const prefs = usePreferences();
+
+  return (
+    <Card>
+      <SettingRow
+        title="Theme"
+        description="Dark is this console's native mode. Light is available for bright rooms and for printing a screen."
+        control={
+          <Segmented
+            groupId="settings-theme"
+            items={["Dark", "Light"]}
+            active={prefs.theme === "light" ? "Light" : "Dark"}
+            onSelect={(label) => updatePreferences({ theme: label === "Light" ? "light" : "dark" })}
+          />
+        }
+      />
+      <SettingRow
+        title="Text size"
+        description="Enlarges reading text — table content, descriptions and captions. Metrics keep their size so the hierarchy still reads at a glance."
+        control={
+          <Segmented
+            groupId="settings-text"
+            items={["Default", "Large"]}
+            active={prefs.textSize === "large" ? "Large" : "Default"}
+            onSelect={(label) =>
+              updatePreferences({ textSize: label === "Large" ? "large" : "default" })
+            }
+          />
+        }
+      />
+      <SettingRow
+        title="Reduce motion"
+        description="Turns off page transitions, pager cross-fades and the modal animation. Your operating system setting is already respected — this is for when it is not set."
+        control={
+          <SettingToggle
+            name="Reduce motion"
+            value={prefs.reduceMotion}
+            onChange={(next) => updatePreferences({ reduceMotion: next })}
+          />
+        }
+      />
+    </Card>
+  );
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Interface
+ * ------------------------------------------------------------------------------------------- */
+
+function InterfacePanel() {
+  const prefs = usePreferences();
+
+  return (
+    <Card>
+      <SettingRow
+        title="Table density"
+        description="Compact shortens every table row, fitting roughly a third more records on the same screen."
+        control={
+          <Segmented
+            groupId="settings-density"
+            items={["Comfortable", "Compact"]}
+            active={prefs.density === "compact" ? "Compact" : "Comfortable"}
+            onSelect={(label) =>
+              updatePreferences({ density: label === "Compact" ? "compact" : "comfortable" })
+            }
+          />
+        }
+      />
+      <SettingRow
+        title="Queue badges"
+        description="Shows open escalations, open tickets and pending callbacks beside their sidebar entries. Turning this off stops the background poll entirely."
+        control={
+          <SettingToggle
+            name="Queue badges"
+            value={prefs.showNavCounts}
+            onChange={(next) => updatePreferences({ showNavCounts: next })}
+          />
+        }
+      />
+      <SettingRow
+        title="Keyboard hints"
+        description="Pins the shortcut hints in the sidebar instead of revealing them on hover."
+        control={
+          <SettingToggle
+            name="Keyboard hints"
+            value={prefs.showShortcuts}
+            onChange={(next) => updatePreferences({ showShortcuts: next })}
+          />
+        }
+      />
+    </Card>
   );
 }
 

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Database, FileQuestion, Search } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, FileQuestion, Search } from "lucide-react";
 import {
   Card,
   CardHeader,
   EmptyState,
   SearchInput,
   Segmented,
+  PresenceDot,
   StatusChip,
   TableShell,
   Td,
@@ -124,27 +125,51 @@ function KnowledgePage() {
           ) : healthQuery.isError ? (
             <InlineError error={healthQuery.error} />
           ) : health && health.ready ? (
-            <div className="grid grid-cols-2 gap-sp-6 md:grid-cols-5">
-              <HealthValue label="Status" value="Searchable" />
-              <HealthValue label="Model" value={healthQuery.data?.model ?? "—"} mono />
-              <HealthValue
-                label="Dimensions"
-                value={String(healthQuery.data?.dimensions ?? "—")}
-                mono
-              />
-              <HealthValue
-                label="Points"
-                value={formatInteger(healthQuery.data?.points ?? 0)}
-                mono
-              />
-              <HealthValue label="Collection" value={healthQuery.data?.collection ?? "—"} mono />
+            /*
+             * Was five equal `t-metric-m` values in a row — "Searchable", a model id, a dimension
+             * count, a point count and a collection name, all shouting at the same volume. Four
+             * of those are machine facts nobody acts on; only one answers the question a person
+             * actually arrives with, which is "can the agent answer from this right now?".
+             *
+             * So the answer leads, in plain language, and the machine detail becomes a quiet
+             * mono strip beneath it.
+             */
+            <div className="flex flex-wrap items-center gap-x-sp-8 gap-y-sp-6">
+              <div className="flex min-w-0 items-center gap-sp-6">
+                <span className="inline-flex size-[40px] shrink-0 items-center justify-center rounded-r-3 border border-stroke-default bg-surface-3 text-ink-2">
+                  <BookOpenCheck size={18} strokeWidth={1.5} aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="t-title-3 flex items-center gap-sp-4 text-ink-1">
+                    The agent can answer from this library
+                    <PresenceDot live />
+                  </p>
+                  <p className="t-caption mt-sp-2 text-ink-4">
+                    {formatInteger(healthQuery.data?.points ?? 0)} passages indexed and searchable
+                    across {formatInteger(totalDocs)} documents.
+                  </p>
+                </div>
+              </div>
+
+              {/* The machine detail, demoted to where it belongs. */}
+              <div className="ml-auto flex flex-wrap items-center gap-sp-4">
+                <Token>{healthQuery.data?.model ?? "—"}</Token>
+                <Token>{healthQuery.data?.dimensions ?? "—"}d</Token>
+                <Token>{healthQuery.data?.collection ?? "—"}</Token>
+              </div>
             </div>
           ) : health && !health.ready ? (
-            <div>
-              <p className="t-title-3 text-ink-1">Index degraded</p>
-              <p className="t-caption mt-sp-2 text-ink-4">
-                Failing checks: {health.failing.join(", ") || "unknown"}
-              </p>
+            <div className="flex items-center gap-sp-6">
+              <span className="inline-flex size-[40px] shrink-0 items-center justify-center rounded-r-3 border border-stroke-strong bg-surface-3 text-ink-1">
+                <AlertTriangle size={18} strokeWidth={1.5} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="t-title-3 text-ink-1">The agent cannot search this library</p>
+                <p className="t-caption mt-sp-2 text-ink-4">
+                  Answers will fall back to the model alone until this clears. Failing checks:{" "}
+                  {health.failing.join(", ") || "unknown"}.
+                </p>
+              </div>
             </div>
           ) : null}
         </Card>
@@ -297,28 +322,5 @@ function KnowledgePage() {
         <RetrievalProbe />
       </PageSection>
     </>
-  );
-}
-
-function HealthValue({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div>
-      <span className="t-micro block text-ink-5">{label}</span>
-      <span
-        className={
-          mono ? "t-metric-m block truncate font-mono text-ink-1" : "t-metric-m block text-ink-1"
-        }
-      >
-        {value}
-      </span>
-    </div>
   );
 }

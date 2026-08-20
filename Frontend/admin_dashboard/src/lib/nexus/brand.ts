@@ -10,14 +10,14 @@
  */
 export const BRAND = {
   /** Full product name. Appears in the sidebar and in every document title. */
-  name: "Admin Console",
-  /** Compact form for the sidebar wordmark, where width is scarce. */
-  shortName: "Console",
+  name: "Admin Dashboard",
+  /** Compact form for the sidebar wordmark and the topbar fallback, where width is scarce. */
+  shortName: "Admin",
   /** Rendered as the muted mono chip beside the wordmark. */
   version: "v1.0",
 } as const;
 
-/** `pageTitle("Overview")` -> "Overview — Admin Console". Used by every route's head(). */
+/** `pageTitle("Overview")` -> "Overview — Admin Dashboard". Used by every route's head(). */
 export function pageTitle(page: string): string {
   return `${page} — ${BRAND.name}`;
 }

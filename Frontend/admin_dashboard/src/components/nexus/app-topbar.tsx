@@ -4,6 +4,7 @@ import { LogOut, PanelLeft } from "lucide-react";
 import { PAGE_META, ACCOUNT_FALLBACK, type AccountInfo } from "@/lib/nexus/nav";
 import { Avatar, IconButton } from "@/components/nexus/primitives";
 import { SidebarContent } from "@/components/nexus/app-sidebar";
+import { ThemeToggle } from "@/components/nexus/theme-toggle";
 import {
   Sheet,
   SheetContent,
@@ -96,6 +97,11 @@ export function AppTopbar() {
 
         <Avatar initials={account.initials} size="sm" />
 
+        {/* Separated from the account block: theme is a view setting, sign-out is an account
+         * action, and putting a hairline between them stops the two being fired by mistake. */}
+        <span aria-hidden="true" className="mx-sp-1 h-[20px] w-px bg-stroke-default" />
+
+        <ThemeToggle />
         <IconButton label="Sign out" icon={LogOut} onClick={() => void onSignOut()} />
       </div>
     </header>

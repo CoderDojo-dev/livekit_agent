@@ -31,7 +31,7 @@ import {
 } from "@/lib/nexus/customer-view";
 import { ticketStatusKey } from "@/lib/nexus/ticket-view";
 import { errorMessage, toApiError } from "@/lib/api/errors";
-import { maskPhone } from "@/lib/nexus/format";
+import { formatPhone } from "@/lib/nexus/format";
 import { formatInstant } from "@/lib/nexus/audit-view";
 
 // Mirrors the backend cap in SupervisionRepository.customer_ledger (_LEDGER_LIMIT = 50).
@@ -83,7 +83,7 @@ export function CustomerDetail({ customer, onClose }: Props) {
         {customer.segment ? <Token mono={false}>{customer.segment}</Token> : null}
         <span className="t-caption ml-auto text-ink-4">
           {customer.email ?? "\u2014"}
-          {customer.contact_number ? ` \u00b7 ${maskPhone(customer.contact_number)}` : ""}
+          {customer.contact_number ? ` \u00b7 ${formatPhone(customer.contact_number)}` : ""}
         </span>
       </div>
 

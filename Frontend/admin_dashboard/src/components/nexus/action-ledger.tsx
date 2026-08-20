@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity } from "lucide-react";
+import { Activity, CheckCircle2 } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -23,15 +23,22 @@ import { queryKeys } from "@/lib/nexus/query-keys";
  * carries no attempt_count, error_message or timestamp, so nothing here renders them.
  * Status chips reuse actionStatusKey() — no new key is added to status.ts.
  */
+/* Succeeded first, and selected by default.
+ *
+ * The panel used to open on "Failed", so on a healthy platform it greeted every visitor with an
+ * empty state — which read as "this component is broken" rather than "nothing has failed".
+ * (Confirmed against the live ledger: 12 succeeded rows, 0 failed.) Opening on Succeeded shows
+ * the ledger working; the failure scopes are one click away and are where you go when something
+ * is actually wrong. */
 const SCOPES: Array<{ id: LedgerActionStatus; label: string }> = [
+  { id: "succeeded", label: "Succeeded" },
   { id: "failed", label: "Failed" },
   { id: "retrying", label: "Retrying" },
   { id: "pending", label: "Pending" },
-  { id: "succeeded", label: "Succeeded" },
 ];
 
 export function ActionLedgerPanel() {
-  const [status, setStatus] = useState<LedgerActionStatus>("failed");
+  const [status, setStatus] = useState<LedgerActionStatus>("succeeded");
 
   const query = useQuery({
     queryKey: queryKeys.supervision.actions(status),
@@ -68,9 +75,15 @@ export function ActionLedgerPanel() {
       ) : rows.length === 0 ? (
         <div className="mt-sp-6">
           <EmptyState
-            icon={Activity}
-            title="Nothing in this state"
-            description="No action in the ledger currently carries this status."
+            icon={status === "succeeded" ? Activity : CheckCircle2}
+            title={status === "succeeded" ? "No executed actions yet" : `No ${status} actions`}
+            /* An empty FAILURE scope is good news and should say so. An empty success scope means
+             * the platform genuinely has not executed anything, which is a different fact. */
+            description={
+              status === "succeeded"
+                ? "The execution service has not completed an action yet. Actions appear here once a policy verdict authorizes one."
+                : "Nothing in the ledger carries this status — on a healthy platform that is the expected state."
+            }
           />
         </div>
       ) : (

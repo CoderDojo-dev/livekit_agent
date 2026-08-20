@@ -3,6 +3,17 @@ import { sentimentByIndex, sentimentTone, turnKey } from "@/lib/nexus/call-view"
 import type { SentimentRow, TranscriptTurnRow } from "@/lib/api/sessions.server";
 import { cn } from "@/lib/utils";
 
+/**
+ * A conversation, in a fixed-height reading window.
+ *
+ * It previously rendered every turn inline, so a 60-turn call produced a page several thousand
+ * pixels tall and the verdicts panel below it was effectively unreachable. The transcript is the
+ * one place on this page where scrolling is the RIGHT answer — you read a conversation in order
+ * and scroll back for what was said earlier — but that scrolling has to be contained.
+ *
+ * `overscroll-contain` stops a wheel that reaches the end of the transcript from continuing into
+ * the page behind it, which is the behaviour that made the old nested scrollers feel broken.
+ */
 export function Transcript({
   turns,
   sentiment,
@@ -13,7 +24,14 @@ export function Transcript({
   const byIndex = sentimentByIndex(sentiment);
 
   return (
-    <ul>
+    <ul
+      /* Sized in viewport units so the panel always ends inside the window, on a laptop and on a
+       * 27" display alike, instead of being pinned to one hard-coded pixel height. */
+      className="max-h-[min(52vh,560px)] overflow-y-auto overscroll-contain"
+      tabIndex={0}
+      role="log"
+      aria-label="Call transcript"
+    >
       {turns.map((turn) => {
         const isCaller = turn.speaker === "caller";
         // F5 — sentiment measures the CALLER. Never paint the agent's line with it.

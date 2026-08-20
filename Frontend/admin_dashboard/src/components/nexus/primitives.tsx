@@ -12,15 +12,28 @@ export function Card({
   children,
   className,
   padded = true,
+  interactive = true,
 }: {
   children: ReactNode;
   className?: string;
   padded?: boolean;
+  /**
+   * Border-and-elevation hover response. ON by default so every card in the product answers the
+   * pointer without each caller opting in — that consistency is the whole point.
+   *
+   * Deliberately no translate: a grid where a dozen cards lift under the pointer reads as noise,
+   * not as response. Border + shadow says "this is a surface" without moving the page.
+   *
+   * Set false only for a card that is purely a layout box inside another card.
+   */
+  interactive?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "rounded-r-4 border border-stroke-default bg-surface-2 shadow-elev-1",
+        "group rounded-r-4 border border-stroke-default bg-surface-2 shadow-elev-1",
+        interactive &&
+          "transition-[border-color,box-shadow] duration-[160ms] hover:border-stroke-strong hover:shadow-elev-2",
         padded && "p-sp-7",
         className,
       )}
@@ -562,7 +575,7 @@ export function Td({
     <td
       className={cn(
         "border-b border-stroke-subtle px-sp-6 t-ui text-ink-2",
-        stacked ? "py-sp-5 align-top" : "h-[52px]",
+        stacked ? "py-sp-5 align-top" : "h-[var(--row-h)]",
         align === "right" && "text-right",
         align === "center" && "text-center",
         className,

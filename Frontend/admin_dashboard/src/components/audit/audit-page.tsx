@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
-import { Fingerprint, Link2, ShieldCheck } from "lucide-react";
+import { Archive, Fingerprint, Link2, ScrollText, ShieldCheck } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -19,6 +19,7 @@ import { CursorPager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
 import { RetentionPanel } from "@/components/nexus/retention-panel";
+import { SectionHeading } from "@/components/nexus/blocks";
 import { verifyAuditChain, runIntegrityReport, listAuditEntries } from "@/lib/api/audit.server";
 import { auditKeys } from "@/lib/nexus/query-keys";
 import {
@@ -35,14 +36,28 @@ import { formatInteger } from "@/lib/nexus/format";
 export function AuditPage() {
   return (
     <>
-      <PageSection index={0} className="grid gap-sp-6 xl:grid-cols-2">
-        <AuditChainPanel />
-        <IntegrityPanel />
+      {/* Three bands, in the order an auditor works: prove it is intact, then act on what the
+       * proof found, then read the record itself. Previously all three sat as unlabelled peers
+       * and the page read as a pile of panels. */}
+      <PageSection index={0}>
+        <SectionHeading
+          title="Integrity"
+          hint="Run on demand — both checks read the whole ledger"
+          icon={ShieldCheck}
+        />
+        <div className="grid gap-sp-6 xl:grid-cols-2">
+          <AuditChainPanel />
+          <IntegrityPanel />
+        </div>
       </PageSection>
+
       <PageSection index={1}>
+        <SectionHeading title="Retention" hint="Destructive, and audited" icon={Archive} />
         <RetentionPanel />
       </PageSection>
+
       <PageSection index={2}>
+        <SectionHeading title="The record" hint="Append-only, newest first" icon={ScrollText} />
         <AuditLedgerTable />
       </PageSection>
     </>
@@ -181,9 +196,9 @@ function AuditLedgerTable() {
     <Card padded={false}>
       <div className="p-sp-7">
         <CardHeader
-          title="Audit Ledger"
-          subtitle="Append-only, newest first. Each page is fetched on demand and kept for instant back-paging."
-          icon={ShieldCheck}
+          title="Audit ledger"
+          subtitle="Each page is fetched on demand and kept in cache, so stepping back is instant and the page never grows."
+          icon={ScrollText}
         />
       </div>
       <TableShell

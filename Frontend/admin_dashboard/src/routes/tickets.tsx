@@ -17,6 +17,7 @@ import {
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { CountStrip } from "@/components/nexus/count-strip";
+import { NoteBanner } from "@/components/nexus/note-banner";
 import { Pager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { getCoverage } from "@/lib/api/availability.server";
@@ -64,7 +65,8 @@ export const Route = createFileRoute("/tickets")({
 });
 
 function TicketsPage() {
-  const [status, setStatus] = useState("");
+  /* Open tickets are the work; closed ones are history. The page opens on the work. */
+  const [status, setStatus] = useState("open");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -133,13 +135,13 @@ function TicketsPage() {
             loading={ticketsQuery.isPending}
           />
           {/* F2 — never let this read as "all GLPI tickets". */}
-          <p className="t-caption mt-sp-7 max-w-[80ch] border-t border-stroke-subtle pt-sp-5 text-ink-5">
-            Mirrored from GLPI. Tickets raised outside this platform appear once a caller asks about
-            them.
+          <NoteBanner className="mt-sp-7">
+            Mirrored from GLPI. Tickets raised outside this platform appear here once a caller asks
+            about them.
             {!timeZone && !coverageQuery.isPending
-              ? " Times shown in UTC — the business timezone could not be loaded."
+              ? " Times are shown in UTC — the business timezone could not be loaded."
               : null}
-          </p>
+          </NoteBanner>
         </Card>
       </PageSection>
 

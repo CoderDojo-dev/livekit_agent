@@ -18,13 +18,6 @@ function StatIconFrame({ icon: Icon }: { icon: StatIcon }) {
   );
 }
 
-/**
- * Hover response shared by every card in a metric grid. Border and elevation only — deliberately
- * no translate: a grid where twelve cards all rise under the pointer reads as noise, not response.
- */
-const CARD_HOVER =
-  "group transition-[border-color,box-shadow] duration-[160ms] hover:border-stroke-strong hover:shadow-elev-2";
-
 export function HeroStat({
   label,
   value,
@@ -43,7 +36,7 @@ export function HeroStat({
   icon?: StatIcon | undefined;
 }) {
   return (
-    <Card className={cn("flex flex-col", CARD_HOVER)}>
+    <Card className="flex flex-col">
       <div className="flex items-start justify-between gap-sp-5">
         <div className="flex min-w-0 items-center gap-sp-4">
           {icon ? <StatIconFrame icon={icon} /> : null}
@@ -84,7 +77,7 @@ export function StatCard({
   series?: number[] | undefined;
 }) {
   return (
-    <Card className={cn("flex flex-col", CARD_HOVER)}>
+    <Card className="flex flex-col">
       <div className="flex items-start justify-between gap-sp-5">
         <div className="flex min-w-0 items-center gap-sp-4">
           {icon ? <StatIconFrame icon={icon} /> : null}

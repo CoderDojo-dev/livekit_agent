@@ -14,7 +14,8 @@ import {
   Th,
   Token,
 } from "@/components/nexus/primitives";
-import { HeroStat, StatCard } from "@/components/nexus/blocks";
+import { HeroStat, StatCard, ShareBar } from "@/components/nexus/blocks";
+import { Card, CardHeader } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { Pager } from "@/components/nexus/pager";
@@ -25,9 +26,10 @@ import { pageTitle } from "@/lib/nexus/brand";
 import { CustomerDetail } from "@/components/nexus/customer-detail";
 import { listCustomers, type CustomerRow } from "@/lib/api/customers.server";
 import { getSystemOverview } from "@/lib/api/analytics.server";
+import { getCustomerMix } from "@/lib/api/customer-mix.server";
 import { customerKeys, analyticsKeys } from "@/lib/nexus/query-keys";
 import { customerStatusKey, languageLabel } from "@/lib/nexus/customer-view";
-import { formatInteger, initials, maskPhone } from "@/lib/nexus/format";
+import { formatInteger, initials, formatPhone } from "@/lib/nexus/format";
 import { useDebounced } from "@/hooks/use-debounced";
 
 const STATUS_OPTIONS = [
@@ -93,6 +95,15 @@ function CustomersPage() {
     queryFn: () => getSystemOverview(),
   });
 
+  /* Real per-status totals (see customer-mix.server.ts) — the list endpoint carries no
+   * breakdown, and inventing one from the current page would describe 10 rows as if it
+   * described the estate. */
+  const mix = useQuery({
+    queryKey: customerKeys.mix(),
+    queryFn: () => getCustomerMix(),
+    staleTime: 60_000,
+  });
+
   const rows = list.data?.customers ?? [];
   const total = list.data?.total ?? 0;
   useEffect(() => setPage(0), [debouncedSearch, status, pageSize]);
@@ -113,25 +124,68 @@ function CustomersPage() {
 
   return (
     <>
-      <PageSection index={0} className="grid gap-sp-6 xl:grid-cols-3">
+      <PageSection index={0} className="grid gap-sp-6 xl:grid-cols-[1fr_1fr_1.3fr]">
         <HeroStat
           label="Customers"
           value={overview.data ? formatInteger(overview.data.metrics.total_customers) : "\u2014"}
           context="Identity records in crm.customers"
           icon={Users}
+          /* The sparkline slot stays empty here on purpose: no customer time series exists on the
+           * wire, and drawing one from session volume would label the wrong data as growth. The
+           * distribution card to the right fills the band with something that IS true. */
         />
         <StatCard
           label={filtering ? "Matching" : "Listed"}
           value={list.data ? formatInteger(total) : "\u2014"}
           context={filtering ? "Rows matching the current filters" : "All customers"}
+          meta={
+            total === 0
+              ? `${pageSize} per page`
+              : `Showing ${range.from}\u2013${range.to} \u00b7 ${pageSize} per page`
+          }
           icon={IdCard}
         />
-        <StatCard
-          label="Page"
-          value={total === 0 ? "0" : `${range.from}\u2013${range.to}`}
-          context={`${pageSize} per page, sized to this window`}
-          icon={Layers}
-        />
+
+        {/* Replaces a "Page 1\u201310" card that restated the footer. Real per-status totals. */}
+        <Card className="flex flex-col">
+          <CardHeader title="Status mix" subtitle="Across every customer record." icon={Layers} />
+          <div className="mt-sp-7 flex-1">
+            {mix.isPending ? (
+              <div className="space-y-sp-5" role="status">
+                <span className="sr-only">Loading status mix</span>
+                <span className="shimmer block h-[10px] rounded-r-1" />
+                <span className="shimmer block h-[10px] w-[60%] rounded-r-1" />
+              </div>
+            ) : (
+              (() => {
+                // null = not readable. Omitted entirely rather than drawn as a zero segment.
+                const parts = [
+                  { label: "Active", value: mix.data?.active ?? null },
+                  { label: "Suspended", value: mix.data?.suspended ?? null, strong: true },
+                  { label: "Closed", value: mix.data?.closed ?? null },
+                ].filter(
+                  (part): part is { label: string; value: number; strong?: boolean } =>
+                    part.value !== null,
+                );
+
+                if (parts.length === 0) {
+                  return (
+                    <p className="t-caption text-ink-5">
+                      The status breakdown could not be read just now.
+                    </p>
+                  );
+                }
+
+                return (
+                  <ShareBar
+                    parts={parts}
+                    total={parts.reduce((sum, part) => sum + part.value, 0)}
+                  />
+                );
+              })()
+            )}
+          </div>
+        </Card>
       </PageSection>
 
       <PageSection index={1}>
@@ -253,7 +307,7 @@ function CustomersPage() {
                   </Td>
                   <Td align="right">
                     <span className="t-mono text-ink-3">
-                      {c.contact_number ? maskPhone(c.contact_number) : "\u2014"}
+                      {c.contact_number ? formatPhone(c.contact_number) : "\u2014"}
                     </span>
                   </Td>
                 </tr>

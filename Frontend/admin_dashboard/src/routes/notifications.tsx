@@ -15,6 +15,7 @@ import {
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { CountStrip } from "@/components/nexus/count-strip";
+import { NoteBanner } from "@/components/nexus/note-banner";
 import { Pager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { getCoverage } from "@/lib/api/availability.server";
@@ -59,7 +60,9 @@ export const Route = createFileRoute("/notifications")({
 });
 
 function NotificationsPage() {
-  const [status, setStatus] = useState("");
+  /* "Sent" is the state an operator wants to see on arrival: it is the bulk of the log and the
+   * evidence that the platform is delivering. Landing on the unfiltered view buried it. */
+  const [status, setStatus] = useState("sent");
   const [channel, setChannel] = useState("");
   const [page, setPage] = useState(0);
 
@@ -117,14 +120,14 @@ function NotificationsPage() {
             loading={notificationsQuery.isPending}
           />
           {/* D18.4 / §2.5 — never let this read as "every message the platform sent". */}
-          <p className="t-caption mt-sp-7 max-w-[86ch] border-t border-stroke-subtle pt-sp-5 text-ink-5">
+          <NoteBanner className="mt-sp-7">
             Written by the notification-service after each send attempt. A failed row means the
             provider or the contact lookup refused it; the reason is returned to the caller but not
             stored, so it cannot be shown here. Times are when the attempt was logged.
             {!timeZone && !coverageQuery.isPending
-              ? " Times shown in UTC — the business timezone could not be loaded."
+              ? " Times are shown in UTC — the business timezone could not be loaded."
               : null}
-          </p>
+          </NoteBanner>
         </Card>
       </PageSection>
 

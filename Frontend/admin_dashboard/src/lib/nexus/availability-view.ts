@@ -204,10 +204,22 @@ export function dayLabel(date: string): string {
  * introduces no token and no colour.
  */
 export function coverageTone(count: number, peak: number): string {
-  if (count <= 0) return "bg-surface-3 border border-stroke-strong";
-  if (peak <= 1) return "bg-n-11 border border-stroke-subtle";
+  /*
+   * Outlined, not flooded.
+   *
+   * Solid fills made the grid read as a heat map of blocks — a wall of grey rectangles where the
+   * eye could not separate one hour from the next, and where "thin cover" and "no cover" looked
+   * more alike than they are. Every cell now carries a border and the FILL carries the load:
+   * an empty hour is an outline only, a full hour is solid. That reads as a scale rather than as
+   * a texture, and it keeps the whole grid lighter.
+   *
+   * Still achromatic: n-7/n-9/n-11 are the same three marks blocks.tsx uses for chart geometry.
+   */
+  if (count <= 0) return "border border-dashed border-stroke-strong bg-transparent";
+  if (peak <= 1) return "border border-n-11 bg-n-11/85";
+
   const ratio = count / peak;
-  if (ratio >= 0.75) return "bg-n-11 border border-stroke-subtle";
-  if (ratio >= 0.4) return "bg-n-9 border border-stroke-subtle";
-  return "bg-n-7 border border-stroke-subtle";
+  if (ratio >= 0.75) return "border border-n-11 bg-n-11/85";
+  if (ratio >= 0.4) return "border border-n-9 bg-n-9/45";
+  return "border border-n-8 bg-n-8/15";
 }

@@ -32,7 +32,7 @@ import {
   frustrationLabel,
 } from "@/lib/nexus/call-view";
 import { availabilityKeys, callKeys } from "@/lib/nexus/query-keys";
-import { initials, maskPhone } from "@/lib/nexus/format";
+import { initials, formatPhone } from "@/lib/nexus/format";
 import { cn } from "@/lib/utils";
 
 const SCOPES = [
@@ -171,7 +171,7 @@ function CallsPage() {
                         <span className="min-w-0 flex-1">
                           <span className="t-ui block truncate text-ink-1">{name}</span>
                           <span className="t-mono-s block truncate text-ink-4">
-                            {row.msisdn ? maskPhone(row.msisdn) : "No number"}
+                            {row.msisdn ? formatPhone(row.msisdn) : "No number"}
                           </span>
                         </span>
                         <span className="text-right">
@@ -228,7 +228,7 @@ function CallsPage() {
                   </h2>
                   <p className="t-mono-s mt-sp-2 text-ink-4">
                     {selected.slice(0, 8)}
-                    {activeRow?.msisdn ? ` \u00b7 ${maskPhone(activeRow.msisdn)}` : ""}
+                    {activeRow?.msisdn ? ` \u00b7 ${formatPhone(activeRow.msisdn)}` : ""}
                   </p>
                   <div className="mt-sp-5 flex flex-wrap items-center gap-sp-4">
                     <StatusChip

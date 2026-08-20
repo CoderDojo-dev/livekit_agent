@@ -147,6 +147,8 @@ export const auditKeys = {
  * searching cache independently and going back a page is instant. */
 export const customerKeys = {
   all: ["customers"] as const,
+  /** Status distribution for the header card. Independent of the list's filters. */
+  mix: () => ["customers", "mix"] as const,
   list: (search: string, status: string, limit: number, offset: number) =>
     ["customers", "list", search, status, limit, offset] as const,
   detail: (customerId: string) => ["customers", "detail", customerId] as const,

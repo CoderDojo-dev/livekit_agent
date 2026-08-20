@@ -16,6 +16,7 @@ import { initials as toInitials } from "@/lib/nexus/format";
 import { BRAND } from "@/lib/nexus/brand";
 import { getNavCounts } from "@/lib/api/nav-counts.server";
 import { navKeys } from "@/lib/nexus/query-keys";
+import { usePreferences } from "@/lib/nexus/preferences";
 import { cn } from "@/lib/utils";
 
 type SidebarContentProps = {
@@ -28,6 +29,7 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
     select: (state) => state.location.pathname,
   });
   const { session } = RootRoute.useRouteContext();
+  const { showNavCounts } = usePreferences();
 
   /**
    * Live queue counts. One request for all three badges (see nav-counts.server.ts).
@@ -40,7 +42,9 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
   const counts = useQuery({
     queryKey: navKeys.counts(),
     queryFn: () => getNavCounts(),
-    enabled: session !== null,
+    /* Disabled outright when the badges are switched off in Settings: the poll exists only to
+     * feed them, so leaving it running would be a request nobody reads. */
+    enabled: session !== null && showNavCounts,
     staleTime: 30_000,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
@@ -85,7 +89,8 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
                   /* null (not permitted, or the upstream did not answer) renders NO badge.
                    * Zero renders one: "0 open escalations" is a useful, earned fact, whereas a
                    * badge we could not compute must not be shown as if it were zero. */
-                  const count = item.countKey ? (counts.data?.[item.countKey] ?? null) : null;
+                  const count =
+                    showNavCounts && item.countKey ? (counts.data?.[item.countKey] ?? null) : null;
 
                   return (
                     <Link
@@ -128,7 +133,7 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
                          * had nowhere to go. */
                         <span
                           aria-hidden="true"
-                          className="t-mono-s text-ink-5 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100 group-focus-visible:opacity-100"
+                          className="nav-shortcut t-mono-s text-ink-5 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100 group-focus-visible:opacity-100"
                         >
                           {item.shortcut}
                         </span>

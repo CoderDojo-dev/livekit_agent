@@ -17,6 +17,7 @@ import {
   Token,
 } from "@/components/nexus/primitives";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
+import { NoteBanner } from "@/components/nexus/note-banner";
 import { Pager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { clampPage, slicePage } from "@/lib/nexus/paginate";
@@ -109,17 +110,34 @@ function CallbacksPage() {
 
   return (
     <PageSection index={0}>
-      <div className="mb-sp-6 flex flex-wrap items-baseline gap-sp-5">
-        <span className="t-caption text-ink-4">
-          {statsQuery.data
-            ? `${statsQuery.data.pending} pending · ${statsQuery.data.overdue} overdue · ${statsQuery.data.completed} completed`
-            : "Queue health loading…"}
-        </span>
-        <span className="t-caption text-ink-5">
-          {zoneKnown
-            ? `times in ${timeZone}`
-            : "business timezone unavailable — times shown in UTC"}
-        </span>
+      {/* Queue health as real counters rather than a run-on caption line. */}
+      <div className="mb-sp-6 grid gap-sp-4 sm:grid-cols-[repeat(3,minmax(0,180px))_1fr]">
+        {(
+          [
+            ["Pending", statsQuery.data?.pending],
+            ["Overdue", statsQuery.data?.overdue],
+            ["Completed", statsQuery.data?.completed],
+          ] as const
+        ).map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-r-3 border border-stroke-subtle bg-surface-1 px-sp-6 py-sp-5"
+          >
+            <p className="t-micro text-ink-5">{label}</p>
+            {value === undefined ? (
+              <span className="shimmer mt-sp-3 block h-[18px] w-[48px] rounded-r-1" />
+            ) : (
+              <p className="t-metric-m mt-sp-2 text-ink-1">{value}</p>
+            )}
+          </div>
+        ))}
+        <div className="flex items-center sm:justify-end">
+          <span className="t-caption text-ink-5">
+            {zoneKnown
+              ? `Times in ${timeZone}`
+              : "Business timezone unavailable — times shown in UTC"}
+          </span>
+        </div>
       </div>
 
       <TableShell

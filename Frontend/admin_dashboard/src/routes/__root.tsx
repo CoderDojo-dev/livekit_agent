@@ -17,6 +17,7 @@ import { Card, Button } from "@/components/nexus/primitives";
 import { redirect, useRouterState } from "@tanstack/react-router";
 import { getSession, type SessionView } from "@/lib/api/auth.server";
 import { BRAND } from "@/lib/nexus/brand";
+import { PREFERENCES_BOOT_SCRIPT, syncPreferences } from "@/lib/nexus/preferences";
 
 function NotFoundComponent() {
   const router = useRouter();
@@ -142,8 +143,18 @@ export const Route = createRootRouteWithContext<{
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    /* suppressHydrationWarning: the boot script below mutates <html> (data-theme, density, text
+       size) BEFORE React hydrates, so the server markup and the live DOM legitimately differ on
+       exactly these attributes. Scoped to this one element — it does not mask mismatches
+       anywhere else in the tree. */
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/*
+          Pre-paint preferences. Runs BEFORE the bundle and synchronously sets data-theme on
+          <html>, so a light-theme user never sees a black flash on load or navigation. Without
+          it the server would always render dark and the client would correct it one frame later.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_BOOT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
@@ -157,6 +168,10 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  /* Boot fallback: if the head script was blocked (strict CSP, an extension), this still lands
+   * the stored preferences on <html> — one frame later, but never not at all. */
+  useEffect(() => syncPreferences(), []);
 
   // The login screen is full-bleed: no sidebar, no topbar.
   if (pathname === "/login") {

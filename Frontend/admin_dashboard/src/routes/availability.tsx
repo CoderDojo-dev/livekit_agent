@@ -53,6 +53,7 @@ function AvailabilityPage() {
           }
           action={
             <Segmented
+              groupId="availability-range"
               items={RANGES.map((r) => r.label)}
               active={RANGES.find((r) => r.id === range)!.label}
               onSelect={(label) => setRange(RANGES.find((r) => r.label === label)!.id)}
@@ -99,11 +100,22 @@ function CoverageGrid({ report }: { report: CoverageReport }) {
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      {/*
+       * Two axes, two containments.
+       *
+       * Horizontal: the hour columns have always scrolled. Vertical is new — at 14 or 30 days the
+       * grid grew a row per day and pushed the legend, the uncovered-hours list and the language
+       * gaps off the bottom of the page, so choosing a longer window made the summary you were
+       * reaching for HARDER to see. Seven rows stay visible whatever the range; the rest scroll
+       * within the grid, and everything below it stays put.
+       *
+       * The header row is sticky so the hour labels remain readable while scrolling days.
+       */}
+      <div className="max-h-[336px] overflow-auto overscroll-contain rounded-r-2 border border-stroke-subtle">
         <table className="w-full border-collapse">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-surface-2">
             <tr>
-              <th className="h-[38px] border-b border-stroke-subtle px-sp-5 text-left t-micro font-medium text-ink-5">
+              <th className="sticky left-0 z-20 h-[38px] border-b border-stroke-subtle bg-surface-2 px-sp-5 text-left t-micro font-medium text-ink-5">
                 Day
               </th>
               {hourLabels.map((hh) => (
@@ -119,7 +131,7 @@ function CoverageGrid({ report }: { report: CoverageReport }) {
           <tbody>
             {days.map((day) => (
               <tr key={day.date}>
-                <td className="h-[40px] whitespace-nowrap border-b border-stroke-subtle px-sp-5 t-ui text-ink-2">
+                <td className="sticky left-0 z-10 h-[40px] whitespace-nowrap border-b border-stroke-subtle bg-surface-2 px-sp-5 t-ui text-ink-2">
                   {day.label}
                 </td>
                 {day.cells.map((cell, index) => (
@@ -132,7 +144,7 @@ function CoverageGrid({ report }: { report: CoverageReport }) {
                         title={`${cell.local} · ${cell.advisors} advisor${cell.advisors === 1 ? "" : "s"}${
                           cell.languages.length ? ` · ${cell.languages.join(", ")}` : ""
                         }`}
-                        className={`block h-[22px] w-full rounded-r-1 ${coverageTone(cell.advisors, peak)}`}
+                        className={`block h-[22px] w-full rounded-r-1 transition-[transform,opacity] duration-[120ms] hover:scale-y-110 hover:opacity-80 ${coverageTone(cell.advisors, peak)}`}
                         aria-label={`${cell.local}: ${cell.advisors} advisors`}
                       />
                     ) : (
@@ -148,15 +160,19 @@ function CoverageGrid({ report }: { report: CoverageReport }) {
 
       <div className="mt-sp-6 flex flex-wrap items-center gap-sp-6 border-t border-stroke-subtle pt-sp-5">
         <span className="inline-flex items-center gap-sp-3">
-          <span className="block h-[10px] w-[16px] rounded-r-1 border border-stroke-strong bg-surface-3" />
+          <span className="block h-[10px] w-[16px] rounded-r-1 border border-dashed border-stroke-strong" />
           <span className="t-caption text-ink-4">No cover</span>
         </span>
         <span className="inline-flex items-center gap-sp-3">
-          <span className="block h-[10px] w-[16px] rounded-r-1 bg-n-7" />
+          <span className="block h-[10px] w-[16px] rounded-r-1 border border-n-8 bg-n-8/15" />
           <span className="t-caption text-ink-4">Thin</span>
         </span>
         <span className="inline-flex items-center gap-sp-3">
-          <span className="block h-[10px] w-[16px] rounded-r-1 bg-n-11" />
+          <span className="block h-[10px] w-[16px] rounded-r-1 border border-n-9 bg-n-9/45" />
+          <span className="t-caption text-ink-4">Steady</span>
+        </span>
+        <span className="inline-flex items-center gap-sp-3">
+          <span className="block h-[10px] w-[16px] rounded-r-1 border border-n-11 bg-n-11/85" />
           <span className="t-caption text-ink-4">Peak ({peak})</span>
         </span>
       </div>
