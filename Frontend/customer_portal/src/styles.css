@@ -92,42 +92,6 @@
   --glow-strong: 0 0 48px rgba(255, 255, 255, 0.1);
   --glow-line: 0 0 12px rgba(255, 255, 255, 0.14);
 
-  /* --- 14 : le quadrillage premium --- */
-  --grid-line: rgba(255, 255, 255, 0.032);
-  --grid-line-major: rgba(255, 255, 255, 0.05);
-  --grid-cell: 64px;
-  --grid-major: 256px;
-  /* Near-uniform: the grid holds the same weight everywhere and only gives
-     way in the far corners. An even field has no hotspot for the eye to
-     settle on, so attention goes to the interface by default. */
-  --grid-fade: 86%;
-  --grid-fade-end: 104%;
-
-  /* No luminous core. A lit centre pulls the eye to the middle of the empty
-     page and leaves the corners looking unfinished - the backdrop is a flat,
-     cold field instead, and the interface supplies every bright thing on
-     screen. Kept as a token so the layer stays addressable. */
-  --grid-halo: none;
-
-  /* The glass pane. A whisper-thin wash laid over the canvas and under the
-     grid so the backdrop reads as a frosted sheet rather than a lit one:
-     a hint of sheen along the top, a hint of settle along the bottom. */
-  --grid-glass: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.016) 0%,
-    rgba(255, 255, 255, 0) 44%,
-    rgba(0, 0, 0, 0.05) 100%
-  );
-
-  /* Cursor glow: a soft monochrome light that follows the pointer. The
-     position is fed per-frame by the grid-glow component via --gx/--gy. */
-  --cursor-glow: radial-gradient(
-    620px circle at var(--gx) var(--gy),
-    rgba(255, 255, 255, 0.016) 0%,
-    rgba(255, 255, 255, 0.007) 42%,
-    transparent 72%
-  );
-
   /* --- 6.7 couches z --- */
   --z-base: 0;
   --z-sticky: 10;
@@ -170,7 +134,7 @@
 
   The --surface-* and --ink-* aliases reference --n-*, so they follow
   automatically. The hardcoded rgba values below (strokes, elevations, glow,
-  grid lines, grain, hatch) hold literal colours and must be redeclared here.
+  grain, hatch) hold literal colours and must be redeclared here.
 */
 [data-theme="light"] {
   --n-0: #ffffff;
@@ -210,30 +174,6 @@
 
   --focus-ring-color: var(--n-12);
 
-  /* Dark lines on light need marginally more opacity than light lines on dark. */
-  --grid-line: rgba(0, 0, 0, 0.042);
-  --grid-line-major: rgba(0, 0, 0, 0.062);
-
-  /* The halo reads as a faint darkening and the cursor glow as a soft dim
-     light - both stay well below the stroke opacity so they never fight
-     cards, and both are spread wide so neither has a visible edge. */
-  --grid-halo: none;
-  --cursor-glow: radial-gradient(
-    620px circle at var(--gx) var(--gy),
-    rgba(0, 0, 0, 0.013) 0%,
-    rgba(0, 0, 0, 0.006) 42%,
-    transparent 72%
-  );
-
-  /* On a light canvas the glass is a pale sheen at the top settling into the
-     faintest shade at the bottom - the same pane, inverted. */
-  --grid-glass: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0) 44%,
-    rgba(0, 0, 0, 0.026) 100%
-  );
-
   /* The grain's overlay blend lightens a light field; multiply reads as
      texture instead. */
   body::after {
@@ -262,68 +202,6 @@
       var(--surface-2) 100%
     );
   }
-}
-
-/*
-  Premium grid. Sits on body::before at z-index -1: between the page canvas
-  (html/body background) and every app surface, so components are never
-  "gridded" - the lines read through the gaps between cards, never across
-  them. Two scales - a fine 64px cell and a 256px major line - give depth
-  without adding density.
-
-  The geometry is untouched - same cells, same lines - but everything about
-  how it is lit has been pulled back. The lines run at texture weight, the
-  mask holds them at even strength right out to the corners instead of
-  spotlighting the centre, there is no halo behind them, and the whole layer
-  is blurred under the glass wash. What is left is a flat, cold field with
-  no hotspot anywhere in it: the interface is the only sharp, lit thing on
-  screen, so it gains its contrast for free.
-*/
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--grid-cell)),
-    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--grid-cell)),
-    repeating-linear-gradient(to right, var(--grid-line-major) 0 1px, transparent 1px var(--grid-major)),
-    repeating-linear-gradient(to bottom, var(--grid-line-major) 0 1px, transparent 1px var(--grid-major)),
-    var(--grid-halo),
-    var(--grid-glass);
-  filter: blur(1.4px);
-  mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent var(--grid-fade-end));
-  -webkit-mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent var(--grid-fade-end));
-}
-
-/*
-  Cursor glow. A fixed monochrome light that drifts toward the pointer.
-  The grid-glow component lerps --gx/--gy on a rAF loop and toggles opacity
-  on pointer enter/leave. Paints at z-index -1, in the backdrop alongside the
-  grid rather than over the interface: it brightens the lines it passes and
-  never washes across a card, so nothing in front of it loses contrast to a
-  moving light. Disabled on touch devices, where there is no pointer.
-*/
-.grid-cursor-glow {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: var(--cursor-glow);
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
-
-@media (hover: none) {
-  .grid-cursor-glow {
-    display: none;
-  }
-}
-
-/* Tighter cell on small screens so the grid does not read as three huge boxes. */
-@media (max-width: 640px) {
-  :root { --grid-cell: 44px; --grid-major: 176px; }
 }
 
 @theme inline {
@@ -526,9 +404,9 @@ body::before {
 
   /* The page background lives on html only: html's background is the canvas
      (--canvas, one step below surface-0 so cards sit on top of the page),
-     painted first, so the grid on body::before (z-index -1) shows through a
-     transparent body. An opaque background on body would cover it - body is
-     an in-flow block and paints after negative-z pseudo-elements. */
+     painted first, showing through a transparent body. An opaque background
+     on body would cover it - body is an in-flow block and paints after
+     negative-z pseudo-elements. */
   html {
     background-color: var(--canvas);
     color: var(--ink-2);

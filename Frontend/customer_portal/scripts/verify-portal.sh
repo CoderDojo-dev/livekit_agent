@@ -75,16 +75,4 @@ if ! grep -q -- "--focus-ring-color" src/styles.css; then
 fi
 echo "PASS 17: focus ring tokenised"
 
-# 18 - grid background present on body::before
-if ! grep -q "body::before" src/styles.css; then
-  echo "FAIL 18: no grid background"; exit 1
-fi
-echo "PASS 18: grid background present"
-
-# 19 - cursor glow follows the pointer (monochrome token + mounted component)
-if ! grep -q -- "--cursor-glow" src/styles.css || ! grep -rq "grid-cursor-glow" src/components/; then
-  echo "FAIL 19: no cursor glow"; exit 1
-fi
-echo "PASS 19: cursor glow present"
-
 exit "$fail"
