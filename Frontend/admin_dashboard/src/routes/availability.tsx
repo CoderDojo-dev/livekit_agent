@@ -9,16 +9,17 @@ import { getCoverage } from "@/lib/api/availability.server";
 import type { CoverageReport } from "@/lib/api/availability.server";
 import { availabilityKeys } from "@/lib/nexus/query-keys";
 import { coverageMatrix, coverageTone } from "@/lib/nexus/availability-view";
+import { pageTitle } from "@/lib/nexus/brand";
 
 export const Route = createFileRoute("/availability")({
   head: () => ({
     meta: [
-      { title: "Availability — Nexus" },
+      { title: pageTitle("Availability") },
       {
         name: "description",
         content: "Hour-by-hour advisor coverage, gaps and language gaps.",
       },
-      { property: "og:title", content: "Availability — Nexus" },
+      { property: "og:title", content: pageTitle("Availability") },
       { property: "og:description", content: "Where the rota is thin." },
     ],
   }),
@@ -41,7 +42,7 @@ function AvailabilityPage() {
   });
 
   return (
-    <PageSection>
+    <PageSection index={0}>
       <Card>
         <CardHeader
           title="Coverage"

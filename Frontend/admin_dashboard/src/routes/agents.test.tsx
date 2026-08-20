@@ -140,9 +140,7 @@ describe("Agents page", () => {
       }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Tokens" }));
-    expect(
-      screen.getByRole("img", { name: /billing provider token trend/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /billing provider token trend/i })).toBeInTheDocument();
   });
 
   it("renders truthful summary cards from the backend totals", async () => {
@@ -198,16 +196,10 @@ describe("Agents page", () => {
     await user.keyboard("{Enter}");
     const dialog = await screen.findByRole("dialog", { name: "Billing" });
     expect(within(dialog).getAllByText("Attributed calls").length).toBeGreaterThan(0);
-    expect(
-      within(dialog).getByText("Share of persona-call attributions"),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Share of persona-call attributions")).toBeInTheDocument();
     expect(within(dialog).getByText("Completed calls")).toBeInTheDocument();
-    expect(
-      within(dialog).getByText("Attributed call duration"),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText("Average completed-call duration"),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Attributed call duration")).toBeInTheDocument();
+    expect(within(dialog).getByText("Average completed-call duration")).toBeInTheDocument();
     expect(within(dialog).getAllByText("Input tokens").length).toBeGreaterThan(0);
     expect(within(dialog).getAllByText("Output tokens").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("Last observed")).toBeInTheDocument();

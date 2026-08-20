@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { MailX } from "lucide-react";
 import {
-  Button,
   Card,
   EmptyState,
   Segmented,
@@ -15,6 +14,9 @@ import {
 } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
+import { CountStrip } from "@/components/nexus/count-strip";
+import { Pager } from "@/components/nexus/pager";
+import { TableBodySwap } from "@/components/nexus/motion";
 import { getCoverage } from "@/lib/api/availability.server";
 import { listNotifications } from "@/lib/api/notifications.server";
 import {
@@ -28,7 +30,9 @@ import {
   templateLabel,
 } from "@/lib/nexus/notification-view";
 import { availabilityKeys, notificationKeys } from "@/lib/nexus/query-keys";
-import { formatInteger } from "@/lib/nexus/format";
+import { clampPage, offsetFor } from "@/lib/nexus/paginate";
+import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
+import { pageTitle } from "@/lib/nexus/brand";
 
 const COLUMN_COUNT = 5;
 
@@ -42,12 +46,12 @@ const CHANNEL_OPTIONS = [
 export const Route = createFileRoute("/notifications")({
   head: () => ({
     meta: [
-      { title: "Notifications — Nexus" },
+      { title: pageTitle("Notifications") },
       {
         name: "description",
         content: "Outbound SMS, WhatsApp and email sends, with the channel and the outcome.",
       },
-      { property: "og:title", content: "Notifications — Nexus" },
+      { property: "og:title", content: pageTitle("Notifications") },
       { property: "og:description", content: "Every written confirmation the platform attempted." },
     ],
   }),
@@ -57,19 +61,30 @@ export const Route = createFileRoute("/notifications")({
 function NotificationsPage() {
   const [status, setStatus] = useState("");
   const [channel, setChannel] = useState("");
-  const [limit, setLimit] = useState(50);
+  const [page, setPage] = useState(0);
+
+  /* Rows fit the viewport instead of the old fixed 50 (growing to 200 via "Load more", which
+   * made this page ~10 500px tall). */
+  const pageSize = useAdaptivePageSize({
+    rowHeight: ROW_HEIGHT.table,
+    chrome: 480,
+    min: 5,
+    max: 14,
+    fallback: 8,
+  });
 
   const notificationsQuery = useQuery({
-    queryKey: notificationKeys.list(channel, status, limit),
+    queryKey: notificationKeys.list(channel, status, pageSize, offsetFor(page, pageSize)),
     queryFn: () =>
       listNotifications({
         data: {
-          limit,
-          offset: 0,
+          limit: pageSize,
+          offset: offsetFor(page, pageSize),
           channel: channel || undefined,
           status: status || undefined,
         },
       }),
+    placeholderData: keepPreviousData,
   });
 
   // F14 — business timezone; shared cache with /availability, /callbacks, /calls and /tickets.
@@ -83,36 +98,26 @@ function NotificationsPage() {
   const total = notificationsQuery.data?.total ?? 0;
   const counts = notificationsQuery.data?.counts;
 
+  useEffect(() => setPage(0), [status, channel, pageSize]);
+  const safePage = clampPage(page, total, pageSize);
+
   return (
     <>
       {/* ---------- Status counts (F9: not StatCard — no delta exists) ---------- */}
-      <PageSection>
+      <PageSection index={0}>
         <Card>
-          <div className="grid grid-cols-3 gap-sp-6">
-            {STATUS_ORDER.map((key) => {
-              const active = status === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setStatus(active ? "" : key)}
-                  className="text-left"
-                  aria-pressed={active}
-                >
-                  <span className="t-micro block text-ink-5">{STATUS_LABELS[key]}</span>
-                  <span
-                    className={
-                      active ? "t-metric-m block text-ink-1" : "t-metric-m block text-ink-3"
-                    }
-                  >
-                    {formatInteger(statusCount(counts, key))}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <CountStrip
+            items={STATUS_ORDER.map((key) => ({
+              id: key,
+              label: STATUS_LABELS[key] ?? key,
+              value: statusCount(counts, key),
+            }))}
+            active={status}
+            onSelect={setStatus}
+            loading={notificationsQuery.isPending}
+          />
           {/* D18.4 / §2.5 — never let this read as "every message the platform sent". */}
-          <p className="t-caption mt-sp-6 text-ink-5">
+          <p className="t-caption mt-sp-7 max-w-[86ch] border-t border-stroke-subtle pt-sp-5 text-ink-5">
             Written by the notification-service after each send attempt. A failed row means the
             provider or the contact lookup refused it; the reason is returned to the caller but not
             stored, so it cannot be shown here. Times are when the attempt was logged.
@@ -124,10 +129,14 @@ function NotificationsPage() {
       </PageSection>
 
       {/* ---------- Table ---------- */}
-      <PageSection>
+      <PageSection index={1}>
         <TableShell
+          minWidth={780}
+          bodyAsChild
+          busy={notificationsQuery.isFetching && !notificationsQuery.isPending}
           toolbar={
             <Segmented
+              groupId="notification-channel"
               items={CHANNEL_OPTIONS.map((o) => o.label)}
               active={CHANNEL_OPTIONS.find((o) => o.id === channel)?.label ?? "All"}
               onSelect={(label) =>
@@ -146,69 +155,76 @@ function NotificationsPage() {
             </tr>
           }
           footer={
-            <>
-              <span className="t-caption text-ink-4">
-                Showing {rows.length} of {formatInteger(total)} sends
-              </span>
-              {rows.length < total ? (
-                <Button size="sm" onClick={() => setLimit((n) => Math.min(n + 50, 200))}>
-                  Load more
-                </Button>
-              ) : null}
-            </>
+            <Pager
+              page={safePage}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={setPage}
+              noun="sends"
+              busy={notificationsQuery.isFetching && !notificationsQuery.isPending}
+              className="w-full"
+            />
           }
         >
-          {notificationsQuery.isPending ? (
-            <TableSkeleton columns={COLUMN_COUNT} rows={6} />
-          ) : notificationsQuery.isError ? (
-            <TableErrorRow
-              columns={COLUMN_COUNT}
-              error={notificationsQuery.error}
-              onRetry={() => notificationsQuery.refetch()}
-            />
-          ) : rows.length === 0 ? (
-            <tr>
-              <td colSpan={COLUMN_COUNT}>
-                <EmptyState
-                  icon={MailX}
-                  title="No notifications found"
-                  description="No send attempt matches this filter."
-                />
-              </td>
-            </tr>
-          ) : (
-            rows.map((n) => (
-              <tr key={n.id} className="transition-colors duration-[120ms] hover:bg-surface-3">
-                <Td>
-                  <span className="flex items-center gap-sp-4">
-                    <span className="truncate">
-                      {notificationRecipient(n.customer_name, n.customer_id)}
-                    </span>
-                    {n.customer_vip ? <Token strong>VIP</Token> : null}
-                  </span>
-                </Td>
-                <Td>
-                  <Token mono={false}>{channelLabel(n.channel)}</Token>
-                </Td>
-                <Td>
-                  <span className="t-ui truncate text-ink-1">{templateLabel(n.template_code)}</span>
-                </Td>
-                <Td>
-                  <div className="flex flex-col items-start gap-sp-2">
-                    <StatusChip status={notificationStatusKey(n.status)} />
-                    {n.status === "failed" && n.failure_reason ? (
-                      <span className="t-caption text-ink-5">{n.failure_reason}</span>
-                    ) : null}
-                  </div>
-                </Td>
-                <Td align="right">
-                  <span className="t-mono text-ink-3">
-                    {notificationTime(n.created_at, timeZone)}
-                  </span>
-                </Td>
+          <TableBodySwap pageKey={`${safePage}-${status}-${channel}`}>
+            {notificationsQuery.isPending ? (
+              <TableSkeleton columns={COLUMN_COUNT} rows={pageSize} />
+            ) : notificationsQuery.isError ? (
+              <TableErrorRow
+                columns={COLUMN_COUNT}
+                error={notificationsQuery.error}
+                onRetry={() => notificationsQuery.refetch()}
+              />
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={COLUMN_COUNT}>
+                  <EmptyState
+                    icon={MailX}
+                    title="No notifications found"
+                    description="No send attempt matches this filter."
+                  />
+                </td>
               </tr>
-            ))
-          )}
+            ) : (
+              rows.map((n) => (
+                <tr key={n.id} className="transition-colors duration-[120ms] hover:bg-surface-3">
+                  <Td>
+                    <span className="flex items-center gap-sp-4">
+                      <span className="truncate">
+                        {notificationRecipient(n.customer_name, n.customer_id)}
+                      </span>
+                      {n.customer_vip ? <Token strong>VIP</Token> : null}
+                    </span>
+                  </Td>
+                  <Td>
+                    <Token mono={false}>{channelLabel(n.channel)}</Token>
+                  </Td>
+                  <Td>
+                    <span className="t-ui truncate text-ink-1">
+                      {templateLabel(n.template_code)}
+                    </span>
+                  </Td>
+                  {/* A failure reason turns this into a two-line cell, so it aligns to the top
+                   * rather than dragging the whole row's vertical centring with it. */}
+                  <Td stacked={n.status === "failed" && Boolean(n.failure_reason)}>
+                    <div className="flex flex-col items-start gap-sp-2">
+                      <StatusChip status={notificationStatusKey(n.status)} />
+                      {n.status === "failed" && n.failure_reason ? (
+                        <span className="t-caption max-w-[32ch] text-ink-5">
+                          {n.failure_reason}
+                        </span>
+                      ) : null}
+                    </div>
+                  </Td>
+                  <Td align="right">
+                    <span className="t-mono whitespace-nowrap text-ink-3">
+                      {notificationTime(n.created_at, timeZone)}
+                    </span>
+                  </Td>
+                </tr>
+              ))
+            )}
+          </TableBodySwap>
         </TableShell>
       </PageSection>
     </>

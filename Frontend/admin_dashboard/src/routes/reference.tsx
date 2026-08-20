@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Library } from "lucide-react";
@@ -12,8 +12,13 @@ import {
   Th,
   Token,
 } from "@/components/nexus/primitives";
+import { pageTitle } from "@/lib/nexus/brand";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
+import { Pager } from "@/components/nexus/pager";
+import { TableBodySwap } from "@/components/nexus/motion";
+import { clampPage, slicePage } from "@/lib/nexus/paginate";
+import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
 import {
   getReferenceCatalog,
   type AreaEntry,
@@ -36,13 +41,13 @@ import { errorMessage } from "@/lib/api/errors";
 export const Route = createFileRoute("/reference")({
   head: () => ({
     meta: [
-      { title: "Reference \u2014 Nexus" },
+      { title: pageTitle("Reference") },
       {
         name: "description",
         content:
           "Admin-managed catalogs the agent reads at runtime: errors, plans, recharges, zones.",
       },
-      { property: "og:title", content: "Reference \u2014 Nexus" },
+      { property: "og:title", content: pageTitle("Reference") },
       {
         property: "og:description",
         content: "Error messages, plans, recharges and geo areas.",
@@ -63,6 +68,7 @@ const COLS: Record<CatalogKind, number> = {
 function ReferencePage() {
   const [catalog, setCatalog] = useState<CatalogKind>("errors");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
 
   const query = useQuery({
     queryKey: referenceKeys.catalog(catalog, search),
@@ -70,6 +76,20 @@ function ReferencePage() {
   });
 
   const rows = query.data ?? [];
+
+  /* Catalogs run to thousands of rows (error codes, areas) and every one of them used to
+   * render at once, which made /reference among the tallest pages in the product. */
+  const pageSize = useAdaptivePageSize({
+    rowHeight: ROW_HEIGHT.table,
+    chrome: 420,
+    min: 6,
+    max: 16,
+    fallback: 10,
+  });
+
+  useEffect(() => setPage(0), [catalog, search, pageSize]);
+  const safePage = clampPage(page, rows.length, pageSize);
+  const pageRows = slicePage(rows, safePage, pageSize);
   const cols = COLS[catalog];
 
   const head = useMemo(() => {
@@ -115,11 +135,15 @@ function ReferencePage() {
   }, [catalog]);
 
   return (
-    <PageSection>
+    <PageSection index={0}>
       <TableShell
+        minWidth={860}
+        bodyAsChild
+        busy={query.isFetching && !query.isPending}
         toolbar={
           <>
             <Tabs
+              groupId="reference-catalog"
               items={CATALOG_TABS.map((t) => t.label)}
               active={CATALOG_TABS.find((t) => t.value === catalog)?.label ?? ""}
               onSelect={(label) => {
@@ -136,131 +160,145 @@ function ReferencePage() {
           </>
         }
         head={head}
-        footer={<span className="t-caption text-ink-4">{CATALOG_SUBTITLE[catalog]}</span>}
+        footer={
+          <div className="w-full">
+            <Pager
+              page={safePage}
+              pageSize={pageSize}
+              total={rows.length}
+              onPageChange={setPage}
+              noun="entries"
+              busy={query.isFetching && !query.isPending}
+            />
+            <p className="t-caption mt-sp-3 text-ink-5">{CATALOG_SUBTITLE[catalog]}</p>
+          </div>
+        }
       >
-        {query.isPending ? <TableSkeleton rows={8} columns={cols} /> : null}
+        <TableBodySwap pageKey={`${catalog}-${safePage}`}>
+          {query.isPending ? <TableSkeleton rows={pageSize} columns={cols} /> : null}
 
-        {query.isError ? (
-          <TableErrorRow columns={cols} error={query.error} onRetry={() => query.refetch()} />
-        ) : null}
+          {query.isError ? (
+            <TableErrorRow columns={cols} error={query.error} onRetry={() => query.refetch()} />
+          ) : null}
 
-        {query.isSuccess && rows.length === 0 ? (
-          <tr>
-            <td colSpan={cols} className="h-[52px] border-b border-stroke-subtle px-sp-6">
-              <EmptyState
-                icon={Library}
-                title={search ? "No match in this catalog" : "This catalog is empty"}
-                description={
-                  search
-                    ? "No entry matches that term."
-                    : "Nothing has been loaded into this reference table yet."
-                }
-              />
-            </td>
-          </tr>
-        ) : null}
+          {query.isSuccess && rows.length === 0 ? (
+            <tr>
+              <td colSpan={cols} className="h-[52px] border-b border-stroke-subtle px-sp-6">
+                <EmptyState
+                  icon={Library}
+                  title={search ? "No match in this catalog" : "This catalog is empty"}
+                  description={
+                    search
+                      ? "No entry matches that term."
+                      : "Nothing has been loaded into this reference table yet."
+                  }
+                />
+              </td>
+            </tr>
+          ) : null}
 
-        {query.isSuccess && rows.length > 0 && catalog === "errors"
-          ? (rows as ErrorEntry[]).map((r) => (
-              <tr key={r.code} className="transition-colors duration-[120ms] hover:bg-surface-3">
-                <Td>
-                  <span className="t-mono text-ink-1">{r.code}</span>
-                </Td>
-                <Td>
-                  {r.domain ? (
-                    <Token>{r.domain}</Token>
-                  ) : (
-                    <span className="t-caption text-ink-5">{"\u2014"}</span>
-                  )}
-                </Td>
-                <Td>
-                  <span className="t-ui text-ink-2">{orDash(r.message_fr)}</span>
-                </Td>
-                <Td>
-                  <span className="t-ui text-ink-2" dir="rtl">
-                    {orDash(r.message_ar)}
-                  </span>
-                </Td>
-                <Td>
-                  <span className="t-ui text-ink-2">{orDash(r.message_en)}</span>
-                </Td>
-              </tr>
-            ))
-          : null}
-
-        {query.isSuccess && rows.length > 0 && catalog === "products"
-          ? (rows as ProductEntry[]).map((r) => (
-              <tr
-                key={r.product_code}
-                className="transition-colors duration-[120ms] hover:bg-surface-3"
-              >
-                <Td>
-                  <span className="t-mono text-ink-1">{r.product_code}</span>
-                </Td>
-                <Td>
-                  <span className="t-ui text-ink-1">{r.name}</span>
-                </Td>
-                <Td>
-                  <Token>{r.plan_type}</Token>
-                </Td>
-                <Td>
-                  <StatusChip status={activeStatusKey(r.active)} />
-                </Td>
-              </tr>
-            ))
-          : null}
-
-        {query.isSuccess && rows.length > 0 && catalog === "recharges"
-          ? (rows as RechargeEntry[]).map((r) => (
-              <tr key={r.code} className="transition-colors duration-[120ms] hover:bg-surface-3">
-                <Td>
-                  <span className="t-mono text-ink-1">{r.code}</span>
-                </Td>
-                <Td align="right">
-                  <span className="t-mono-l text-ink-1">{formatAmount(r.amount)}</span>
-                </Td>
-                <Td align="right">
-                  <span className="t-mono text-ink-3">
-                    {r.bonus_amount > 0 ? formatAmount(r.bonus_amount) : "\u2014"}
-                  </span>
-                </Td>
-              </tr>
-            ))
-          : null}
-
-        {query.isSuccess && rows.length > 0 && catalog === "areas"
-          ? (rows as AreaEntry[]).map((r) => (
-              <tr
-                key={r.area_code}
-                className="transition-colors duration-[120ms] hover:bg-surface-3"
-              >
-                <Td>
-                  <span className="t-mono text-ink-1">{r.area_code}</span>
-                </Td>
-                <Td>
-                  <span className="t-ui block truncate text-ink-1">{r.name_fr}</span>
-                  {r.name_ar ? (
-                    <span className="t-caption block truncate text-ink-4" dir="rtl">
-                      {r.name_ar}
+          {query.isSuccess && rows.length > 0 && catalog === "errors"
+            ? (pageRows as ErrorEntry[]).map((r) => (
+                <tr key={r.code} className="transition-colors duration-[120ms] hover:bg-surface-3">
+                  <Td>
+                    <span className="t-mono text-ink-1">{r.code}</span>
+                  </Td>
+                  <Td>
+                    {r.domain ? (
+                      <Token>{r.domain}</Token>
+                    ) : (
+                      <span className="t-caption text-ink-5">{"\u2014"}</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className="t-ui text-ink-2">{orDash(r.message_fr)}</span>
+                  </Td>
+                  <Td>
+                    <span className="t-ui text-ink-2" dir="rtl">
+                      {orDash(r.message_ar)}
                     </span>
-                  ) : null}
-                </Td>
-                <Td>
-                  <Token>{areaTypeLabel(r.area_type)}</Token>
-                </Td>
-                <Td>
-                  {r.parent_code ? (
-                    <span className="t-mono text-ink-3">{r.parent_code}</span>
-                  ) : (
-                    <span className="t-caption text-ink-5">{"\u2014"}</span>
-                  )}
-                </Td>
-                <Td>
-                  <StatusChip status={activeStatusKey(r.active)} />
-                </Td>
-              </tr>
-            ))
-          : null}
+                  </Td>
+                  <Td>
+                    <span className="t-ui text-ink-2">{orDash(r.message_en)}</span>
+                  </Td>
+                </tr>
+              ))
+            : null}
+
+          {query.isSuccess && rows.length > 0 && catalog === "products"
+            ? (pageRows as ProductEntry[]).map((r) => (
+                <tr
+                  key={r.product_code}
+                  className="transition-colors duration-[120ms] hover:bg-surface-3"
+                >
+                  <Td>
+                    <span className="t-mono text-ink-1">{r.product_code}</span>
+                  </Td>
+                  <Td>
+                    <span className="t-ui text-ink-1">{r.name}</span>
+                  </Td>
+                  <Td>
+                    <Token>{r.plan_type}</Token>
+                  </Td>
+                  <Td>
+                    <StatusChip status={activeStatusKey(r.active)} />
+                  </Td>
+                </tr>
+              ))
+            : null}
+
+          {query.isSuccess && rows.length > 0 && catalog === "recharges"
+            ? (pageRows as RechargeEntry[]).map((r) => (
+                <tr key={r.code} className="transition-colors duration-[120ms] hover:bg-surface-3">
+                  <Td>
+                    <span className="t-mono text-ink-1">{r.code}</span>
+                  </Td>
+                  <Td align="right">
+                    <span className="t-mono-l text-ink-1">{formatAmount(r.amount)}</span>
+                  </Td>
+                  <Td align="right">
+                    <span className="t-mono text-ink-3">
+                      {r.bonus_amount > 0 ? formatAmount(r.bonus_amount) : "\u2014"}
+                    </span>
+                  </Td>
+                </tr>
+              ))
+            : null}
+
+          {query.isSuccess && rows.length > 0 && catalog === "areas"
+            ? (pageRows as AreaEntry[]).map((r) => (
+                <tr
+                  key={r.area_code}
+                  className="transition-colors duration-[120ms] hover:bg-surface-3"
+                >
+                  <Td>
+                    <span className="t-mono text-ink-1">{r.area_code}</span>
+                  </Td>
+                  <Td>
+                    <span className="t-ui block truncate text-ink-1">{r.name_fr}</span>
+                    {r.name_ar ? (
+                      <span className="t-caption block truncate text-ink-4" dir="rtl">
+                        {r.name_ar}
+                      </span>
+                    ) : null}
+                  </Td>
+                  <Td>
+                    <Token>{areaTypeLabel(r.area_type)}</Token>
+                  </Td>
+                  <Td>
+                    {r.parent_code ? (
+                      <span className="t-mono text-ink-3">{r.parent_code}</span>
+                    ) : (
+                      <span className="t-caption text-ink-5">{"\u2014"}</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <StatusChip status={activeStatusKey(r.active)} />
+                  </Td>
+                </tr>
+              ))
+            : null}
+        </TableBodySwap>
       </TableShell>
     </PageSection>
   );

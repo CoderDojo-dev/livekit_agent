@@ -5,13 +5,57 @@ import { cn } from "@/lib/utils";
 
 /* ---------- Loading ---------- */
 
-/** One shimmering cell. Uses surface-4 (the same fill as Avatar) — no new token. */
-function Shimmer({ className }: { className?: string | undefined }) {
+/**
+ * One shimmering cell. Uses surface-4 (the same fill as Avatar) — no new token.
+ *
+ * The sweep runs left-to-right (`.shimmer` in styles.css) instead of the old symmetric
+ * `animate-pulse`: a directional wipe reads as "content is arriving", whereas a fade in and out
+ * reads as "something is wrong here".
+ */
+export function Shimmer({ className }: { className?: string | undefined }) {
+  return (
+    <span aria-hidden="true" className={cn("shimmer block h-[10px] rounded-r-1", className)} />
+  );
+}
+
+/**
+ * Indeterminate 2px bar for regions that have no TableShell to host one (charts, panels, master
+ * lists). Absolutely positioned by the caller so that appearing never shifts layout.
+ */
+export function TopProgress({ active, className }: { active: boolean; className?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={cn("block h-[10px] animate-pulse rounded-r-1 bg-surface-4", className)}
-    />
+      className={cn(
+        "pointer-events-none block h-[2px] overflow-hidden transition-opacity duration-[120ms]",
+        active ? "opacity-100" : "opacity-0",
+        className,
+      )}
+    >
+      {active ? <span className="progress-sweep block h-full w-full bg-n-11" /> : null}
+    </span>
+  );
+}
+
+/**
+ * Skeleton for master lists (calls, escalations) — the row shape those pages actually render,
+ * so the layout does not jump when data lands.
+ */
+export function ListSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div role="status" className="divide-y divide-stroke-subtle">
+      <span className="sr-only">Loading</span>
+      {Array.from({ length: rows }).map((_, index) => (
+        <div key={index} className="flex items-center gap-sp-5 px-sp-6 py-sp-5">
+          <Shimmer className="size-[32px] shrink-0 rounded-r-3" />
+          <div className="min-w-0 flex-1 space-y-sp-3">
+            <Shimmer className="w-[55%]" />
+            <Shimmer className="h-[8px] w-[35%]" />
+          </div>
+          <Shimmer className="h-[8px] w-[48px] shrink-0" />
+        </div>
+      ))}
+    </div>
   );
 }
 

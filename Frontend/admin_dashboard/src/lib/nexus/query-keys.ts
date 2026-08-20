@@ -66,8 +66,8 @@ export const callbackKeys = {
  * "Load more" grows the page size; omitting it would serve a stale short page from cache. */
 export const callKeys = {
   all: ["calls"] as const,
-  list: (search: string, disposition: string, limit: number) =>
-    ["calls", "list", search, disposition, limit] as const,
+  list: (search: string, disposition: string, limit: number, offset: number) =>
+    ["calls", "list", search, disposition, limit, offset] as const,
   detail: (sessionId: string) => ["calls", "detail", sessionId] as const,
 };
 
@@ -75,16 +75,24 @@ export const callKeys = {
  * "Load more" grows the page size; filters are in the key so each filtered view is its own cache. */
 export const ticketKeys = {
   all: ["tickets"] as const,
-  list: (status: string, category: string, priority: string, search: string, limit: number) =>
-    ["tickets", "list", status, category, priority, search, limit] as const,
+  /** offset joined limit when "Load more" was replaced by real pagination: each page is now its
+   *  own cache entry, so stepping back to page 1 is instant instead of a refetch. */
+  list: (
+    status: string,
+    category: string,
+    priority: string,
+    search: string,
+    limit: number,
+    offset: number,
+  ) => ["tickets", "list", status, category, priority, search, limit, offset] as const,
 };
 
 /* Feature 18 â€” notification send log. Standalone export, read-only. channel + status are in
  * the key so each filtered view is its own cache; limit is in the key for "Load more". */
 export const notificationKeys = {
   all: ["notifications"] as const,
-  list: (channel: string, status: string, limit: number) =>
-    ["notifications", "list", channel, status, limit] as const,
+  list: (channel: string, status: string, limit: number, offset: number) =>
+    ["notifications", "list", channel, status, limit, offset] as const,
 };
 
 /* Feature 6 â€” knowledge base. Standalone export. Mutations invalidate documents() AND health():
@@ -158,4 +166,11 @@ export const agentKeys = {
 export const referenceKeys = {
   all: ["reference"] as const,
   catalog: (catalog: string, search: string) => ["reference", "catalog", catalog, search] as const,
+};
+
+/* Sidebar badge counts. One key, one request, shared by the desktop rail and the mobile sheet
+ * (both render <SidebarContent>, so without a shared key they would fetch twice on mobile). */
+export const navKeys = {
+  all: ["nav"] as const,
+  counts: () => ["nav", "counts"] as const,
 };

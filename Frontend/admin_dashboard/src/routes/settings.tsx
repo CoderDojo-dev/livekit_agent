@@ -1,13 +1,9 @@
 import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
-import { AlertTriangle } from "lucide-react";
-import {
-  Card,
-  CardHeader,
-  Button,
-  TextField,
-} from "@/components/nexus/primitives";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { pageTitle } from "@/lib/nexus/brand";
+import { Card, CardHeader, Button, TextField } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { InlineError } from "@/components/nexus/states";
 import { Modal } from "@/components/nexus/modal";
@@ -16,9 +12,9 @@ import { changePassword, revokeAllSessions } from "@/lib/api/auth.server";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings \u2014 Nexus" },
+      { title: pageTitle("Settings") },
       { name: "description", content: "Personal account and session security." },
-      { property: "og:title", content: "Settings \u2014 Nexus" },
+      { property: "og:title", content: pageTitle("Settings") },
       { property: "og:description", content: "Personal account and session security." },
     ],
   }),
@@ -26,7 +22,11 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  return <PageSection><AccountSecurityPanel /></PageSection>;
+  return (
+    <PageSection index={0}>
+      <AccountSecurityPanel />
+    </PageSection>
+  );
 }
 
 function AccountSecurityPanel() {
@@ -65,6 +65,7 @@ function AccountSecurityPanel() {
   return (
     <Card>
       <CardHeader
+        icon={ShieldCheck}
         title="Account Security"
         subtitle="Change your password or sign out of every device."
       />

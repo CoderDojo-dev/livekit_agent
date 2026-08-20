@@ -16,6 +16,7 @@ import { Route as RootRoute } from "@/routes/__root";
 import { ROLE_LABEL } from "@/lib/api/session";
 import { logout } from "@/lib/api/auth.server";
 import { initials as toInitials } from "@/lib/nexus/format";
+import { BRAND } from "@/lib/nexus/brand";
 import { cn } from "@/lib/utils";
 
 export function AppTopbar() {
@@ -73,7 +74,7 @@ export function AppTopbar() {
         <SheetContent side="left" className="w-[min(88vw,320px)] p-0">
           <SheetHeader className="sr-only">
             <SheetTitle>Navigation</SheetTitle>
-            <SheetDescription>Navigate the Nexus admin dashboard.</SheetDescription>
+            <SheetDescription>Navigate the {BRAND.name}.</SheetDescription>
           </SheetHeader>
 
           <SidebarContent className="flex" onNavigate={() => setMobileNavOpen(false)} />
@@ -81,7 +82,7 @@ export function AppTopbar() {
       </Sheet>
 
       <div className="min-w-0">
-        <h1 className="t-title-3 truncate text-ink-1">{meta?.title ?? "Nexus"}</h1>
+        <h1 className="t-title-3 truncate text-ink-1">{meta?.title ?? BRAND.shortName}</h1>
         {meta?.subtitle ? (
           <p className="t-caption hidden truncate text-ink-5 sm:block">{meta.subtitle}</p>
         ) : null}
@@ -110,6 +111,29 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function PageSection({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cn("rise mb-sp-8 last:mb-0", className)}>{children}</section>;
+/**
+ * A band of a page.
+ *
+ * `index` staggers the mount animation. Every section used to carry `.rise` with no delay, so a
+ * five-band page performed one synchronised 240ms lurch; a 40ms cascade reads as the page
+ * assembling instead. Capped at 4 so a long page never makes the reader wait on its last band,
+ * and neutralised entirely by the `prefers-reduced-motion` block in styles.css.
+ */
+export function PageSection({
+  children,
+  className,
+  index = 0,
+}: {
+  children: ReactNode;
+  className?: string | undefined;
+  index?: number | undefined;
+}) {
+  return (
+    <section
+      className={cn("rise mb-sp-8 last:mb-0", className)}
+      style={{ "--rise-delay": `${Math.min(index, 4) * 40}ms` } as React.CSSProperties}
+    >
+      {children}
+    </section>
+  );
 }

@@ -16,6 +16,7 @@ import { AppShell } from "@/components/nexus/app-topbar";
 import { Card, Button } from "@/components/nexus/primitives";
 import { redirect, useRouterState } from "@tanstack/react-router";
 import { getSession, type SessionView } from "@/lib/api/auth.server";
+import { BRAND } from "@/lib/nexus/brand";
 
 function NotFoundComponent() {
   const router = useRouter();
@@ -104,14 +105,13 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Nexus — Monochrome Admin Console" },
+      { title: `${BRAND.name} — Monochrome` },
       {
         name: "description",
-        content:
-          "Nexus is an achromatic admin console for AI-assisted customer support: calls, tickets, conversations and analytics.",
+        content: `${BRAND.name} is an achromatic console for AI-assisted customer support: calls, tickets, conversations and analytics.`,
       },
-      { name: "author", content: "Nexus" },
-      { property: "og:title", content: "Nexus — Monochrome Admin Console" },
+      { name: "author", content: BRAND.name },
+      { property: "og:title", content: `${BRAND.name} — Monochrome` },
       {
         property: "og:description",
         content: "AI-assisted support operations in a strictly monochrome interface.",

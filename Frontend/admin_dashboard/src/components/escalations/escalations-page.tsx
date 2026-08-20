@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
 import {
@@ -12,7 +12,11 @@ import {
   Token,
 } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
-import { CardSkeleton, ErrorState } from "@/components/nexus/states";
+import { CardSkeleton, ErrorState, ListSkeleton } from "@/components/nexus/states";
+import { Pager } from "@/components/nexus/pager";
+import { PageSwap } from "@/components/nexus/motion";
+import { clampPage, slicePage } from "@/lib/nexus/paginate";
+import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
 import { errorMessage } from "@/lib/api/errors";
 import {
   closeEscalation,
@@ -58,6 +62,22 @@ export function EscalationsPage() {
   const [scope, setScope] = useState<"open" | "all">("open");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+
+  /**
+   * Handoffs are paged rather than scrolled.
+   *
+   * The list previously sat in a `max-h-[640px] overflow-y-auto` box nested inside the page
+   * scroll — the same scroll trap /calls had. Paging keeps the dossier beside it anchored and
+   * leaves one scrollbar on the page.
+   */
+  const pageSize = useAdaptivePageSize({
+    rowHeight: ROW_HEIGHT.listItem,
+    chrome: 440,
+    min: 5,
+    max: 10,
+    fallback: 6,
+  });
 
   const query = useQuery({
     queryKey: escalationKeys.list(scope),
@@ -79,7 +99,15 @@ export function EscalationsPage() {
     [query.data, q],
   );
 
-  const current: Escalation | undefined = rows.find((e) => e.id === selected) ?? rows[0];
+  useEffect(() => setPage(0), [q, scope, pageSize]);
+  const safePage = clampPage(page, rows.length, pageSize);
+  const visible = slicePage(rows, safePage, pageSize);
+
+  /* Selection resolves against the whole filtered set, not just the visible page: a dossier
+   * opened on page 1 must survive a step to page 2 rather than silently snapping to another
+   * handoff. The fallback is the first row of the CURRENT page, so an unselected view always
+   * shows something that is actually on screen. */
+  const current: Escalation | undefined = rows.find((e) => e.id === selected) ?? visible[0];
 
   return (
     <PageSection className="grid gap-sp-6 xl:grid-cols-[360px_1fr]">
@@ -106,9 +134,7 @@ export function EscalationsPage() {
         </div>
 
         {query.isPending ? (
-          <div className="p-sp-6">
-            <CardSkeleton />
-          </div>
+          <ListSkeleton rows={pageSize} />
         ) : query.isError ? (
           <div className="p-sp-6">
             <ErrorState error={query.error} onRetry={() => void query.refetch()} />
@@ -127,42 +153,51 @@ export function EscalationsPage() {
           </div>
         ) : (
           <>
-            <ul className="max-h-[640px] overflow-y-auto">
-              {rows.map((e) => {
-                const active = current?.id === e.id;
-                return (
-                  <li key={e.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelected(e.id)}
-                      className={cn(
-                        "flex w-full items-start gap-sp-5 border-b border-stroke-subtle px-sp-6 py-sp-5 text-left transition-colors duration-[120ms]",
-                        active ? "bg-surface-3" : "hover:bg-surface-3/60",
-                      )}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-sp-3">
-                          <span className="t-ui block truncate text-ink-1">
-                            {escalationCustomerName(e)}
+            <PageSwap pageKey={safePage}>
+              <ul>
+                {visible.map((e) => {
+                  const active = current?.id === e.id;
+                  return (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelected(e.id)}
+                        className={cn(
+                          "flex w-full items-start gap-sp-5 border-b border-stroke-subtle px-sp-6 py-sp-5 text-left transition-colors duration-[120ms]",
+                          active ? "bg-surface-3" : "hover:bg-surface-3/60",
+                        )}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-sp-3">
+                            <span className="t-ui block truncate text-ink-1">
+                              {escalationCustomerName(e)}
+                            </span>
+                            {e.customer_vip === true ? <Token strong>VIP</Token> : null}
                           </span>
-                          {e.customer_vip === true ? <Token strong>VIP</Token> : null}
+                          <span className="t-caption block truncate text-ink-4">
+                            {triggerLabel(e.trigger)} · {targetLabel(e.target)}
+                          </span>
+                          <span className="t-mono-s block truncate text-ink-5">
+                            {escalationCustomerId(e)}
+                          </span>
                         </span>
-                        <span className="t-caption block truncate text-ink-4">
-                          {triggerLabel(e.trigger)} · {targetLabel(e.target)}
-                        </span>
-                        <span className="t-mono-s block truncate text-ink-5">
-                          {escalationCustomerId(e)}
-                        </span>
-                      </span>
-                      <StatusChip status={escalationStatusKey(e.resolution)} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="flex items-center gap-sp-5 border-t border-stroke-subtle px-sp-6 py-sp-5">
-              <Token>{rows.length} shown</Token>
-              <span className="t-caption ml-auto text-ink-5">Most recent first</span>
+                        <StatusChip status={escalationStatusKey(e.resolution)} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </PageSwap>
+            <div className="border-t border-stroke-subtle px-sp-6 py-sp-5">
+              <Pager
+                page={safePage}
+                pageSize={pageSize}
+                total={rows.length}
+                onPageChange={setPage}
+                noun="handoffs"
+                busy={query.isFetching && !query.isPending}
+              />
+              <p className="t-caption mt-sp-3 text-ink-5">Most recent first</p>
             </div>
           </>
         )}

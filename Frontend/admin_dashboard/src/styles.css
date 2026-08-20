@@ -137,16 +137,14 @@
   --stroke-ink: rgba(255, 255, 255, 0.24);
 
   --elev-0: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --elev-1:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --elev-2:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px -2px rgba(0, 0, 0, 0.5);
+  --elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elev-2: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px -2px rgba(0, 0, 0, 0.5);
   --elev-3:
     inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 24px -6px rgba(0, 0, 0, 0.6),
     0 2px 6px -2px rgba(0, 0, 0, 0.4);
   --elev-4:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    0 32px 64px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
+    inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 32px 64px -12px rgba(0, 0, 0, 0.7),
+    0 8px 20px -6px rgba(0, 0, 0, 0.5);
   --glow-soft:
     inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 0 0 1px rgba(255, 255, 255, 0.14),
     0 0 32px -8px rgba(255, 255, 255, 0.16);
@@ -154,8 +152,7 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
-  --font-geist-sans:
-    "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-geist-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-geist-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   --radius: 8px;
@@ -181,12 +178,15 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Grain — chapter 1.8 */
+  /* Grain — chapter 1.8
+   * z-index sits BELOW the modal layer (z-50). At 9999 the overlay blend-mode landed on top of
+   * dialog content and muddied its text; the grain is a property of the page, not of everything
+   * floating above it. */
   body::after {
     content: "";
     position: fixed;
     inset: 0;
-    z-index: 9999;
+    z-index: 40;
     pointer-events: none;
     opacity: 0.028;
     mix-blend-mode: overlay;
@@ -207,6 +207,13 @@
   img.external,
   img[data-external="true"] {
     filter: grayscale(1) contrast(1.05);
+  }
+
+  /* Firefox has no ::-webkit-scrollbar. Without these two properties it rendered the OS default
+   * light scrollbar against a near-black surface. */
+  html {
+    scrollbar-color: var(--n-6) transparent;
+    scrollbar-width: thin;
   }
 
   ::-webkit-scrollbar {
@@ -231,91 +238,73 @@
 /* ---- The eighteen typographic tokens (chapter 2.3) ---- */
 @layer components {
   .t-display {
-    font:
-      700 40px/44px var(--font-geist-sans);
+    font: 700 40px/44px var(--font-geist-sans);
     letter-spacing: -0.03em;
   }
   .t-metric-xl {
-    font:
-      600 32px/36px var(--font-geist-sans);
+    font: 600 32px/36px var(--font-geist-sans);
     letter-spacing: -0.025em;
   }
   .t-metric-l {
-    font:
-      600 26px/30px var(--font-geist-sans);
+    font: 600 26px/30px var(--font-geist-sans);
     letter-spacing: -0.02em;
   }
   .t-metric-m {
-    font:
-      600 20px/24px var(--font-geist-sans);
+    font: 600 20px/24px var(--font-geist-sans);
     letter-spacing: -0.015em;
   }
   .t-title-1 {
-    font:
-      600 24px/30px var(--font-geist-sans);
+    font: 600 24px/30px var(--font-geist-sans);
     letter-spacing: -0.02em;
   }
   .t-title-2 {
-    font:
-      600 18px/24px var(--font-geist-sans);
+    font: 600 18px/24px var(--font-geist-sans);
     letter-spacing: -0.015em;
   }
   .t-title-3 {
-    font:
-      600 15px/20px var(--font-geist-sans);
+    font: 600 15px/20px var(--font-geist-sans);
     letter-spacing: -0.01em;
   }
   .t-body {
-    font:
-      400 14px/22px var(--font-geist-sans);
+    font: 400 14px/22px var(--font-geist-sans);
   }
   .t-body-strong {
-    font:
-      500 14px/22px var(--font-geist-sans);
+    font: 500 14px/22px var(--font-geist-sans);
   }
   .t-ui {
-    font:
-      500 13px/20px var(--font-geist-sans);
+    font: 500 13px/20px var(--font-geist-sans);
   }
   .t-ui-regular {
-    font:
-      400 13px/20px var(--font-geist-sans);
+    font: 400 13px/20px var(--font-geist-sans);
   }
   .t-label {
-    font:
-      500 12px/16px var(--font-geist-sans);
+    font: 500 12px/16px var(--font-geist-sans);
   }
   .t-caption {
-    font:
-      400 12px/16px var(--font-geist-sans);
+    font: 400 12px/16px var(--font-geist-sans);
   }
   .t-micro {
-    font:
-      500 11px/14px var(--font-geist-sans);
+    font: 500 11px/14px var(--font-geist-sans);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .t-micro-2 {
-    font:
-      600 10px/12px var(--font-geist-sans);
+    font: 600 10px/12px var(--font-geist-sans);
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
   .t-mono {
-    font:
-      400 12px/16px var(--font-geist-mono);
+    font: 400 12px/16px var(--font-geist-mono);
     font-variant-numeric: tabular-nums;
     font-variant-ligatures: none;
   }
   .t-mono-s {
-    font:
-      400 11px/14px var(--font-geist-mono);
+    font: 400 11px/14px var(--font-geist-mono);
     font-variant-numeric: tabular-nums;
     font-variant-ligatures: none;
   }
   .t-mono-l {
-    font:
-      500 14px/20px var(--font-geist-mono);
+    font: 500 14px/20px var(--font-geist-mono);
     font-variant-numeric: tabular-nums;
     font-variant-ligatures: none;
   }
@@ -361,8 +350,88 @@
   }
 }
 
+/* Every PageSection carries .rise. Without a delay a five-section page performed one synchronised
+ * lurch; --rise-delay staggers them so the page assembles top-down instead of blinking in.
+ * PageSection sets the variable from its `index` prop and caps it, so a long page never makes the
+ * reader wait on the last band. */
 .rise {
   animation: nexus-rise 240ms var(--ease-out) both;
+  animation-delay: var(--rise-delay, 0ms);
+}
+
+/* ---- Indeterminate progress (chapter 23) ----
+ * A 2px sweep for background refetches and page swaps. Deliberately indeterminate: we do not
+ * know how long business-api will take, and a fake determinate bar is a lie about progress. */
+@keyframes nexus-progress {
+  0% {
+    transform: translateX(-100%) scaleX(0.35);
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.6);
+  }
+  100% {
+    transform: translateX(220%) scaleX(0.35);
+  }
+}
+
+.progress-sweep {
+  transform-origin: left center;
+  animation: nexus-progress 1100ms var(--ease-in-out) infinite;
+}
+
+/* ---- Skeleton shimmer ----
+ * Replaces animate-pulse on loading cells. A directional sweep reads as "content is arriving";
+ * a symmetric opacity pulse reads as "something is broken". Uses n-6 over surface-4, so it stays
+ * inside the achromatic ramp. */
+@keyframes nexus-shimmer {
+  from {
+    background-position: -160% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface-4) 0%,
+    var(--n-6) 45%,
+    var(--surface-4) 90%
+  );
+  background-size: 220% 100%;
+  animation: nexus-shimmer 1400ms var(--ease-in-out) infinite;
+}
+
+/* ---- Horizontal scroll affordance ----
+ * TableShell's scroll region fades its live edges so a clipped column reads as "there is more
+ * this way" rather than as a rendering bug. Applied only while the region actually overflows
+ * (data-overflow), so a table that fits shows no fade at all. */
+.edge-fade-x[data-overflow="true"] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 20px,
+    #000 calc(100% - 20px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 20px,
+    #000 calc(100% - 20px),
+    transparent 100%
+  );
+}
+
+.edge-fade-x[data-overflow="start"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+}
+
+.edge-fade-x[data-overflow="end"] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 20px);
+  mask-image: linear-gradient(to right, transparent 0, #000 20px);
 }
 
 @media (prefers-reduced-motion: reduce) {

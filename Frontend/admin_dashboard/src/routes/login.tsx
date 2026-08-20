@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { LogIn } from "lucide-react";
 import { Button, Card, TextField } from "@/components/nexus/primitives";
+import { BrandMark } from "@/components/nexus/brand-mark";
 import { login } from "@/lib/api/auth.server";
 import { errorMessage } from "@/lib/api/errors";
+import { BRAND, pageTitle } from "@/lib/nexus/brand";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Sign in — Nexus" },
-      { name: "description", content: "Authenticate to the Nexus admin console." },
+      { title: pageTitle("Sign in") },
+      { name: "description", content: `Authenticate to ${BRAND.name}.` },
     ],
   }),
   component: LoginPage,
@@ -40,11 +41,11 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-surface-0 px-sp-8">
       <Card className="w-full max-w-[380px]">
         <div className="mb-sp-7 flex flex-col items-center text-center">
-          <span className="mb-sp-6 inline-flex size-[40px] items-center justify-center rounded-r-3 border border-stroke-default bg-surface-2 text-ink-4">
-            <LogIn size={18} strokeWidth={1.5} />
-          </span>
-          <h1 className="t-title-3 text-ink-1">Nexus</h1>
-          <p className="t-caption mt-sp-2 text-ink-4">Sign in to the admin console.</p>
+          {/* The product mark, not a generic login glyph — the sign-in screen is the first place
+           * the identity is seen, so it shows the same mark the sidebar does. */}
+          <BrandMark className="mb-sp-6 size-[40px] rounded-r-3 [&>svg]:size-[20px]" />
+          <h1 className="t-title-3 text-ink-1">{BRAND.name}</h1>
+          <p className="t-caption mt-sp-2 text-ink-4">Sign in to continue.</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-sp-5">

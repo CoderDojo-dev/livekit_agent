@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  AgentActivityPersona,
-  AgentDailyPoint,
-} from "@/lib/api/agents.server";
+import type { AgentActivityPersona, AgentDailyPoint } from "@/lib/api/agents.server";
 import {
   agentLabel,
   dailyTokenTotal,
@@ -81,11 +78,7 @@ describe("mergeAgentRows", () => {
   });
 
   it("surfaces an unknown persona with a humanized label", () => {
-    const rows = mergeAgentRows(
-      [persona({ persona: "OdrAgent" })],
-      5,
-      WINDOW,
-    );
+    const rows = mergeAgentRows([persona({ persona: "OdrAgent" })], 5, WINDOW);
     const row = rows.find((entry) => entry.className === "OdrAgent")!;
     expect(row.catalog).toBeNull();
     expect(row.label).toBe("Odr");
@@ -194,17 +187,15 @@ describe("providerTokenTotal / dailyTokenTotal", () => {
       WINDOW,
     );
     expect(providerTokenTotal(rows[0]!)).toBeNull();
-    expect(dailyTokenTotal(day({ provider_input_tokens: null, provider_output_tokens: null }))).toBeNull();
+    expect(
+      dailyTokenTotal(day({ provider_input_tokens: null, provider_output_tokens: null })),
+    ).toBeNull();
   });
 
   it("sums input and output when at least one scope exists", () => {
     const rows = mergeAgentRows([persona({})], 5, WINDOW);
     expect(providerTokenTotal(rows[0]!)).toBe(110);
-    const nullInput = mergeAgentRows(
-      [persona({ provider_input_tokens: null })],
-      5,
-      WINDOW,
-    );
+    const nullInput = mergeAgentRows([persona({ provider_input_tokens: null })], 5, WINDOW);
     expect(providerTokenTotal(nullInput[0]!)).toBe(60);
     expect(dailyTokenTotal(day({ provider_input_tokens: null }))).toBe(20);
   });

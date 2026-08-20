@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AuditPage } from "@/components/audit/audit-page";
 import { hasRank } from "@/lib/api/session";
+import { pageTitle } from "@/lib/nexus/brand";
 
 export const Route = createFileRoute("/audit")({
   beforeLoad: ({ context }) => {
@@ -13,13 +14,13 @@ export const Route = createFileRoute("/audit")({
   },
   head: () => ({
     meta: [
-      { title: "Audit — Nexus" },
+      { title: pageTitle("Audit") },
       {
         name: "description",
         content:
           "Administrator-only audit ledger, integrity verification and retention operations.",
       },
-      { property: "og:title", content: "Audit — Nexus" },
+      { property: "og:title", content: pageTitle("Audit") },
       {
         property: "og:description",
         content: "Audit ledger and operational data controls.",

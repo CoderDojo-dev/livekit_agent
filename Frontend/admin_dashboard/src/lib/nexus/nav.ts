@@ -24,6 +24,9 @@ import {
 
 export type NavSection = "PLATFORM" | "KNOWLEDGE" | "OPERATIONS" | "INSIGHTS";
 
+/** Which sidebar badge, if any, an item carries. Mirrors the keys of NavCounts. */
+export type NavCountKey = "escalations" | "callbacks" | "tickets";
+
 export type NavItem = {
   id: string;
   label: string;
@@ -32,6 +35,16 @@ export type NavItem = {
   section: NavSection;
   shortcut: string;
   minimumRole?: BackendRole;
+  /**
+   * Renders a count badge from getNavCounts(). Present only on the three queues where a number
+   * changes what an operator does next; an inventory count next to "Customers" would be trivia.
+   */
+  countKey?: NavCountKey;
+  /**
+   * Inverts the badge (n-12 on n-0). Reserved for queues that are WAITING ON A HUMAN, so the
+   * emphasis means "act", not merely "exists".
+   */
+  countAttention?: boolean;
 };
 
 export const NAV: readonly NavItem[] = [
@@ -58,6 +71,8 @@ export const NAV: readonly NavItem[] = [
     icon: LifeBuoy,
     section: "PLATFORM",
     shortcut: "G E",
+    countKey: "escalations",
+    countAttention: true,
   },
   {
     id: "tickets",
@@ -66,6 +81,7 @@ export const NAV: readonly NavItem[] = [
     icon: Ticket,
     section: "PLATFORM",
     shortcut: "G T",
+    countKey: "tickets",
   },
   {
     id: "knowledge",
@@ -124,6 +140,8 @@ export const NAV: readonly NavItem[] = [
     icon: PhoneOutgoing,
     section: "OPERATIONS",
     shortcut: "G B",
+    countKey: "callbacks",
+    countAttention: true,
   },
   {
     id: "notifications",

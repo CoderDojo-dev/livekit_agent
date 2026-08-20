@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
-import { ShieldCheck } from "lucide-react";
+import { Fingerprint, Link2, ShieldCheck } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -15,6 +15,9 @@ import {
 } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableSkeleton, InlineError, TableErrorRow } from "@/components/nexus/states";
+import { CursorPager } from "@/components/nexus/pager";
+import { TableBodySwap } from "@/components/nexus/motion";
+import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
 import { RetentionPanel } from "@/components/nexus/retention-panel";
 import { verifyAuditChain, runIntegrityReport, listAuditEntries } from "@/lib/api/audit.server";
 import { auditKeys } from "@/lib/nexus/query-keys";
@@ -32,14 +35,14 @@ import { formatInteger } from "@/lib/nexus/format";
 export function AuditPage() {
   return (
     <>
-      <PageSection className="grid gap-sp-6 xl:grid-cols-2">
+      <PageSection index={0} className="grid gap-sp-6 xl:grid-cols-2">
         <AuditChainPanel />
         <IntegrityPanel />
       </PageSection>
-      <PageSection>
+      <PageSection index={1}>
         <RetentionPanel />
       </PageSection>
-      <PageSection>
+      <PageSection index={2}>
         <AuditLedgerTable />
       </PageSection>
     </>
@@ -54,6 +57,7 @@ function AuditChainPanel() {
       <CardHeader
         title="Audit Chain"
         subtitle="Recompute every hash in the ledger and confirm the chain is unbroken."
+        icon={Link2}
         action={
           <Button onClick={() => verify.mutate()} disabled={verify.isPending}>
             {verify.isPending ? "Verifying..." : "Verify chain"}
@@ -95,6 +99,7 @@ function IntegrityPanel() {
       <CardHeader
         title="Referential Integrity"
         subtitle="Cross-domain orphan checks plus the audit chain."
+        icon={Fingerprint}
         action={
           <Button onClick={() => integrity.mutate()} disabled={integrity.isPending}>
             {integrity.isPending ? "Running..." : "Run check"}
@@ -136,6 +141,16 @@ function IntegrityPanel() {
 
 function AuditLedgerTable() {
   const [eventType, setEventType] = useState("");
+  const [page, setPage] = useState(0);
+
+  const pageSize = useAdaptivePageSize({
+    rowHeight: ROW_HEIGHT.table,
+    chrome: 560,
+    min: 5,
+    max: 12,
+    fallback: 8,
+  });
+
   const entries = useInfiniteQuery({
     queryKey: auditKeys.entries(eventType),
     queryFn: ({ pageParam }) =>
@@ -146,18 +161,39 @@ function AuditLedgerTable() {
     getNextPageParam: (page) => (page.has_more ? page.next_before_seq : undefined),
   });
 
-  const rows = entries.data?.pages.flatMap((page) => page.entries) ?? [];
+  /**
+   * The ledger is walked backwards by `beforeSeq`, so there is no total to page against \u2014 hence
+   * CursorPager rather than Pager.
+   *
+   * The important change is that fetched pages now ACCUMULATE IN THE CACHE but only ONE is ever
+   * RENDERED. "Load older" previously flattened every fetched page into a single table, so the
+   * ledger grew without bound: fifty rows became a hundred became two hundred, and the page height
+   * with it. Stepping back through pages stays instant because the data is still cached.
+   */
+  const fetchedPages = entries.data?.pages ?? [];
+  const activePage = fetchedPages[page];
+  const rows = activePage?.entries ?? [];
+
+  /* Changing the filter restarts the walk, so any page index from the old filter is meaningless. */
+  useEffect(() => setPage(0), [eventType]);
 
   return (
     <Card padded={false}>
       <div className="p-sp-7">
-        <CardHeader title="Audit Ledger" subtitle="The 50 most recent entries, newest first." />
+        <CardHeader
+          title="Audit Ledger"
+          subtitle="Append-only, newest first. Each page is fetched on demand and kept for instant back-paging."
+          icon={ShieldCheck}
+        />
       </div>
       <TableShell
+        minWidth={780}
+        bodyAsChild
+        busy={entries.isFetchingNextPage || (entries.isFetching && !entries.isPending)}
         toolbar={
           <SearchInput
             placeholder="Filter by event type"
-            className="w-[280px]"
+            className="w-full sm:w-[280px]"
             value={eventType}
             onChange={setEventType}
           />
@@ -168,59 +204,84 @@ function AuditLedgerTable() {
             <Th>Event</Th>
             <Th>Reference</Th>
             <Th>Hash</Th>
-            <Th>When</Th>
+            <Th align="right">When</Th>
           </tr>
         }
         footer={
-          <>
-            <span className="t-label text-ink-3">{formatInteger(rows.length)} entries loaded</span>
-            <Button
-              size="sm"
-              onClick={() => void entries.fetchNextPage()}
-              disabled={!entries.hasNextPage || entries.isFetchingNextPage}
-            >
-              {entries.isFetchingNextPage ? "Loading..." : "Load older"}
-            </Button>
-          </>
+          <CursorPager
+            page={page}
+            loadedPages={fetchedPages.length}
+            hasMore={entries.hasNextPage}
+            onPageChange={setPage}
+            onLoadMore={() => {
+              void entries.fetchNextPage().then(() => setPage((current) => current + 1));
+            }}
+            loading={entries.isFetchingNextPage}
+            rowsOnPage={rows.length}
+          />
         }
       >
-        {entries.isPending ? (
-          <TableSkeleton rows={6} columns={5} />
-        ) : entries.isError && entries.data === undefined ? (
-          <TableErrorRow columns={5} error={entries.error} onRetry={() => void entries.refetch()} />
-        ) : rows.length === 0 ? (
-          <tr>
-            <td colSpan={5} className="h-[52px] border-b border-stroke-subtle px-sp-6">
-              <EmptyState
-                icon={ShieldCheck}
-                title="No audit entries"
-                description="Nothing has been recorded yet."
-              />
-            </td>
-          </tr>
-        ) : (
-          rows.map((entry, index) => {
-            const older = rows[index + 1];
-            const canVerifyLink = older !== undefined;
-            const linked = isLinked(entry, older);
-            return (
-              <tr key={entry.seq}>
-                <Td>
-                  <Token>{entry.seq}</Token>
-                </Td>
-                <Td>{eventLabel(entry.event_type)}</Td>
-                <Td>{entry.entity_reference ?? "\u2014"}</Td>
-                <Td>
-                  <Token>{shortHash(entry.entry_hash)}</Token>
-                  {canVerifyLink && !linked ? (
-                    <span className="t-caption ml-sp-4 text-ink-3">link mismatch</span>
-                  ) : null}
-                </Td>
-                <Td>{formatInstant(entry.created_at)}</Td>
-              </tr>
-            );
-          })
-        )}
+        <TableBodySwap pageKey={`${page}-${eventType}`}>
+          {entries.isPending ? (
+            <TableSkeleton rows={pageSize} columns={5} />
+          ) : entries.isError && entries.data === undefined ? (
+            <TableErrorRow
+              columns={5}
+              error={entries.error}
+              onRetry={() => void entries.refetch()}
+            />
+          ) : rows.length === 0 ? (
+            <tr>
+              <td colSpan={5}>
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="No audit entries"
+                  description="Nothing has been recorded yet."
+                />
+              </td>
+            </tr>
+          ) : (
+            rows.map((entry, index) => {
+              /* Link verification compares against the next-older row. At a page boundary that
+               * row lives on the following page, so the last row of a page has nothing to check
+               * against \u2014 `older` is undefined there and no claim is made either way. */
+              const older = rows[index + 1];
+              const canVerifyLink = older !== undefined;
+              const linked = isLinked(entry, older);
+              return (
+                <tr
+                  key={entry.seq}
+                  className="transition-colors duration-[120ms] hover:bg-surface-3"
+                >
+                  <Td>
+                    <Token>{entry.seq}</Token>
+                  </Td>
+                  <Td>{eventLabel(entry.event_type)}</Td>
+                  <Td>
+                    <span className="block max-w-[28ch] truncate">
+                      {entry.entity_reference ?? "\u2014"}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="flex items-center gap-sp-4">
+                      <Token>{shortHash(entry.entry_hash)}</Token>
+                      {canVerifyLink && !linked ? (
+                        <span className="t-caption whitespace-nowrap text-ink-3">
+                          link mismatch
+                        </span>
+                      ) : null}
+                    </span>
+                  </Td>
+                  <Td align="right">
+                    <span className="t-mono whitespace-nowrap text-ink-3">
+                      {formatInstant(entry.created_at)}
+                    </span>
+                  </Td>
+                </tr>
+              );
+            })
+          )}
+        </TableBodySwap>
       </TableShell>
     </Card>
   );

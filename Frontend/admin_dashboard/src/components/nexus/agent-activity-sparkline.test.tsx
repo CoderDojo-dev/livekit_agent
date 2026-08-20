@@ -39,9 +39,7 @@ function renderSparkline(
   metric: "duration" | "tokens" = "duration",
   label = "Trend",
 ) {
-  return render(
-    createElement(AgentActivitySparkline, { points, metric, label }),
-  );
+  return render(createElement(AgentActivitySparkline, { points, metric, label }));
 }
 
 describe("AgentActivitySparkline", () => {
@@ -65,9 +63,7 @@ describe("AgentActivitySparkline", () => {
         provider_output_tokens: null,
       }),
     ]);
-    expect(chartLog.charts).toEqual([
-      [{ day: "2026-08-17", value: 300 }],
-    ]);
+    expect(chartLog.charts).toEqual([[{ day: "2026-08-17", value: 300 }]]);
   });
 
   it("maps token points to the summed daily provider total", () => {
@@ -123,16 +119,16 @@ describe("AgentActivitySparkline", () => {
   });
 
   it("shows Unavailable when every value is null", () => {
-    renderSparkline([point({ provider_input_tokens: null, provider_output_tokens: null })], "tokens");
+    renderSparkline(
+      [point({ provider_input_tokens: null, provider_output_tokens: null })],
+      "tokens",
+    );
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByTestId("line-chart")).not.toBeInTheDocument();
   });
 
   it("keeps a real zero distinct from an unavailable point", () => {
-    renderSparkline(
-      [point({ attributed_call_duration_seconds: 0 })],
-      "duration",
-    );
+    renderSparkline([point({ attributed_call_duration_seconds: 0 })], "duration");
     expect(screen.getByText("2026-08-17: 0")).toBeInTheDocument();
   });
 });
