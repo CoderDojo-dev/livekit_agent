@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createOrbRenderer, type OrbHandle } from "./orb-renderer";
 import { ORB_STATES, type OrbState } from "@/lib/orb-config";
+import { usePortalReducedMotion } from "@/hooks/use-portal-motion";
 import { cn } from "@/lib/utils";
 
 type OrbProps = {
@@ -19,14 +20,18 @@ export function Orb({ state, level = 0, size = 320, className }: OrbProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const handleRef = useRef<OrbHandle | null>(null);
   const [fallback, setFallback] = useState(false);
+  // The OS media query alone would leave the portal's own "Reduce motion"
+  // switch with no effect on the one thing it names.
+  const reduced = usePortalReducedMotion();
+  // Read through a ref so flipping the preference does not re-create the
+  // WebGL context; the running frame loop picks the new value up instead.
+  const reducedRef = useRef(reduced);
+  reducedRef.current = reduced;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const handle = createOrbRenderer(canvas, state, reduced);
+    const handle = createOrbRenderer(canvas, state, reducedRef.current);
     if (!handle) {
       setFallback(true);
       return;
@@ -54,6 +59,10 @@ export function Orb({ state, level = 0, size = 320, className }: OrbProps) {
   useEffect(() => {
     handleRef.current?.setLevel(level);
   }, [level]);
+
+  useEffect(() => {
+    handleRef.current?.setReducedMotion(reduced);
+  }, [reduced]);
 
   const target = ORB_STATES[state];
 

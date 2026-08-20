@@ -1,8 +1,9 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button, Card, EmptyState, SectionLabel } from "@/components/portal/primitives";
 import { copy } from "@/lib/copy";
+import { usePortalReducedMotion } from "@/hooks/use-portal-motion";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
@@ -95,7 +96,7 @@ export function SkeletonMetric() {
  * stays under it (z-30 < 40) so an active call bar always wins.
  * -------------------------------------------------------------------------- */
 export function TopProgress({ active }: { active: boolean }) {
-  const reduce = useReducedMotion();
+  const reduce = usePortalReducedMotion();
   return (
     <AnimatePresence>
       {active ? (
@@ -536,6 +537,7 @@ export function MetricTile({
   value,
   hint,
   size = "m",
+  share,
   /** Shows a shimmer at the value's own type size instead of a placeholder
    *  glyph, so "still loading" is never read as "zero" or "nothing". */
   pending = false,
@@ -544,10 +546,19 @@ export function MetricTile({
   value: string;
   hint?: string | undefined;
   size?: "m" | "l" | "xl";
+  /**
+   * A hairline proportion bar under the value. Only pass this when the metric
+   * genuinely IS a part of a whole that the same payload already carries -
+   * active lines out of all lines, paid out of billed. It is not a trend and
+   * there is no history behind it: a tile with no real denominator gets no
+   * bar rather than a decorative one.
+   */
+  share?: { of: number; value: number } | undefined;
   pending?: boolean;
 }) {
   const type = size === "xl" ? "t-metric-xl" : size === "l" ? "t-metric-l" : "t-metric-m";
   const barHeight = size === "xl" ? "h-10" : size === "l" ? "h-8" : "h-6";
+  const ratio = share && share.of > 0 ? Math.min(Math.max(share.value / share.of, 0), 1) : null;
   return (
     <div className="min-w-0">
       <div className="t-micro-2 text-ink-5">{label}</div>
@@ -561,6 +572,18 @@ export function MetricTile({
       ) : (
         <div className={cn(type, "mt-sp-3 truncate text-ink-1")}>{value}</div>
       )}
+      {ratio !== null && !pending ? (
+        <div
+          className="mt-sp-4 h-px w-full bg-stroke-subtle"
+          role="img"
+          aria-label={copy.common.shareOf(share!.value, share!.of)}
+        >
+          <div
+            className="h-full bg-ink-3 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            style={{ width: `${ratio * 100}%` }}
+          />
+        </div>
+      ) : null}
       {hint && !pending ? (
         <div className="t-caption mt-sp-2 truncate text-ink-4">{hint}</div>
       ) : null}

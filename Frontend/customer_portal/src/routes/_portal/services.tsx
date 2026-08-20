@@ -91,6 +91,13 @@ function ServicesScreen() {
                   ? copy.services.tiles.linesHint(subscriptions.length)
                   : undefined
               }
+              // Active out of total: both numbers come from the subscriptions
+              // array already rendered below, so the bar cannot drift from it.
+              share={
+                subscriptions.length > 0
+                  ? { value: activeLines, of: subscriptions.length }
+                  : undefined
+              }
               size="l"
               pending={profileQuery.isPending}
             />

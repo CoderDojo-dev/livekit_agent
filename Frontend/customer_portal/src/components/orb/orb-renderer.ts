@@ -219,14 +219,17 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string) {
 export type OrbHandle = {
   setState: (state: OrbState) => void;
   setLevel: (level: number) => void;
+  /** Freezes/unfreezes shader time without tearing down the GL context. */
+  setReducedMotion: (reduced: boolean) => void;
   destroy: () => void;
 };
 
 export function createOrbRenderer(
   canvas: HTMLCanvasElement,
   initial: OrbState,
-  reducedMotion: boolean,
+  initialReducedMotion: boolean,
 ): OrbHandle | null {
+  let reducedMotion = initialReducedMotion;
   const gl = canvas.getContext("webgl2", {
     alpha: true,
     antialias: false,
@@ -352,6 +355,9 @@ export function createOrbRenderer(
     },
     setLevel(v: number) {
       levelTarget = Math.max(0, Math.min(1, v));
+    },
+    setReducedMotion(reduced: boolean) {
+      reducedMotion = reduced;
     },
     destroy() {
       disposed = true;

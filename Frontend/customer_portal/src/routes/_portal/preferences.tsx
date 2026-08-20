@@ -1,10 +1,23 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { brand, copy, pageTitle } from "@/lib/copy";
 import { Card, Divider, Segmented, SectionLabel, SwitchRow } from "@/components/portal/primitives";
-import { readPreferences, writePreferences, type PortalPreferences } from "@/lib/preferences";
+import { SkeletonLine } from "@/components/portal/data";
+import { updatePreferences, usePreferences } from "@/lib/preferences";
+import { usePortalSession } from "@/lib/use-portal-session";
+import { qk } from "@/lib/query-keys";
+import { errorMessage } from "@/lib/api/errors";
+import {
+  AGENT_LANGUAGES,
+  DEFAULT_AGENT_LANGUAGE,
+  fetchProfileDetail,
+  isAgentLanguage,
+  setPreferredLanguage,
+  type AgentLanguage,
+} from "@/lib/api/me.server";
 import { cn } from "@/lib/utils";
-import { useReducedMotion } from "motion/react";
 
 export const Route = createFileRoute("/_portal/preferences")({
   head: () => ({
@@ -28,20 +41,111 @@ export const Route = createFileRoute("/_portal/preferences")({
 const SECTIONS = [
   { id: "appearance", label: copy.preferences.nav.appearance },
   { id: "voice", label: copy.preferences.nav.voice },
+  { id: "language", label: copy.preferences.nav.language },
 ] as const;
+
+/*
+ * The saved preference is a CRM field (crm.customers.preferred_language), not a
+ * browser setting, so it deliberately does NOT go through lib/preferences: that
+ * store is presentation-only and never reaches a server. Adding it there would
+ * be a second, silently-diverging copy of a value the agent worker reads from
+ * the database at session start.
+ */
+function LanguageSection() {
+  const session = usePortalSession();
+  const queryClient = useQueryClient();
+  const cid = session?.customerId ?? "unknown";
+  const [pending, setPending] = useState<AgentLanguage | null>(null);
+
+  const profile = useQuery({
+    queryKey: qk.profileDetail(cid),
+    queryFn: () => fetchProfileDetail(),
+    staleTime: 30_000,
+  });
+
+  // The column is NOT NULL with a 'fr' default, but a value the portal does not
+  // recognise must read as "no preference" rather than select nothing at all.
+  const stored = profile.data?.preferred_language;
+  const current: AgentLanguage = isAgentLanguage(stored) ? stored : DEFAULT_AGENT_LANGUAGE;
+
+  async function choose(language: AgentLanguage) {
+    if (pending !== null) return;
+    const label = copy.preferences.agentLanguageOptions[language];
+    if (language === current) {
+      toast.message(copy.preferences.agentLanguageUnchanged);
+      return;
+    }
+    setPending(language);
+    try {
+      await setPreferredLanguage({ data: { language } });
+      await queryClient.invalidateQueries({ queryKey: qk.profileDetail(cid) });
+      toast.success(copy.preferences.agentLanguageSaved(label));
+    } catch (caught) {
+      toast.error(errorMessage(caught));
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <Card>
+      <SectionLabel>{copy.preferences.language}</SectionLabel>
+      <div className="mt-sp-7">
+        <div className="t-label text-ink-4">{copy.preferences.agentLanguage}</div>
+        <p className="t-caption mt-sp-2 text-ink-4">{copy.preferences.agentLanguageHint}</p>
+        <div className="mt-sp-5">
+          {profile.isPending ? (
+            <SkeletonLine className="h-8 w-56 rounded-r-2" />
+          ) : (
+            <div
+              role="group"
+              aria-label={copy.preferences.agentLanguage}
+              className="inline-flex overflow-hidden rounded-r-2 border border-stroke-default"
+            >
+              {AGENT_LANGUAGES.map((code, i) => {
+                const selected = code === current;
+                const busy = pending === code;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    lang={code}
+                    onClick={() => void choose(code)}
+                    aria-pressed={selected}
+                    aria-busy={busy}
+                    disabled={pending !== null}
+                    className={cn(
+                      "focus-ring t-label h-8 px-sp-6 transition-colors duration-200 disabled:cursor-not-allowed",
+                      i > 0 && "border-l border-stroke-default",
+                      selected
+                        ? "bg-n-12 text-ink-inverse"
+                        : "bg-surface-2 text-ink-3 hover:bg-surface-3 hover:text-ink-1",
+                      pending !== null && !busy && "opacity-60",
+                    )}
+                  >
+                    {busy
+                      ? copy.preferences.agentLanguageSaving
+                      : copy.preferences.agentLanguageOptions[code]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <Divider className="my-sp-7" />
+        <p className="t-caption text-ink-4">{copy.preferences.agentLanguageNote}</p>
+      </div>
+    </Card>
+  );
+}
 
 function PreferencesScreen() {
   const [section, setSection] = useState<(typeof SECTIONS)[number]["id"]>("appearance");
-  const [prefs, setPrefs] = useState<PortalPreferences>(() => readPreferences());
-  // A motion toggle that animates anyway is the same class of bug as a
-  // language toggle that changes nothing.
-  const T = useReducedMotion() || prefs.reduceMotion ? { duration: 0 } : { duration: 0.2 };
-
-  function update(next: Partial<PortalPreferences>) {
-    const merged = { ...prefs, ...next };
-    setPrefs(merged);
-    writePreferences(merged);
-  }
+  // Read through the store, not useState: the server render has no
+  // localStorage, so a lazy initialiser hydrates the controls out of sync with
+  // the document the head script already styled.
+  const prefs = usePreferences();
+  const update = updatePreferences;
 
   return (
     <div className="grid gap-sp-8 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -115,6 +219,8 @@ function PreferencesScreen() {
             </div>
           </Card>
         )}
+
+        {section === "language" && <LanguageSection />}
 
         {section === "voice" && (
           <Card>

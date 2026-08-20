@@ -18,7 +18,7 @@ from audit_trail import PgAuditLedger
 from business_api import advisors as advisor_repo
 from business_api import availability as availability_repo
 from business_api import callbacks as callback_repo
-from business_api import me_reads, policy_view, portal_auth
+from business_api import me_reads, me_writes, policy_view, portal_auth
 from business_api.infrastructure.auth import rate_limit
 from business_api.infrastructure.auth.principal import (
     Principal,
@@ -284,6 +284,49 @@ def _client_customer_id(principal: Principal) -> UUID:
     if principal.customer_id is None:
         raise HTTPException(status_code=403, detail="requires a client account")
     return principal.customer_id
+
+
+class PreferredLanguagePayload(BaseModel):
+    """The language the assistant should open a new conversation in."""
+
+    language: str
+
+
+@app.put("/api/v1/me/profile/language")
+def me_set_preferred_language(
+    payload: PreferredLanguagePayload, session: DbSession, principal: ClientPrincipal
+) -> dict:
+    """Set your own preferred agent language.
+
+    customer_id comes from the authenticated principal, so there is no identifier in the request
+    for a caller to tamper with: client A cannot change customer B's preference.
+
+    This writes crm.customers.preferred_language, the column the agent worker already reads as
+    the *saved preference* candidate in config/language_policy.resolve_session_language. The
+    precedence there is unchanged and is not re-implemented here: an explicit in-conversation
+    request still outranks this value, and this value still outranks the French default.
+    """
+    try:
+        result = me_writes.set_preferred_language(
+            session, _client_customer_id(principal), payload.language
+        )
+    except me_writes.UnsupportedLanguage as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="customer not found") from exc
+
+    if result["changed"]:
+        PgAuditLedger(session).append(
+            None, "me_preferred_language_changed",
+            {
+                "actor": _audit_actor(principal),
+                "previous": result["previous"],
+                "language": result["preferred_language"],
+            },
+            entity_reference=f"customers:{_client_customer_id(principal)}",
+        )
+    session.commit()
+    return {"preferred_language": result["preferred_language"], "changed": result["changed"]}
 
 
 @app.get("/api/v1/customers")

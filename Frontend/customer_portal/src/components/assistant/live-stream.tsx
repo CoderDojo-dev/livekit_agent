@@ -20,6 +20,7 @@ import { T_BASE, T_MICRO } from "@/components/portal/data";
 import { ToolEventRow } from "@/components/assistant/tool-event-row";
 import { WorkingIndicator } from "@/components/assistant/working-indicator";
 import { copy } from "@/lib/copy";
+import { usePreferences } from "@/lib/preferences";
 
 /*
  * Port of apps/client-widget/src/components/app/live-conversation.tsx.
@@ -55,6 +56,9 @@ export function LiveStream({
 }) {
   const session = useSessionContext();
   const agent = useAgent();
+  // "Show captions by default" governs the spoken transcript only. Tool events
+  // are actions taken on the account, not captions, and stay visible.
+  const { captions } = usePreferences();
 
   /*
    * useTranscriptions consumes lk.transcription text streams.
@@ -81,7 +85,7 @@ export function LiveStream({
     const transcriptBySegment = new Map<string, StreamItem>();
     const localIdentity = session.room.localParticipant.identity;
 
-    for (const stream of transcriptions) {
+    for (const stream of captions ? transcriptions : []) {
       const attributes = stream.streamInfo.attributes ?? {};
       const segmentId =
         attributes["lk.segment_id"] ||
@@ -128,12 +132,12 @@ export function LiveStream({
     return [...transcriptBySegment.values(), ...toolItems]
       .sort((left, right) => left.timestamp - right.timestamp)
       .slice(-MAX_VISIBLE_ITEMS);
-  }, [session.room, transcriptions, toolStreams]);
+  }, [session.room, transcriptions, toolStreams, captions]);
 
   if (!session.isConnected && items.length === 0) {
     return (
       <p className="t-caption text-ink-5" aria-hidden="true">
-        {copy.assistant.stream.willAppear}
+        {captions ? copy.assistant.stream.willAppear : copy.assistant.stream.captionsOff}
       </p>
     );
   }
@@ -204,8 +208,14 @@ export function LiveStream({
             transition={T_MICRO}
             className="flex items-center gap-sp-3 text-ink-5"
           >
-            <LoaderCircle size={14} strokeWidth={1.5} aria-hidden="true" />
-            <span className="t-caption">{copy.assistant.stream.waiting}</span>
+            {captions ? (
+              <>
+                <LoaderCircle size={14} strokeWidth={1.5} aria-hidden="true" />
+                <span className="t-caption">{copy.assistant.stream.waiting}</span>
+              </>
+            ) : (
+              <span className="t-caption">{copy.assistant.stream.captionsOff}</span>
+            )}
           </motion.div>
         ) : null}
       </div>

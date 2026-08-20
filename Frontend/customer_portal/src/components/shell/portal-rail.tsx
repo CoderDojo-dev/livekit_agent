@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { NAV } from "@/lib/nav";
 import { brand, copy } from "@/lib/copy";
+import { CountBadge } from "@/components/portal/primitives";
+import { useNavCounts } from "@/hooks/use-nav-counts";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -37,6 +39,7 @@ const ICONS: Record<string, LucideIcon> = {
  */
 export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const counts = useNavCounts();
 
   return (
     <nav
@@ -68,6 +71,9 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
               {group.items.map((item) => {
                 const Icon = ICONS[item.icon] ?? Info;
                 const active = pathname.startsWith(item.href);
+                // null while the count is still unknown: rendering 0 would
+                // state something false about the account.
+                const count = counts[item.href] ?? null;
                 return (
                   <li key={item.href}>
                     <Link
@@ -90,8 +96,17 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
                       <Icon size={16} strokeWidth={1.5} className="shrink-0" />
                       {!collapsed && <span className="t-ui truncate">{item.label}</span>}
                       {!collapsed && (
-                        <span className="t-mono-s ml-auto text-ink-5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                          {item.key}
+                        <span className="ml-auto flex shrink-0 items-center gap-sp-4">
+                          {/* The shortcut sits BEFORE the badge and only fades
+                              in, so it never displaces the count: it holds its
+                              width at rest and nothing on the row moves on
+                              hover. */}
+                          <span className="t-mono-s text-ink-5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                            {item.key}
+                          </span>
+                          {count !== null && count > 0 ? (
+                            <CountBadge count={count} tone={active ? "strong" : "muted"} />
+                          ) : null}
                         </span>
                       )}
                     </Link>

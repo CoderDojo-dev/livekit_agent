@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAgent, useSessionContext } from "@livekit/components-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { Mic, MicOff, PhoneCall, PhoneOff, LockKeyhole } from "lucide-react";
 import { Orb } from "@/components/orb/orb";
 import { OrbPlinth } from "@/components/orb/orb-plinth";
@@ -25,6 +25,7 @@ import { brand, copy, pageTitle } from "@/lib/copy";
 import { reportVoiceEvent } from "@/lib/api/voice.server";
 import { fetchConversations } from "@/lib/api/activity.server";
 import { qk } from "@/lib/query-keys";
+import { usePortalReducedMotion } from "@/hooks/use-portal-motion";
 
 export const Route = createFileRoute("/_portal/assistant")({
   head: () => ({
@@ -91,7 +92,8 @@ function AssistantStage() {
 
   // Reduced motion is honoured explicitly on every JS-driven transition in
   // this scene: styles.css only covers CSS transitions, not Framer Motion.
-  const reduce = useReducedMotion();
+  // The hook merges the OS media query with the portal preference.
+  const reduce = usePortalReducedMotion();
 
   const orbState: OrbState = toOrbState(agent.state, connected);
   const level = useOrbLevel(agent.microphoneTrack);

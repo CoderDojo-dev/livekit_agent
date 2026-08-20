@@ -32,6 +32,9 @@ export const copy = {
     collapseRail: "Collapse navigation",
     expandRail: "Expand navigation",
     secure: "SECURE",
+    // Labels name the destination, not the current state: the button is a
+    // switch, so "Switch to light" is what a screen reader should announce.
+    theme: { light: "Switch to light theme", dark: "Switch to dark theme" },
     menu: { profile: "Your profile", security: "Security" },
   },
   login: {
@@ -98,6 +101,7 @@ export const copy = {
       you: "YOU",
       willAppear: "Your conversation will appear here as you speak.",
       waiting: "Listening for the first words…",
+      captionsOff: "Captions are off. Turn them on in Preferences to read along.",
     },
     controls: {
       mute: "Mute microphone",
@@ -163,6 +167,18 @@ export const copy = {
     requestUpdated: "UPDATED",
     requestPriority: "PRIORITY",
     requestCategory: "CATEGORY",
+    cadence: {
+      label: "CADENCE",
+      /* Two modes, because the data has two shapes. Saying "over time" when the
+         turns carried no timestamps would be a small lie on a small chart. */
+      overTime: "Turn cadence over the conversation",
+      inSequence: "Turn order (no timing recorded)",
+      agent: "assistant",
+      caller: "you",
+      split: (agent: number, caller: number) => `${agent} assistant · ${caller} you`,
+      describe: (turns: number, agent: number, caller: number) =>
+        `${turns} turns: ${agent} from the assistant, ${caller} from you.`,
+    },
   },
   requests: {
     heroLabel: "NEEDS YOUR ATTENTION",
@@ -304,17 +320,35 @@ export const copy = {
     nav: {
       appearance: "Appearance",
       voice: "Voice and audio",
+      language: "Language",
     },
     appearance: "APPEARANCE",
     voice: "VOICE AND AUDIO",
+    language: "LANGUAGE",
     theme: "Theme",
     themes: ["Dark", "Light"],
     density: "Density",
     densities: ["Comfortable", "Compact"],
     textSize: "Text size",
     textSizes: ["Default", "Large"],
-    agentLanguage: "Agent language",
-    agentLanguageHint: "The language the assistant uses when it calls you.",
+    agentLanguage: "Preferred agent language",
+    agentLanguageHint: "The language a new conversation opens in.",
+    /*
+     * The precedence is agent-worker's, not the portal's
+     * (config/language_policy.resolve_session_language). Stating it here is the
+     * difference between a setting the customer trusts and one they think is
+     * broken the first time they ask the assistant to switch mid-call.
+     */
+    agentLanguageNote:
+      "Asking the assistant to switch during a conversation always wins. Without a saved preference, conversations open in French.",
+    agentLanguageOptions: {
+      fr: "Français",
+      ar: "العربية",
+      en: "English",
+    },
+    agentLanguageSaving: "Saving…",
+    agentLanguageSaved: (language: string) => `New conversations will open in ${language}.`,
+    agentLanguageUnchanged: "Already your preferred language.",
     switches: {
       captions: {
         label: "Show captions by default",
@@ -326,7 +360,7 @@ export const copy = {
       },
     },
     reduceMotionNote:
-      "Applies across the portal immediately. The assistant visual follows your system setting.",
+      "Applies across the portal immediately, including the assistant visual. Your system setting still wins when it asks for reduced motion.",
   },
   security: {
     nav: {
@@ -435,6 +469,7 @@ export const copy = {
     next: "Next page",
     pageOf: (page: number, pages: number, total: number) =>
       `Page ${page} of ${pages} · ${total} item${total === 1 ? "" : "s"}`,
+    shareOf: (value: number, of: number) => `${value} of ${of}`,
   },
   labels: {
     // conversation.call_sessions.final_disposition

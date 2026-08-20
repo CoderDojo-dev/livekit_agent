@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Button, Card } from "@/components/portal/primitives";
 import { brand, copy, pageTitle } from "@/lib/copy";
+import { PREFERENCES_BOOT_SCRIPT, syncPreferences } from "@/lib/preferences";
 
 function NotFoundComponent() {
   return (
@@ -112,19 +113,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    /*
+      The head script below stamps the preference attributes on this element
+      before React hydrates. The server cannot know them - localStorage is a
+      client fact - so the mismatch is by design and React must be told to
+      stop reporting it. Without this the console carries a hydration error on
+      every single page load.
+    */
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/*
-          Pre-paint theme: reads localStorage synchronously so a light-theme
-          user never sees a dark flash. The one inline script in the app; the
-          stylesheet link below has not loaded yet, so no paint has happened.
+          Pre-paint preferences: reads localStorage synchronously so a
+          light-theme user never sees a dark flash and so density, text size
+          and reduced motion survive a reload instead of reverting to the
+          defaults. The one inline script in the app; the stylesheet link
+          below has not loaded yet, so no paint has happened.
         */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              '(function(){try{var t=localStorage.getItem("portal_preferences");if(!t){t=localStorage.getItem("nexus_portal_preferences");}if(t){var p=JSON.parse(t);if(p&&p.theme==="light"){document.documentElement.dataset.theme="light";}}}catch(e){}})();',
-          }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_BOOT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
@@ -137,6 +142,15 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  /*
+   * Fallback for the head script: if it was blocked (CSP, an extension) the
+   * document carries no preference attributes at all. Running once on mount
+   * costs nothing and guarantees the settings are never silently inert.
+   */
+  useEffect(() => {
+    syncPreferences();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

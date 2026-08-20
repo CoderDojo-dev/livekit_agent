@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NAV } from "@/lib/nav";
+import { useNavCounts } from "@/hooks/use-nav-counts";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -31,6 +32,7 @@ const ITEMS = MOBILE_HREFS.map((href) => {
 
 export function PortalTabbar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const counts = useNavCounts();
   return (
     <nav
       aria-label="Portal"
@@ -39,6 +41,7 @@ export function PortalTabbar() {
       {ITEMS.map((item) => {
         const Icon = ICONS[item.icon] ?? Info;
         const active = pathname.startsWith(item.href);
+        const count = counts[item.href] ?? null;
         return (
           <Link
             key={item.href}
@@ -48,7 +51,20 @@ export function PortalTabbar() {
               active ? "text-ink-1" : "text-ink-5",
             )}
           >
-            <Icon size={17} strokeWidth={1.5} />
+            {/* A 14px bar has no room for a pill, so the count becomes a
+                superscript on the icon - the same fact, at the size the bar
+                can carry. */}
+            <span className="relative">
+              <Icon size={17} strokeWidth={1.5} />
+              {count !== null && count > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className="t-micro-2 absolute -right-sp-5 -top-sp-2 tabular-nums text-ink-4"
+                >
+                  {count}
+                </span>
+              ) : null}
+            </span>
             <span className="t-micro-2">{item.label}</span>
           </Link>
         );

@@ -53,6 +53,39 @@ export function IconButton({
   );
 }
 
+/**
+ * A count carried next to a label — the rail's per-destination totals.
+ *
+ * Monochrome and quiet by construction: a filled pill would out-shout the
+ * active-item treatment next to it, so the badge is a hairline-bordered
+ * surface step that reads as data rather than as an alert. `tone="strong"` is
+ * for the active row, where the surface underneath has already stepped up.
+ */
+export function CountBadge({
+  count,
+  tone = "muted",
+  className,
+}: {
+  count: number;
+  tone?: "muted" | "strong";
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "t-mono-s inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-r-1 border px-sp-2 tabular-nums",
+        tone === "strong"
+          ? "border-stroke-strong bg-surface-4 text-ink-2"
+          : "border-stroke-subtle bg-surface-2 text-ink-4",
+        className,
+      )}
+    >
+      {count}
+    </span>
+  );
+}
+
 export function Card({
   className,
   inset = true,
@@ -163,6 +196,7 @@ export function SwitchRow({
         <div className="t-caption mt-sp-2 max-w-xl text-ink-4">{description}</div>
       </div>
       <button
+        type="button"
         role="switch"
         aria-checked={checked}
         aria-label={label}
@@ -313,10 +347,11 @@ export function Segmented<T extends string>({
       {options.map((o, i) => (
         <button
           key={o}
+          type="button"
           onClick={() => onChange(o)}
           aria-pressed={value === o}
           className={cn(
-            "t-label h-8 px-sp-6 transition-colors duration-200",
+            "focus-ring t-label h-8 px-sp-6 transition-colors duration-200",
             i > 0 && "border-l border-stroke-default",
             value === o
               ? "bg-n-12 text-ink-inverse"

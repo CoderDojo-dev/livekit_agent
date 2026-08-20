@@ -52,6 +52,9 @@
   /* --- focus ring (the @utility reads this token, so it re-themes) --- */
   --focus-ring-color: var(--n-12);
 
+  /* --- echelle de texte : 1 par defaut, releve par la preference --- */
+  --text-scale: 1;
+
   /* --- 5.1 espacement, douze pas --- */
   --sp-1: 2px;
   --sp-2: 4px;
@@ -271,110 +274,113 @@
   --shadow-glow-line: var(--glow-line);
 }
 
-/* --- 4.3 l'echelle typographique : dix-huit tokens --- */
+/* --- 4.3 l'echelle typographique : dix-huit tokens ---
+   Sizes are multiplied by --text-scale so the text-size preference moves the
+   whole scale. Without it the preference could only move the root font-size,
+   which nothing in this stylesheet inherits from. */
 @utility t-display {
-  font-size: 40px;
+  font-size: calc(40px * var(--text-scale));
   font-weight: 700;
-  line-height: 44px;
+  line-height: calc(44px * var(--text-scale));
   letter-spacing: -0.03em;
 }
 @utility t-metric-xl {
-  font-size: 32px;
+  font-size: calc(32px * var(--text-scale));
   font-weight: 600;
-  line-height: 36px;
+  line-height: calc(36px * var(--text-scale));
   letter-spacing: -0.025em;
 }
 @utility t-metric-l {
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
   font-weight: 600;
-  line-height: 30px;
+  line-height: calc(30px * var(--text-scale));
   letter-spacing: -0.02em;
 }
 @utility t-metric-m {
-  font-size: 20px;
+  font-size: calc(20px * var(--text-scale));
   font-weight: 600;
-  line-height: 24px;
+  line-height: calc(24px * var(--text-scale));
   letter-spacing: -0.015em;
 }
 @utility t-title-1 {
-  font-size: 24px;
+  font-size: calc(24px * var(--text-scale));
   font-weight: 600;
-  line-height: 30px;
+  line-height: calc(30px * var(--text-scale));
   letter-spacing: -0.02em;
 }
 @utility t-title-2 {
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
   font-weight: 600;
-  line-height: 24px;
+  line-height: calc(24px * var(--text-scale));
   letter-spacing: -0.015em;
 }
 @utility t-title-3 {
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   font-weight: 600;
-  line-height: 20px;
+  line-height: calc(20px * var(--text-scale));
   letter-spacing: -0.01em;
 }
 @utility t-body {
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 400;
-  line-height: 22px;
+  line-height: calc(22px * var(--text-scale));
 }
 @utility t-body-strong {
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 500;
-  line-height: 22px;
+  line-height: calc(22px * var(--text-scale));
 }
 @utility t-ui {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   font-weight: 500;
-  line-height: 20px;
+  line-height: calc(20px * var(--text-scale));
 }
 @utility t-ui-regular {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   font-weight: 400;
-  line-height: 20px;
+  line-height: calc(20px * var(--text-scale));
 }
 @utility t-label {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 500;
-  line-height: 16px;
+  line-height: calc(16px * var(--text-scale));
 }
 @utility t-caption {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 400;
-  line-height: 16px;
+  line-height: calc(16px * var(--text-scale));
 }
 @utility t-micro {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   font-weight: 500;
-  line-height: 14px;
+  line-height: calc(14px * var(--text-scale));
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 @utility t-micro-2 {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   font-weight: 600;
-  line-height: 12px;
+  line-height: calc(12px * var(--text-scale));
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 @utility t-mono {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 400;
-  line-height: 16px;
+  line-height: calc(16px * var(--text-scale));
 }
 @utility t-mono-s {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   font-weight: 400;
-  line-height: 14px;
+  line-height: calc(14px * var(--text-scale));
 }
 @utility t-mono-l {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 500;
-  line-height: 20px;
+  line-height: calc(20px * var(--text-scale));
 }
 
 @utility focus-ring {
@@ -541,11 +547,24 @@
   transition-duration: 0.001ms !important;
 }
 
-/* Compact density: one step down the existing spacing scale. No new values. */
-[data-density="compact"] .portal-section {
-  padding-block: var(--sp-6);
+/*
+  Compact density: every spacing token from --sp-7 up moves one step down the
+  existing scale. The utilities compile to var(--sp-N), so redefining the
+  tokens on <html> retunes the whole portal - page rhythm, card padding, list
+  rows - instead of one class nobody but PageSection carries. Steps 1-6 stay
+  put: below 16px they are intra-component gaps and shrinking them collapses
+  icon rows and control padding.
+*/
+[data-density="compact"] {
+  --sp-7: 16px;
+  --sp-8: 20px;
+  --sp-9: 24px;
+  --sp-10: 32px;
+  --sp-11: 44px;
+  --sp-12: 64px;
 }
 
+/* Large text: one multiplier, applied by the type scale above. */
 [data-text-size="large"] {
-  font-size: 15px;
+  --text-scale: 1.15;
 }

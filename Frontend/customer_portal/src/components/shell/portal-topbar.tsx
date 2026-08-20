@@ -10,6 +10,7 @@ import { fetchNotifications, type NotificationItem } from "@/lib/api/notificatio
 import { fetchProfileDetail } from "@/lib/api/me.server";
 import { relative } from "@/lib/format";
 import { AccountMenu } from "@/components/shell/account-menu";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { IconButton, StatusChip } from "@/components/portal/primitives";
 
 /**
@@ -55,6 +56,8 @@ export function PortalTopbar() {
           {copy.shell.secure}
         </StatusChip>
       </div>
+
+      <ThemeToggle />
 
       <div className="relative">
         <IconButton label={copy.shell.notifications} onClick={() => setOpenTray((v) => !v)}>

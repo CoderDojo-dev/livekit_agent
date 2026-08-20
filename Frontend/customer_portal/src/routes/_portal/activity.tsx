@@ -11,12 +11,13 @@ import {
   fetchConversations,
   type CallbackItem,
   type ConversationSummary,
+  type ConversationTurn,
 } from "@/lib/api/activity.server";
 import { fetchRequests, type RequestItem } from "@/lib/api/requests.server";
 import { fetchNotifications, type NotificationItem } from "@/lib/api/notifications.server";
 import { REQUEST_TONE } from "@/lib/request-status";
 import { dateTime, duration, relative } from "@/lib/format";
-import { turnCount, turnLines } from "@/lib/conversation";
+import { cadenceTicks, turnCount, turnLines } from "@/lib/conversation";
 import {
   Button,
   Card,
@@ -132,6 +133,69 @@ function TurnDensity({ turns, max }: { turns: number; max: number }) {
   );
 }
 
+/*
+  Conversation cadence — the one chart on this screen, and only where the data
+  can pay for it.
+
+  The list endpoint returns a turn COUNT and nothing else, so the rows keep
+  their density bar. The detail endpoint returns the turns themselves, each
+  with a speaker and an `at`, which is real per-turn timing: a tick per turn,
+  positioned by when it happened, agent above the line and caller below. That
+  is the conversation's actual rhythm, not a decoration.
+
+  Two honest modes. When every turn carries a usable timestamp and the
+  conversation spans more than an instant, ticks sit at their real time
+  offsets. When they do not, the ticks fall back to turn ORDER and the label
+  says so - the sequence is still real data, only the timing is unknown.
+
+  Pure CSS, like TurnDensity above: percentages make it responsive for free,
+  and no charting dependency enters the bundle for 24px of height.
+*/
+function ConversationCadence({ lines }: { lines: ConversationTurn[] }) {
+  const { ticks, timed } = useMemo(() => cadenceTicks(lines), [lines]);
+  // One tick is a dot, not a rhythm. Below two turns the strip says nothing the
+  // "turns" tile has not already said, so it does not render at all.
+  if (ticks.length < 2) return null;
+
+  const agentTurns = ticks.filter((tick) => tick.agent).length;
+  const callerTurns = ticks.length - agentTurns;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-sp-5">
+        <span className="t-micro-2 text-ink-5">{copy.activity.cadence.label}</span>
+        <span className="t-micro-2 text-ink-5">
+          {copy.activity.cadence.split(agentTurns, callerTurns)}
+        </span>
+      </div>
+      <div
+        className="relative mt-sp-4 h-6 w-full"
+        role="img"
+        aria-label={`${
+          timed ? copy.activity.cadence.overTime : copy.activity.cadence.inSequence
+        }. ${copy.activity.cadence.describe(ticks.length, agentTurns, callerTurns)}`}
+      >
+        {/* The axis. A hairline, because the ticks are the data. */}
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-stroke-subtle"
+        />
+        {ticks.map((tick, index) => (
+          <span
+            key={index}
+            aria-hidden="true"
+            className={cn(
+              "absolute w-px -translate-x-1/2",
+              tick.agent ? "bottom-1/2 h-[9px] bg-ink-2" : "top-1/2 h-[7px] bg-ink-4",
+            )}
+            style={{ left: `${tick.x * 100}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function requestCaption(item: RequestItem): string {
   return copy.labels.requestCategory[item.category] ?? item.category;
 }
@@ -230,6 +294,12 @@ function ConversationBody({ sessionId }: { sessionId: string }) {
           </div>
         ))}
       </dl>
+
+      {turnLines(detail).length > 1 && (
+        <div className="mt-sp-7">
+          <ConversationCadence lines={turnLines(detail)} />
+        </div>
+      )}
 
       {turnLines(detail).length > 0 && (
         <>
@@ -414,6 +484,20 @@ function ActivityScreen() {
 
   const hero = heroQuery.data?.items?.[0];
 
+  /*
+   * The hero cadence needs per-turn data, which only the detail endpoint has.
+   * It shares its cache key with the panel below, so opening the same
+   * conversation is instant afterwards rather than a second round trip.
+   * `enabled` keeps it off the wire until there is a conversation to describe.
+   */
+  const heroDetailQuery = useQuery({
+    queryKey: qk.conversation(cid, hero?.session_id ?? "none"),
+    queryFn: () => fetchConversation({ data: { sessionId: hero!.session_id } }),
+    enabled: Boolean(hero?.session_id),
+    staleTime: 30_000,
+  });
+  const heroLines = turnLines(heroDetailQuery.data);
+
   const byTab = useMemo(() => {
     const rows = toItems(
       conversationsQuery.data?.items ?? [],
@@ -558,6 +642,14 @@ function ActivityScreen() {
               <MetricTile label={copy.activity.duration} value={duration(hero.duration_seconds)} />
               <MetricTile label={copy.activity.turns} value={String(turnCount(hero.turns))} />
             </div>
+            {/* Between the tiles and the action, at the tiles' own rhythm
+                (sp-7 above, sp-7 below): the strip reads as part of the metric
+                block rather than a widget bolted onto the card. */}
+            {heroLines.length > 1 ? (
+              <div className="mt-sp-7">
+                <ConversationCadence lines={heroLines} />
+              </div>
+            ) : null}
             <div className="mt-sp-7">
               <Button
                 variant="primary"
