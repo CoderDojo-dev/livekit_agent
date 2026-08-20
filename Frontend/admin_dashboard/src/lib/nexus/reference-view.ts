@@ -1,11 +1,22 @@
 import type { CatalogKind } from "@/lib/api/reference.server";
 
+/*
+ * Tab order is commercial-first.
+ *
+ * Plans leads because it is the catalog an operator reaches for most and the one a caller asks
+ * about; error messages moved to the end because they are consulted when something has already
+ * gone wrong, which is the rarer errand. The route's default selection follows this array's
+ * first entry, so the two can never disagree.
+ */
 export const CATALOG_TABS: Array<{ value: CatalogKind; label: string }> = [
-  { value: "errors", label: "Error messages" },
   { value: "products", label: "Plans" },
   { value: "recharges", label: "Recharges" },
   { value: "areas", label: "Geo areas" },
+  { value: "errors", label: "Error messages" },
 ];
+
+/** The tab selected on arrival. Derived, so reordering CATALOG_TABS re-points it automatically. */
+export const DEFAULT_CATALOG: CatalogKind = CATALOG_TABS[0]!.value;
 
 export const CATALOG_SUBTITLE: Record<CatalogKind, string> = {
   errors: "What the agent says to a caller when something fails, per language.",

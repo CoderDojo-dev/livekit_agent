@@ -17,7 +17,6 @@ import { PageSection } from "@/components/nexus/app-topbar";
 import { TableSkeleton, InlineError, TableErrorRow } from "@/components/nexus/states";
 import { CursorPager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
-import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
 import { RetentionPanel } from "@/components/nexus/retention-panel";
 import { SectionHeading } from "@/components/nexus/blocks";
 import { verifyAuditChain, runIntegrityReport, listAuditEntries } from "@/lib/api/audit.server";
@@ -158,13 +157,9 @@ function AuditLedgerTable() {
   const [eventType, setEventType] = useState("");
   const [page, setPage] = useState(0);
 
-  const pageSize = useAdaptivePageSize({
-    rowHeight: ROW_HEIGHT.table,
-    chrome: 560,
-    min: 5,
-    max: 12,
-    fallback: 8,
-  });
+  /* Five rows, fixed. The ledger is a reference surface you scan a page at a time, not a list
+   * you read top to bottom, so a taller page buys nothing and costs the panels above it. */
+  const pageSize = 5;
 
   const entries = useInfiniteQuery({
     queryKey: auditKeys.entries(eventType),

@@ -623,6 +623,11 @@ class SupervisionRepository:
                 "subscription_id": str(r.subscription_id) if r.subscription_id else None,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
                 "last_synced_at": r.last_synced_at.isoformat() if r.last_synced_at else None,
+                # Administrator note (migration 0020). Additive: existing consumers ignore the
+                # extra keys, and every ticket without a note reports null exactly as before.
+                "admin_note": r.admin_note,
+                "note_author": r.note_author,
+                "note_updated_at": r.note_updated_at.isoformat() if r.note_updated_at else None,
             })
 
         return {"tickets": items, "total": total, "counts": counts, "limit": limit, "offset": offset}
@@ -902,6 +907,108 @@ class SupervisionRepository:
              "description": r.description, "definition": r.definition_json}
             for r in rows
         ]
+
+    # ---------------------------------------------------------------- policy registry writes
+    #
+    # SAFETY, stated once and enforced below.
+    #
+    # `reference.business_rules` is a GOVERNANCE RECORD, not a runtime input. Its only readers are
+    # this admin view and the seed script - policy-service, decision-service and agent-worker never
+    # query it (they read POLICY_* env). So editing a row here cannot change what the agent does.
+    #
+    # Two invariants keep that true, and both are refusals rather than silent coercions:
+    #   1. Numeric thresholds are NEVER writable. They live in POLICY_* and are overlaid at read
+    #      time (see policy_view.overlay); accepting one here would let the registry claim a limit
+    #      the engine is not applying - exactly the drift the overlay exists to prevent.
+    #   2. A GOVERNED rule cannot be deactivated or deleted. Its row documents a guardrail that IS
+    #      being enforced; removing or disabling the documentation while the env var still applies
+    #      would make the registry lie about live behaviour.
+
+    def _governed_rule_ids(self) -> set[str]:
+        """Rule ids whose thresholds come from POLICY_* env (imported lazily to avoid a cycle)."""
+        from business_api.policy_view import GOVERNED_BY
+
+        return set(GOVERNED_BY)
+
+    def get_business_rule(self, rule_id: str) -> dict | None:
+        row = self._s.scalar(select(BusinessRule).where(BusinessRule.rule_id == rule_id))
+        if row is None:
+            return None
+        return {"rule_id": row.rule_id, "domain": row.domain, "version": row.version,
+                "active": row.active, "description": row.description,
+                "definition": row.definition_json}
+
+    def create_business_rule(self, rule_id: str, domain: str, description: str | None) -> dict:
+        """Add a CATALOG rule (governance record only). Raises ValueError on a conflict."""
+        rule_id = rule_id.strip()
+        if not rule_id:
+            raise ValueError("rule_id is required")
+        if rule_id in self._governed_rule_ids():
+            # Creating a row under a governed id would fabricate a guardrail: the overlay would
+            # then attach live enforced numbers to a rule nobody actually configured.
+            raise ValueError(f"{rule_id} is a governed rule id and cannot be created here")
+        if self._s.scalar(select(BusinessRule).where(BusinessRule.rule_id == rule_id)):
+            raise ValueError(f"{rule_id} already exists")
+
+        row = BusinessRule(
+            rule_id=rule_id,
+            domain=(domain or "general").strip()[:40],
+            description=(description or None),
+            definition_json={},
+            version=1,
+            active=True,
+        )
+        self._s.add(row)
+        self._s.flush()
+        return {"rule_id": row.rule_id, "domain": row.domain, "version": row.version,
+                "active": row.active, "description": row.description, "definition": {}}
+
+    def update_business_rule(
+        self, rule_id: str, description: str | None = None, active: bool | None = None
+    ) -> dict | None:
+        """Patch the writable governance fields. Returns None when the rule does not exist.
+
+        `version` is bumped on every accepted change: this is a versioned registry, and a
+        description edited without a version change is indistinguishable from the original.
+        """
+        row = self._s.scalar(select(BusinessRule).where(BusinessRule.rule_id == rule_id))
+        if row is None:
+            return None
+
+        governed = rule_id in self._governed_rule_ids()
+        if governed and active is False:
+            raise ValueError(
+                f"{rule_id} is enforced from POLICY_* env and cannot be deactivated here; "
+                "change the environment variable and restart policy-service instead"
+            )
+
+        changed = False
+        if description is not None and description != row.description:
+            row.description = description or None
+            changed = True
+        if active is not None and active != row.active:
+            row.active = active
+            changed = True
+
+        if changed:
+            row.version = (row.version or 1) + 1
+        self._s.flush()
+
+        return {"rule_id": row.rule_id, "domain": row.domain, "version": row.version,
+                "active": row.active, "description": row.description,
+                "definition": row.definition_json, "changed": changed}
+
+    def delete_business_rule(self, rule_id: str) -> bool:
+        """Remove a CATALOG rule. Governed rules are refused; returns False when absent."""
+        if rule_id in self._governed_rule_ids():
+            raise ValueError(
+                f"{rule_id} documents an enforced guardrail and cannot be deleted"
+            )
+        row = self._s.scalar(select(BusinessRule).where(BusinessRule.rule_id == rule_id))
+        if row is None:
+            return False
+        self._s.delete(row)
+        return True
 
     def reference_catalog(self, catalog: str, search: str = "", limit: int = 200) -> list[dict]:
         """Read one admin-managed reference catalog (spec section 13.1). Read-only."""

@@ -88,7 +88,16 @@ export function ActionLedgerPanel() {
         </div>
       ) : (
         <>
-          <ul className="mt-sp-6 flex flex-col gap-sp-4">
+          {/*
+           * Five rows visible, the rest reachable by scrolling INSIDE the panel.
+           *
+           * This list was unbounded: a busy ledger rendered every matching action inline and
+           * pushed the decisions table below it off the screen. A row is 46px plus a 8px gap, so
+           * five rows land just under 280px and the panel keeps a fixed height whatever the
+           * status scope returns. `overscroll-contain` stops a wheel that reaches the end from
+           * scrolling the page behind it.
+           */}
+          <ul className="mt-sp-6 flex max-h-[278px] flex-col gap-sp-4 overflow-y-auto overscroll-contain pr-sp-3">
             {rows.map((a) => (
               <li
                 key={a.id}
@@ -101,7 +110,11 @@ export function ActionLedgerPanel() {
               </li>
             ))}
           </ul>
-          <p className="t-caption mt-sp-5 text-ink-5">{actionScopeLabel(status, rows.length)}</p>
+          <p className="t-caption mt-sp-5 text-ink-5">
+            {actionScopeLabel(status, rows.length)}
+            {/* Makes the inner scroll discoverable — otherwise five rows look like all of them. */}
+            {rows.length > 5 ? " · scroll for the rest" : null}
+          </p>
         </>
       )}
     </Card>

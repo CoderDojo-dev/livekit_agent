@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { PhoneOff } from "lucide-react";
+import { AlarmClock, CheckCircle2, Gauge, PhoneOff, PhoneOutgoing } from "lucide-react";
 
 import { PageSection } from "@/components/nexus/app-topbar";
 import {
@@ -17,7 +17,7 @@ import {
   Token,
 } from "@/components/nexus/primitives";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
-import { NoteBanner } from "@/components/nexus/note-banner";
+import { MetricCard, MetricRow } from "@/components/nexus/metric-card";
 import { Pager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { clampPage, slicePage } from "@/lib/nexus/paginate";
@@ -39,7 +39,7 @@ import {
   scopeTotal,
   type CallbackScope,
 } from "@/lib/nexus/callback-view";
-import { initials } from "@/lib/nexus/format";
+import { formatInteger, initials } from "@/lib/nexus/format";
 
 const COLUMN_COUNT = 8;
 
@@ -52,6 +52,15 @@ const COLUMN_COUNT = 8;
  * through it with the pager, which is both shorter and honest about how much was fetched.
  */
 const FETCH_DEPTH = 250;
+
+/**
+ * `12 of 60` -> "20%". Returns an em-dash rather than "0%" when either side is unknown: a
+ * percentage computed from a missing denominator is a fabricated number, not a zero.
+ */
+function sharePct(part: number | undefined, whole: number | undefined): string {
+  if (part === undefined || whole === undefined || whole <= 0) return "—";
+  return `${Math.round((part / whole) * 100)}%`;
+}
 
 export const Route = createFileRoute("/callbacks")({
   head: () => ({
@@ -96,6 +105,10 @@ function CallbacksPage() {
   const total = scopeTotal(scope, statsQuery.data);
   const truncated = rows.length >= FETCH_DEPTH;
 
+  /* Every callback the stats endpoint knows about. Used only for share percentages — the table
+   * itself still reports its own scope. */
+  const queueTotal = (statsQuery.data?.pending ?? 0) + (statsQuery.data?.completed ?? 0);
+
   const pageSize = useAdaptivePageSize({
     rowHeight: ROW_HEIGHT.table,
     chrome: 470,
@@ -110,34 +123,81 @@ function CallbacksPage() {
 
   return (
     <PageSection index={0}>
-      {/* Queue health as real counters rather than a run-on caption line. */}
-      <div className="mb-sp-6 grid gap-sp-4 sm:grid-cols-[repeat(3,minmax(0,180px))_1fr]">
-        {(
-          [
-            ["Pending", statsQuery.data?.pending],
-            ["Overdue", statsQuery.data?.overdue],
-            ["Completed", statsQuery.data?.completed],
-          ] as const
-        ).map(([label, value]) => (
-          <div
-            key={label}
-            className="rounded-r-3 border border-stroke-subtle bg-surface-1 px-sp-6 py-sp-5"
-          >
-            <p className="t-micro text-ink-5">{label}</p>
-            {value === undefined ? (
-              <span className="shimmer mt-sp-3 block h-[18px] w-[48px] rounded-r-1" />
-            ) : (
-              <p className="t-metric-m mt-sp-2 text-ink-1">{value}</p>
-            )}
-          </div>
-        ))}
-        <div className="flex items-center sm:justify-end">
-          <span className="t-caption text-ink-5">
-            {zoneKnown
-              ? `Times in ${timeZone}`
-              : "Business timezone unavailable — times shown in UTC"}
-          </span>
-        </div>
+      {/*
+       * Queue health, at full width.
+       *
+       * These were three ~180px boxes pinned to the left with dead space beside them. They are
+       * now MetricCards on the shared four-across grid, so the band fills the page and matches
+       * Overview and Analytics rather than being a one-off.
+       *
+       * Every figure is real: pending/overdue/completed come from getCallbackStats, and the
+       * fourth card is the completion share those three already imply — no new request, and no
+       * invented series. There is no callback time series on the wire, so no card here claims a
+       * sparkline it cannot back.
+       */}
+      <div className="mb-sp-7">
+        <MetricRow>
+          <MetricCard
+            label="Pending"
+            icon={PhoneOutgoing}
+            value={statsQuery.data ? formatInteger(statsQuery.data.pending) : "—"}
+            context="Waiting for an advisor to claim"
+            footer={[
+              {
+                label: "Overdue",
+                value: statsQuery.data ? formatInteger(statsQuery.data.overdue) : "—",
+              },
+              { label: "In this scope", value: formatInteger(visible.length) },
+            ]}
+          />
+          <MetricCard
+            label="Overdue"
+            icon={AlarmClock}
+            value={statsQuery.data ? formatInteger(statsQuery.data.overdue) : "—"}
+            context="Past the promised window"
+            footer={[
+              {
+                label: "Of pending",
+                value: sharePct(statsQuery.data?.overdue, statsQuery.data?.pending),
+              },
+              { label: "Queue depth", value: formatInteger(rows.length) },
+            ]}
+          />
+          <MetricCard
+            label="Completed"
+            icon={CheckCircle2}
+            value={statsQuery.data ? formatInteger(statsQuery.data.completed) : "—"}
+            context="Called back and closed out"
+            footer={[
+              {
+                label: "Of all callbacks",
+                value: sharePct(statsQuery.data?.completed, queueTotal),
+              },
+              { label: "All callbacks", value: formatInteger(queueTotal) },
+            ]}
+          />
+          <MetricCard
+            label="Completion rate"
+            icon={Gauge}
+            value={sharePct(statsQuery.data?.completed, queueTotal)}
+            context={
+              zoneKnown
+                ? `Times shown in ${timeZone}`
+                : "Business timezone unavailable — times in UTC"
+            }
+            /* One metric split two ways — the same ShareBar idiom Overview uses for verdicts. */
+            footer={[
+              {
+                label: "Done",
+                value: statsQuery.data ? formatInteger(statsQuery.data.completed) : "—",
+              },
+              {
+                label: "Outstanding",
+                value: statsQuery.data ? formatInteger(statsQuery.data.pending) : "—",
+              },
+            ]}
+          />
+        </MetricRow>
       </div>
 
       <TableShell

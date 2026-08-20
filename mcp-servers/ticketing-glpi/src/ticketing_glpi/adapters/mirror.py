@@ -53,6 +53,14 @@ def _row_to_dict(row) -> dict:
         "subscription_id": str(row.subscription_id) if row.subscription_id else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "last_synced_at": row.last_synced_at.isoformat() if row.last_synced_at else None,
+        # Administrator note (migration 0020). Present on every mirror row so the agent can read
+        # back WHY a ticket moved state -- get_ticket_status and lookup_tickets both return this
+        # dict, so no agent-side change is needed. None when no admin has written one.
+        "admin_note": getattr(row, "admin_note", None),
+        "note_author": getattr(row, "note_author", None),
+        "note_updated_at": (
+            row.note_updated_at.isoformat() if getattr(row, "note_updated_at", None) else None
+        ),
     }
 
 
@@ -85,8 +93,14 @@ def mirror_create(glpi_ticket_id: str, customer_id: str | None, subject: str | N
 
 def mirror_update(glpi_ticket_id: str, subject: str | None = None,
                   category: str | None = None, priority: str | None = None,
-                  status: str | None = None) -> None:
-    """Patch a mirror row (only the provided fields) and bump last_synced_at."""
+                  status: str | None = None, admin_note: str | None = None,
+                  note_author: str | None = None) -> None:
+    """Patch a mirror row (only the provided fields) and bump last_synced_at.
+
+    `admin_note` is paired with its timestamp on write, satisfying the admin_note_timestamped
+    constraint. Passing an empty string CLEARS the note (and its timestamp and author); passing
+    None leaves whatever is there untouched, consistent with every other field here.
+    """
     if not _enabled():
         return
     from persistence.engine import session_scope
@@ -105,6 +119,13 @@ def mirror_update(glpi_ticket_id: str, subject: str | None = None,
                 row.priority = _normalize_priority(priority)
             if status is not None:
                 row.status = _normalize_status(status)
+            if admin_note is not None:
+                text = admin_note.strip()
+                # Empty string is an explicit clear; the constraint requires the timestamp to
+                # follow the note in both directions.
+                row.admin_note = text or None
+                row.note_updated_at = datetime.now(UTC) if text else None
+                row.note_author = (note_author or None) if text else None
             row.last_synced_at = datetime.now(UTC)
     except Exception as exc:
         logger.warning("ticket mirror update failed (%s): %s", glpi_ticket_id, exc)

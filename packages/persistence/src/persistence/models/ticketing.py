@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,10 @@ class Ticket(UUIDPrimaryKey, Base):
             "status IN ('open','in_progress','pending','resolved','closed')", name="status"
         ),
         CheckConstraint("priority IS NULL OR priority IN ('low','medium','high','urgent')", name="priority"),
+        # A note and its timestamp travel together (migration 0020).
+        CheckConstraint(
+            "(admin_note IS NULL) = (note_updated_at IS NULL)", name="admin_note_timestamped"
+        ),
         {"schema": "ticketing"},
     )
 
@@ -38,6 +42,16 @@ class Ticket(UUIDPrimaryKey, Base):
     subject: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'open'"))
     priority: Mapped[str | None] = mapped_column(String(10))
+    # --- Administrator note (migration 0020) -------------------------------------------------
+    # Written when an admin changes a ticket's state from the console. It is mirrored here rather
+    # than kept only in GLPI because the agent reads tickets through this table: GLPI's `solution`
+    # field is never read back by LiveGlpiClient.get(), so a note stored only upstream would be
+    # invisible on the next call. Nullable and additive - a ticket without a note behaves exactly
+    # as it did before.
+    admin_note: Mapped[str | None] = mapped_column(Text)
+    note_author: Mapped[str | None] = mapped_column(String(255))
+    note_updated_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+
     last_synced_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

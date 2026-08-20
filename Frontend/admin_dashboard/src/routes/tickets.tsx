@@ -18,6 +18,7 @@ import { PageSection } from "@/components/nexus/app-topbar";
 import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { CountStrip } from "@/components/nexus/count-strip";
 import { NoteBanner } from "@/components/nexus/note-banner";
+import { TicketNoteMarker, TicketUpdateButton } from "@/components/nexus/ticket-update";
 import { Pager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { getCoverage } from "@/lib/api/availability.server";
@@ -38,7 +39,7 @@ import { clampPage, offsetFor } from "@/lib/nexus/paginate";
 import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
 import { pageTitle } from "@/lib/nexus/brand";
 
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 7;
 
 const CATEGORY_OPTIONS = [
   { id: "", label: "All" },
@@ -178,6 +179,8 @@ function TicketsPage() {
               <Th>Status</Th>
               {/* F8 — "Synced", not "Updated": last_synced_at is when we last agreed with GLPI. */}
               <Th align="right">Synced</Th>
+              {/* Actions. Unlabelled: the icon carries its own accessible name. */}
+              <Th align="right" />
             </tr>
           }
           footer={
@@ -217,7 +220,7 @@ function TicketsPage() {
                 return (
                   <tr
                     key={t.ticket_id}
-                    className="transition-colors duration-[120ms] hover:bg-surface-3"
+                    className="group/row transition-colors duration-[120ms] hover:bg-surface-3"
                   >
                     <Td>
                       <span className="flex items-center gap-sp-5">
@@ -249,6 +252,18 @@ function TicketsPage() {
                     <Td align="right">
                       <span className="t-mono whitespace-nowrap text-ink-3">
                         {ticketTime(t.last_synced_at, timeZone)}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      {/* Revealed on row hover/focus so a table of 12 rows is not a wall of
+                       * buttons, but always reachable by keyboard. */}
+                      <span className="inline-flex opacity-0 transition-opacity duration-[120ms] group-hover/row:opacity-100 focus-within:opacity-100">
+                        <TicketUpdateButton
+                          ticketId={t.ticket_id}
+                          currentStatus={t.status}
+                          currentNote={t.admin_note}
+                          subject={ticketSubject(t.subject)}
+                        />
                       </span>
                     </Td>
                   </tr>

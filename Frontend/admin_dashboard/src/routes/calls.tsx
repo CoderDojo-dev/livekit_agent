@@ -123,6 +123,27 @@ function CallsPage() {
 
   const select = (sessionId: string) => navigate({ search: { session: sessionId }, replace: true });
 
+  /**
+   * Open on the newest call.
+   *
+   * The list arrives newest-first, so rows[0] is the most recent session. Landing on an empty
+   * "Select a call" panel made the page look inert — the transcript is the reason to be here, and
+   * the most recent call is almost always the one being asked about.
+   *
+   * Guarded three ways so it never fights the user:
+   *  - only when nothing is selected (a deep link via ?session= always wins);
+   *  - only on the FIRST page, so paging forward does not yank the reader to a new transcript;
+   *  - `replace: true` keeps it out of history, so Back still leaves the page.
+   */
+  useEffect(() => {
+    if (selected !== undefined) return;
+    if (safePage !== 0) return;
+    const newest = rows[0];
+    if (newest) select(newest.session_id);
+    // `select` is stable for this route; re-running on rows identity is what we want.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, safePage, rows]);
+
   return (
     <PageSection className="grid gap-sp-6 xl:grid-cols-[340px_1fr]">
       {/* ---------------- Master list ---------------- */}

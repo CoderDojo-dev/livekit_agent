@@ -19,7 +19,6 @@ import { TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { Pager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { clampPage, slicePage } from "@/lib/nexus/paginate";
-import { useAdaptivePageSize, ROW_HEIGHT } from "@/hooks/use-adaptive-page-size";
 import { pageTitle } from "@/lib/nexus/brand";
 import { DecisionDetail } from "@/components/nexus/decision-detail";
 import { ActionLedgerPanel } from "@/components/nexus/action-ledger";
@@ -68,16 +67,10 @@ function DecisionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
-  /* Decision rows stack a Token under the action name, so they run taller than a plain table
-   * row — the page size is derived from the stacked height, not the 52px default. This page
-   * previously rendered EVERY row the server returned with no limiting affordance at all. */
-  const pageSize = useAdaptivePageSize({
-    rowHeight: ROW_HEIGHT.stacked,
-    chrome: 620,
-    min: 5,
-    max: 10,
-    fallback: 6,
-  });
+  /* Five rows, fixed. Decision rows stack a Token under the action name so they run tall, and
+   * this page carries two panels above the table — a viewport-sized page pushed them off screen.
+   * (Before this series it rendered EVERY row the server returned, with no limit at all.) */
+  const pageSize = 5;
 
   const query = useQuery({
     queryKey: decisionKeys.list(verdict),

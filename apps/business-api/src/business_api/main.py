@@ -5,13 +5,16 @@ the audit ledger; the integrity job only verifies it.
 """
 from __future__ import annotations
 
+import json
 import os
+import urllib.error
+import urllib.request
 from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from audit_trail import PgAuditLedger
@@ -584,6 +587,212 @@ def business_rules(session: DbSession, role: AdministrateurRole) -> dict:
     """
     rows = SupervisionRepository(session).business_rules()
     return {"rules": policy_view.overlay(rows)}
+
+
+_TICKET_ADMIN_STATUSES = {"open", "in_progress", "pending", "resolved", "closed"}
+
+
+class TicketAdminUpdatePayload(BaseModel):
+    """An administrator's manual ticket change. Both fields are optional; at least one is required."""
+
+    status: str | None = None
+    # The note the voice agent will read back to the caller. "" clears an existing note.
+    note: str | None = Field(default=None, max_length=2000)
+
+
+def _ticketing_admin_url(ticket_id: str) -> str:
+    """Internal route on the ticketing-glpi MCP server (see its server.py).
+
+    Derived from TICKETING_MCP_URL so there is one place that knows where ticketing lives; the
+    MCP transport path (/mcp) is swapped for the internal REST path.
+    """
+    base = os.getenv("TICKETING_MCP_URL", "http://localhost:8202/mcp")
+    root = base[: -len("/mcp")] if base.endswith("/mcp") else base.rstrip("/")
+    return f"{root}/internal/tickets/{ticket_id}/admin-update"
+
+
+@app.patch("/api/v1/tickets/{ticket_id}")
+def admin_update_ticket(
+    ticket_id: str,
+    payload: TicketAdminUpdatePayload,
+    role: SuperviseurRole,
+    principal: CurrentPrincipal,
+) -> dict:
+    """Move a ticket's state by hand and leave a note the agent can read to the customer.
+
+    The change is applied by ticketing-glpi, which writes GLPI FIRST and only then the local
+    mirror — so the two can never disagree. This endpoint owns the authorization and the audit
+    entry; it deliberately does not hold a GLPI client of its own.
+
+    The note lands in ticketing.tickets.admin_note, which is what get_ticket_status and
+    lookup_tickets return, so the agent picks it up with no agent-side change.
+    """
+    status = (payload.status or "").strip()
+    if status and status not in _TICKET_ADMIN_STATUSES:
+        raise HTTPException(
+            status_code=400, detail=f"status must be one of {sorted(_TICKET_ADMIN_STATUSES)}"
+        )
+    if not status and payload.note is None:
+        raise HTTPException(status_code=400, detail="provide a status, a note, or both")
+
+    actor = _audit_actor(principal)
+    body = json.dumps(
+        {
+            "status": status,
+            "note": payload.note,
+            "note_author": actor.get("subject") or actor.get("kind"),
+        }
+    ).encode()
+
+    headers = {"Content-Type": "application/json"}
+    internal_key = os.getenv("INTERNAL_API_KEY", "")
+    if internal_key:
+        headers["X-API-Key"] = internal_key
+
+    request = urllib.request.Request(
+        _ticketing_admin_url(ticket_id), data=body, headers=headers, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            result = json.loads(response.read().decode() or "{}")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode()[:300] or exc.reason
+        # 4xx from ticketing is a client error here too (unknown ticket, bad status); anything
+        # else means the upstream failed and nothing was written.
+        code = exc.code if exc.code in (400, 401, 404) else 502
+        raise HTTPException(status_code=code, detail=f"ticketing refused the update: {detail}") from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"ticketing service unreachable: {exc}"
+        ) from exc
+
+    ticket = result.get("ticket") or {"ticket_id": ticket_id}
+
+    # Audited only after the write succeeded upstream: the ledger records what HAPPENED, never
+    # what was merely attempted.
+    with session_scope() as session:
+        PgAuditLedger(session).append(
+            None,
+            "ticket_admin_updated",
+            {
+                "actor": actor,
+                "ticket_id": ticket_id,
+                "requested_status": status or None,
+                "status": ticket.get("status"),
+                "note_written": bool((payload.note or "").strip()),
+            },
+            entity_reference=f"tickets:{ticket_id}",
+        )
+
+    return ticket
+
+
+class BusinessRuleCreatePayload(BaseModel):
+    """A new CATALOG rule. Thresholds are deliberately absent - see the note on the PATCH route."""
+
+    rule_id: str = Field(min_length=1, max_length=80)
+    domain: str = Field(default="general", max_length=40)
+    description: str | None = Field(default=None, max_length=4000)
+
+
+class BusinessRuleUpdatePayload(BaseModel):
+    """The writable governance fields. Anything omitted is left untouched."""
+
+    description: str | None = Field(default=None, max_length=4000)
+    active: bool | None = None
+
+
+@app.post("/api/v1/reference/business-rules", status_code=201)
+def create_business_rule(
+    payload: BusinessRuleCreatePayload,
+    role: AdministrateurRole,
+    principal: CurrentPrincipal,
+) -> dict:
+    """Register a governance rule.
+
+    THRESHOLDS ARE NOT ACCEPTED HERE, and that is the whole safety story. The deterministic policy
+    engine reads its numbers from POLICY_* environment variables and never from this table (see
+    policy_view), so a rule created here is a governance record: it documents intent, it is
+    reviewable and versioned, and it cannot alter what the agent enforces.
+    """
+    with session_scope() as session:
+        try:
+            created = SupervisionRepository(session).create_business_rule(
+                payload.rule_id, payload.domain, payload.description
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        PgAuditLedger(session).append(
+            None, "policy_rule_created",
+            {"actor": _audit_actor(principal), "rule_id": created["rule_id"],
+             "domain": created["domain"]},
+            entity_reference=f"business_rules:{created['rule_id']}",
+        )
+    return created
+
+
+@app.patch("/api/v1/reference/business-rules/{rule_id}")
+def update_business_rule(
+    rule_id: str,
+    payload: BusinessRuleUpdatePayload,
+    role: AdministrateurRole,
+    principal: CurrentPrincipal,
+) -> dict:
+    """Edit a rule's description or active flag. Audited, and version-bumped on a real change.
+
+    Only those two fields are writable. The numeric thresholds a supervisor sees on this rule are
+    overlaid at read time from POLICY_* env, so there is nothing numeric here to write - and
+    accepting one would let the registry advertise a limit the engine is not applying.
+
+    A GOVERNED rule additionally cannot be deactivated: its row documents a guardrail that is
+    live, and marking it inactive while the env var still applies would make the registry lie.
+    """
+    with session_scope() as session:
+        try:
+            updated = SupervisionRepository(session).update_business_rule(
+                rule_id, payload.description, payload.active
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if updated is None:
+            raise HTTPException(status_code=404, detail="rule not found")
+
+        # Only a real change earns a ledger entry; a no-op PATCH must not pad the audit trail.
+        if updated.get("changed"):
+            PgAuditLedger(session).append(
+                None, "policy_rule_updated",
+                {"actor": _audit_actor(principal), "rule_id": rule_id,
+                 "version": updated["version"], "active": updated["active"]},
+                entity_reference=f"business_rules:{rule_id}",
+            )
+    return updated
+
+
+@app.delete("/api/v1/reference/business-rules/{rule_id}", status_code=204,
+            response_class=Response)
+def delete_business_rule(
+    rule_id: str,
+    role: AdministrateurRole,
+    principal: CurrentPrincipal,
+) -> Response:
+    """Delete a CATALOG rule. Governed rules are refused - see update_business_rule."""
+    with session_scope() as session:
+        try:
+            removed = SupervisionRepository(session).delete_business_rule(rule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if not removed:
+            raise HTTPException(status_code=404, detail="rule not found")
+
+        PgAuditLedger(session).append(
+            None, "policy_rule_deleted",
+            {"actor": _audit_actor(principal), "rule_id": rule_id},
+            entity_reference=f"business_rules:{rule_id}",
+        )
+
+    # 204 carries no body; FastAPI rejects a serialized return value at this status.
+    return Response(status_code=204)
 
 
 @app.get("/api/v1/reference/catalogs/{catalog}")

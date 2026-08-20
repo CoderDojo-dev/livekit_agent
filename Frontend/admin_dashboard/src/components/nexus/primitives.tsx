@@ -117,16 +117,20 @@ export function Token({
   strong,
   mono = true,
   className,
+  title,
 }: {
   children: ReactNode;
-  strong?: boolean;
-  mono?: boolean;
-  className?: string;
+  strong?: boolean | undefined;
+  mono?: boolean | undefined;
+  className?: string | undefined;
+  /** Native tooltip. Used where a token stands in for longer text (e.g. an admin note). */
+  title?: string | undefined;
 }) {
   return (
     <span
+      {...(title === undefined ? {} : { title })}
       className={cn(
-        "inline-flex h-[20px] items-center rounded-r-1 px-sp-3",
+        "inline-flex h-[20px] items-center gap-sp-2 rounded-r-1 px-sp-3",
         mono ? "t-mono-s" : "t-label",
         strong ? "bg-surface-5 text-ink-1" : "bg-surface-4 text-ink-2",
         className,

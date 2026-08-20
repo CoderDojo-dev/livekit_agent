@@ -5,6 +5,7 @@ import { PAGE_META, ACCOUNT_FALLBACK, type AccountInfo } from "@/lib/nexus/nav";
 import { Avatar, IconButton } from "@/components/nexus/primitives";
 import { SidebarContent } from "@/components/nexus/app-sidebar";
 import { ThemeToggle } from "@/components/nexus/theme-toggle";
+import { RouteProgress } from "@/components/nexus/route-progress";
 import {
   Sheet,
   SheetContent,
@@ -112,6 +113,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-surface-0 lg:pl-[236px]">
       <AppTopbar />
+      {/* Global loading signal for route transitions and any in-flight query. */}
+      <RouteProgress />
       <main className="mx-auto w-full max-w-[1440px] px-sp-8 pb-sp-12 pt-sp-8">{children}</main>
     </div>
   );

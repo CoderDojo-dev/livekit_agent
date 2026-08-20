@@ -36,6 +36,7 @@ import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState, TopProgress } from "@/components/nexus/states";
 import { Pager } from "@/components/nexus/pager";
 import { PageSwap } from "@/components/nexus/motion";
+import { MetricCard, MetricRow } from "@/components/nexus/metric-card";
 import { ServiceHealthPanel } from "@/components/nexus/service-health-panel";
 import { getAnalyticsTrend, getKpis, getSystemOverview } from "@/lib/api/analytics.server";
 import { getVerdictDistribution } from "@/lib/api/decisions.server";
@@ -125,7 +126,7 @@ function OverviewPage() {
           icon={Gauge}
         />
 
-        <div className="grid gap-sp-6 md:grid-cols-2 xl:grid-cols-4">
+        <MetricRow>
           {kpis.isPending ? (
             <>
               <CardSkeleton />
@@ -141,42 +142,63 @@ function OverviewPage() {
             </div>
           ) : (
             <>
-              {/* One dominant metric, three supporting — the composition the reference KPI rows
-               * use. Previously all four were visually equal, so nothing led the page.
-               * NOTE: these are all-time figures with no prior period on the wire, so there is
-               * still no delta on any of them. The sparkline is the windowed session trend and
-               * is labelled as such in its context line. */}
-              <HeroStat
+              {/*
+               * The reference card shape: icon + label, a dominant number, then the two figures
+               * that qualify it under a rule, with the corner action linking to the page that
+               * owns the detail.
+               *
+               * These remain all-time figures with no prior period on the wire, so no card here
+               * shows a delta. The sparkline on the lead card is the WINDOWED session trend, and
+               * its context line says so.
+               */}
+              <MetricCard
                 label="Total sessions"
                 value={formatCompact(kpis.data.total_sessions)}
                 context="All sessions ever recorded"
                 icon={MessagesSquare}
+                to="/calls"
+                actionLabel="Open calls and transcripts"
                 {...(sessionSeries.length >= 2 ? { series: sessionSeries } : {})}
+                footer={[
+                  { label: "Resolved", value: formatInteger(kpis.data.resolved) },
+                  { label: "Escalated", value: formatInteger(kpis.data.escalated) },
+                ]}
               />
-              <StatCard
+              <MetricCard
                 label="Containment rate"
                 value={formatRatio(kpis.data.containment_rate)}
                 context={rateContext(kpis.data, "Resolved without escalation")}
-                meta={`${formatInteger(kpis.data.resolved)} resolved`}
                 icon={CheckCircle2}
+                footer={[
+                  { label: "Resolved", value: formatInteger(kpis.data.resolved) },
+                  { label: "Of total", value: formatCompact(kpis.data.total_sessions) },
+                ]}
               />
-              <StatCard
+              <MetricCard
                 label="Escalation rate"
                 value={formatRatio(kpis.data.escalation_rate)}
                 context={rateContext(kpis.data, "Handed to an advisor")}
-                meta={`${formatInteger(kpis.data.escalated)} escalated`}
                 icon={ShieldAlert}
+                to="/escalations"
+                actionLabel="Open escalations"
+                footer={[
+                  { label: "Escalated", value: formatInteger(kpis.data.escalated) },
+                  { label: "Of total", value: formatCompact(kpis.data.total_sessions) },
+                ]}
               />
-              <StatCard
+              <MetricCard
                 label="Avg. frustration"
                 value={kpis.data.avg_frustration.toFixed(2)}
                 context="Mean peak frustration per session"
-                meta="Scale 0–10, peak per session"
                 icon={Frown}
+                footer={[
+                  { label: "Scale", value: "0–10" },
+                  { label: "Measured", value: "Peak per call" },
+                ]}
               />
             </>
           )}
-        </div>
+        </MetricRow>
       </PageSection>
 
       {/* ================= Band 2 — volume trend + verdict mix ================= */}
@@ -324,7 +346,7 @@ function OverviewPage() {
           icon={Database}
         />
 
-        <div className="grid gap-sp-6 md:grid-cols-2 xl:grid-cols-4">
+        <MetricRow>
           {system.isPending ? (
             <>
               <CardSkeleton lines={2} />
@@ -340,33 +362,41 @@ function OverviewPage() {
             </div>
           ) : (
             <>
-              <StatCard
+              <MetricCard
                 label="Customers"
                 value={formatInteger(system.data.metrics.total_customers)}
                 context="Records in the CRM"
                 icon={Users}
+                to="/customers"
+                actionLabel="Open customers"
               />
-              <StatCard
+              <MetricCard
                 label="Turns"
                 value={formatCompact(system.data.metrics.total_turns)}
                 context="Transcript turns persisted"
                 icon={MessagesSquare}
+                to="/calls"
+                actionLabel="Open calls and transcripts"
               />
-              <StatCard
+              <MetricCard
                 label="Actions"
                 value={formatInteger(system.data.metrics.total_actions)}
                 context="Entries in the action ledger"
                 icon={Boxes}
+                to="/decisions"
+                actionLabel="Open decisions"
               />
-              <StatCard
+              <MetricCard
                 label="Audit entries"
                 value={formatCompact(system.data.metrics.total_audit_entries)}
                 context="Hash-chained audit records"
                 icon={Database}
+                to="/audit"
+                actionLabel="Open audit"
               />
             </>
           )}
-        </div>
+        </MetricRow>
       </PageSection>
     </>
   );

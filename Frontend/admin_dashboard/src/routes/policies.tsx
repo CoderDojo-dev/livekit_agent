@@ -1,20 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ScrollText, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarClock,
+  ChevronDown,
+  Repeat,
+  ScrollText,
+  ShieldCheck,
+  SlidersHorizontal,
+  SquarePen,
+  Wallet,
+} from "lucide-react";
 import {
   Card,
   CardHeader,
   EmptyState,
   SearchInput,
   Segmented,
+  IconButton,
   StatusChip,
   Token,
 } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState, TopProgress } from "@/components/nexus/states";
+import { MetricCard, MetricRow } from "@/components/nexus/metric-card";
+import { SectionHeading } from "@/components/nexus/blocks";
 import { Pager } from "@/components/nexus/pager";
 import { PageSwap, Reveal } from "@/components/nexus/motion";
+import {
+  PolicyCreateButton,
+  PolicyDeleteButton,
+  PolicyEditDialog,
+} from "@/components/nexus/policy-edit";
 import { listPolicyRules } from "@/lib/api/policies.server";
 import { policyKeys } from "@/lib/nexus/query-keys";
 import { pageTitle } from "@/lib/nexus/brand";
@@ -54,6 +72,17 @@ const SCOPES = [
 ] as const;
 
 type Scope = (typeof SCOPES)[number]["id"];
+
+/** Threshold label -> icon. Falls back to a generic badge for anything unmapped. */
+const GUARDRAIL_ICON: Record<
+  string,
+  React.ComponentType<{ size?: number; strokeWidth?: number }>
+> = {
+  "Max payment": Wallet,
+  "Min account age": CalendarClock,
+  "Max deferrals": Repeat,
+  "Unpaid review threshold": Wallet,
+};
 
 /**
  * Policies is a READING surface, not a data table.
@@ -111,14 +140,86 @@ function PoliciesPage() {
 
   const enforcedCount = rules.filter((rule) => rule.enforced).length;
 
+  /**
+   * The live guardrails, flattened out of the enforced rules.
+   *
+   * business-api overlays each governed rule's `definition` with the CURRENT value of its
+   * POLICY_* variable before it reaches us (see policy_view.overlay), so these are the numbers
+   * the deterministic policy engine is applying right now — not a seeded literal that could have
+   * drifted. Each threshold is paired with the env var that governs it, because that variable is
+   * the only place the number can actually be changed.
+   */
+  const guardrails = useMemo(
+    () =>
+      rules
+        .filter((rule) => rule.enforced)
+        .flatMap((rule) => {
+          const envVars = governedByList(rule);
+          return definitionEntries(rule.definition).map((entry, index) => ({
+            key: `${rule.rule_id}:${entry.label}`,
+            label: entry.label,
+            value: entry.value,
+            rule: rule.rule_id,
+            /* One rule can be governed by several variables, in the same order its definition
+             * keys are emitted; fall back to the first rather than mislabelling. */
+            envVar: envVars[index] ?? envVars[0] ?? "—",
+            icon: GUARDRAIL_ICON[entry.label] ?? BadgeCheck,
+          }));
+        }),
+    [rules],
+  );
+
   return (
     <>
-      {/* ---- The enforcement model, stated once (G4) ---- */}
+      {/* ================= Guardrails: what the agent is actually held to ================= */}
       <PageSection index={0}>
+        <SectionHeading
+          title="Guardrails in force"
+          hint="Live values the policy engine is applying right now"
+          icon={ShieldCheck}
+        />
+
+        {rulesQuery.isPending ? (
+          <MetricRow>
+            <CardSkeleton lines={2} />
+            <CardSkeleton lines={2} />
+            <CardSkeleton lines={2} />
+            <CardSkeleton lines={2} />
+          </MetricRow>
+        ) : guardrails.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={ShieldCheck}
+              compact
+              title="No enforced thresholds"
+              description="No registry rule is currently governed by a POLICY_* variable."
+            />
+          </Card>
+        ) : (
+          <MetricRow>
+            {guardrails.map((rail) => (
+              <MetricCard
+                key={rail.key}
+                label={rail.label}
+                value={rail.value}
+                icon={rail.icon}
+                context={rail.rule}
+                footer={[
+                  { label: "Governed by", value: rail.envVar },
+                  { label: "Status", value: "Enforced" },
+                ]}
+              />
+            ))}
+          </MetricRow>
+        )}
+      </PageSection>
+
+      {/* ---- The enforcement model, stated once (G4) ---- */}
+      <PageSection index={1}>
         <Card>
           <CardHeader
-            title="Enforcement model"
-            subtitle="Thresholds are enforced from POLICY_* environment variables, not from this registry; catalog rules are governance records only."
+            title="How these are changed"
+            subtitle="These numbers are read from POLICY_* environment variables by the policy engine and mirrored here at read time. They are deliberately NOT stored in this registry, so what you see is always what is enforced — editing a row here could never move a threshold, and is not offered."
             icon={ShieldCheck}
             action={
               rulesQuery.data ? (
@@ -141,7 +242,7 @@ function PoliciesPage() {
       </PageSection>
 
       {/* ---- The registry ---- */}
-      <PageSection index={1}>
+      <PageSection index={2}>
         <Card padded={false} className="overflow-hidden">
           <div className="relative flex flex-wrap items-center gap-sp-5 border-b border-stroke-subtle px-sp-6 py-sp-5">
             <SearchInput
@@ -156,6 +257,9 @@ function PoliciesPage() {
               active={SCOPES.find((option) => option.id === scope)!.label}
               onSelect={(label) => setScope(SCOPES.find((o) => o.label === label)!.id)}
             />
+            <span className="ml-auto">
+              <PolicyCreateButton />
+            </span>
             <TopProgress
               active={rulesQuery.isFetching && !rulesQuery.isPending}
               className="absolute inset-x-0 bottom-[-1px]"
@@ -244,9 +348,15 @@ function PolicyRow({
 }) {
   const entries = definitionEntries(rule.definition);
   const governedBy = governedByList(rule);
+  const [editing, setEditing] = useState(false);
 
   return (
-    <div className={cn("border-b border-stroke-subtle last:border-b-0", open && "bg-surface-1/40")}>
+    <div
+      className={cn(
+        "group/policy relative border-b border-stroke-subtle last:border-b-0",
+        open && "bg-surface-1/40",
+      )}
+    >
       {/* ---- Collapsed line: everything needed to TRIAGE, nothing needed to READ ---- */}
       <button
         type="button"
@@ -273,7 +383,7 @@ function PolicyRow({
           ) : null}
         </span>
 
-        <span className="hidden shrink-0 items-center gap-sp-4 md:flex">
+        <span className="hidden shrink-0 items-center gap-sp-4 pr-[72px] md:flex">
           {entries.length > 0 ? (
             <span className="t-caption text-ink-5">
               {entries.length} threshold{entries.length === 1 ? "" : "s"}
@@ -285,6 +395,21 @@ function PolicyRow({
 
         <StatusChip status={ruleStatusKey(rule.active)} className="shrink-0" />
       </button>
+
+      {/* Actions sit OUTSIDE the disclosure button: nesting a button inside a button is invalid
+       * HTML and would make the whole row un-clickable for keyboard users. Absolutely positioned
+       * over the row's right edge so the collapsed line keeps its existing layout. */}
+      <div className="absolute right-sp-6 top-sp-5 flex items-center gap-sp-2 opacity-0 transition-opacity duration-[120ms] group-hover/policy:opacity-100 focus-within:opacity-100">
+        <IconButton
+          size="sm"
+          label={`Edit ${rule.rule_id}`}
+          icon={SquarePen}
+          onClick={() => setEditing(true)}
+        />
+        <PolicyDeleteButton rule={rule} />
+      </div>
+
+      {editing ? <PolicyEditDialog rule={rule} onClose={() => setEditing(false)} /> : null}
 
       {/* ---- Expanded: a reading layout, not a table cell ---- */}
       <Reveal open={open}>

@@ -10,7 +10,8 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Card, CardHeader, Segmented, EmptyState } from "@/components/nexus/primitives";
-import { HeroStat, StatCard, LineChart, Legend, SectionHeading } from "@/components/nexus/blocks";
+import { LineChart, Legend, SectionHeading } from "@/components/nexus/blocks";
+import { MetricCard, MetricRow } from "@/components/nexus/metric-card";
 import { TelemetryTimeline } from "@/components/nexus/telemetry-timeline";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { CardSkeleton, ErrorState } from "@/components/nexus/states";
@@ -111,43 +112,67 @@ function AnalyticsPage() {
           hint={`Compared with the preceding ${days} days`}
           icon={Activity}
         />
-        <div className="grid gap-sp-6 md:grid-cols-2 xl:grid-cols-4">
-          <HeroStat
+        {/*
+         * The notched card shape, matching Overview and Callbacks.
+         *
+         * Unlike Overview's all-time band, these figures DO have a prior period on the wire, so
+         * every card carries a real delta — and the footer states both sides of the comparison
+         * rather than burying "Previous: x" in a meta line.
+         */}
+        <MetricRow>
+          <MetricCard
             label={`Sessions (${days}d)`}
             value={formatCompact(current.total_sessions)}
             {...(sessionsDelta === undefined ? {} : { delta: sessionsDelta })}
             context={`Compared with the previous ${days} days`}
             series={daily.map((d) => d.current)}
             icon={MessagesSquare}
+            to="/calls"
+            actionLabel="Open calls and transcripts"
+            footer={[
+              { label: "This period", value: formatCompact(current.total_sessions) },
+              { label: "Previous", value: formatCompact(previous.total_sessions) },
+            ]}
           />
-          <StatCard
+          <MetricCard
             label="Containment rate"
             value={formatRatio(current.containment_rate)}
             {...(containmentDelta === undefined ? {} : { delta: containmentDelta })}
             good
             context="Resolved without escalation"
-            meta={`Previous: ${formatRatio(previous.containment_rate)}`}
             icon={CheckCircle2}
+            footer={[
+              { label: "This period", value: formatRatio(current.containment_rate) },
+              { label: "Previous", value: formatRatio(previous.containment_rate) },
+            ]}
           />
-          <StatCard
+          <MetricCard
             label="Escalation rate"
             value={formatRatio(current.escalation_rate)}
             {...(escalationDelta === undefined ? {} : { delta: escalationDelta })}
             good={false}
             context="Handed to an advisor"
-            meta={`Previous: ${formatRatio(previous.escalation_rate)}`}
             icon={ShieldAlert}
+            to="/escalations"
+            actionLabel="Open escalations"
+            footer={[
+              { label: "This period", value: formatRatio(current.escalation_rate) },
+              { label: "Previous", value: formatRatio(previous.escalation_rate) },
+            ]}
           />
-          <StatCard
+          <MetricCard
             label="Avg. frustration"
             value={current.avg_frustration.toFixed(2)}
             {...(frustrationDelta === undefined ? {} : { delta: frustrationDelta })}
             good={false}
             context="Mean peak frustration per session"
-            meta={`Previous: ${previous.avg_frustration.toFixed(2)}`}
             icon={Frown}
+            footer={[
+              { label: "This period", value: current.avg_frustration.toFixed(2) },
+              { label: "Previous", value: previous.avg_frustration.toFixed(2) },
+            ]}
           />
-        </div>
+        </MetricRow>
       </PageSection>
 
       <PageSection index={1}>

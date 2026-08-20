@@ -32,6 +32,7 @@ import {
   areaTypeLabel,
   CATALOG_SUBTITLE,
   CATALOG_TABS,
+  DEFAULT_CATALOG,
   formatAmount,
   orDash,
 } from "@/lib/nexus/reference-view";
@@ -66,7 +67,7 @@ const COLS: Record<CatalogKind, number> = {
 };
 
 function ReferencePage() {
-  const [catalog, setCatalog] = useState<CatalogKind>("errors");
+  const [catalog, setCatalog] = useState<CatalogKind>(DEFAULT_CATALOG);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 
@@ -147,7 +148,7 @@ function ReferencePage() {
               items={CATALOG_TABS.map((t) => t.label)}
               active={CATALOG_TABS.find((t) => t.value === catalog)?.label ?? ""}
               onSelect={(label) => {
-                setCatalog(CATALOG_TABS.find((t) => t.label === label)?.value ?? "errors");
+                setCatalog(CATALOG_TABS.find((t) => t.label === label)?.value ?? DEFAULT_CATALOG);
                 setSearch("");
               }}
             />
