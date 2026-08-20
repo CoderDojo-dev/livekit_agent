@@ -13,7 +13,6 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Button, Card } from "@/components/portal/primitives";
-import { GridGlow } from "@/components/portal/grid-glow";
 import { brand, copy, pageTitle } from "@/lib/copy";
 
 function NotFoundComponent() {
@@ -143,7 +142,6 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
-      <GridGlow />
       <Toaster
         position="bottom-right"
         // Token-aligned: sonner draws with these CSS variables, so no hex value

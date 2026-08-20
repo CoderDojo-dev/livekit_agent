@@ -89,30 +89,11 @@
   --glow-line: 0 0 12px rgba(255, 255, 255, 0.14);
 
   /* --- 14 : le quadrillage premium --- */
-  --grid-line: rgba(255, 255, 255, 0.05);
-  --grid-line-major: rgba(255, 255, 255, 0.075);
+  --grid-line: rgba(255, 255, 255, 0.07);
+  --grid-line-major: rgba(255, 255, 255, 0.1);
   --grid-cell: 64px;
   --grid-major: 256px;
-  --grid-fade: 48%;
-  --grid-fade-end: 70%;
-
-  /* Luminous core beneath the lines: lifts the orb's stage and keeps the
-     centre of the screen calm while the mask melts the periphery away. */
-  --grid-halo: radial-gradient(
-    ellipse 90% 70% at 50% 42%,
-    rgba(255, 255, 255, 0.055) 0%,
-    rgba(255, 255, 255, 0.02) 38%,
-    transparent 68%
-  );
-
-  /* Cursor glow: a soft monochrome light that follows the pointer. The
-     position is fed per-frame by the grid-glow component via --gx/--gy. */
-  --cursor-glow: radial-gradient(
-    300px circle at var(--gx) var(--gy),
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.035) 38%,
-    transparent 68%
-  );
+  --grid-fade: 62%;
 
   /* --- 6.7 couches z --- */
   --z-base: 0;
@@ -193,23 +174,8 @@
   --focus-ring-color: var(--n-12);
 
   /* Dark lines on light need marginally more opacity than light lines on dark. */
-  --grid-line: rgba(0, 0, 0, 0.06);
-  --grid-line-major: rgba(0, 0, 0, 0.09);
-
-  /* The halo reads as a faint darkening and the cursor glow as a soft dim
-     light - both stay below the stroke opacity so they never fight cards. */
-  --grid-halo: radial-gradient(
-    ellipse 90% 70% at 50% 42%,
-    rgba(0, 0, 0, 0.035) 0%,
-    rgba(0, 0, 0, 0.015) 38%,
-    transparent 68%
-  );
-  --cursor-glow: radial-gradient(
-    300px circle at var(--gx) var(--gy),
-    rgba(0, 0, 0, 0.05) 0%,
-    rgba(0, 0, 0, 0.025) 38%,
-    transparent 68%
-  );
+  --grid-line: rgba(0, 0, 0, 0.08);
+  --grid-line-major: rgba(0, 0, 0, 0.12);
 
   /* The grain's overlay blend lightens a light field; multiply reads as
      texture instead. */
@@ -246,9 +212,9 @@
   (html/body background) and every app surface, so components are never
   "gridded" - the lines read through the gaps between cards, never across
   them. Two scales - a fine 64px cell and a 256px major line - give depth
-  without adding density. A radial mask melts the grid away toward the edges
-  (hazy periphery, focused centre) and the halo layer beneath the lines
-  lifts the middle of the screen as a stage for the orb.
+  without adding density. A radial mask fades the grid out toward the edges
+  so it reads as depth rather than as graph paper, and keeps the centre of
+  the screen (where the orb and all primary text live) at its quietest.
 */
 body::before {
   content: "";
@@ -260,34 +226,9 @@ body::before {
     repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--grid-cell)),
     repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--grid-cell)),
     repeating-linear-gradient(to right, var(--grid-line-major) 0 1px, transparent 1px var(--grid-major)),
-    repeating-linear-gradient(to bottom, var(--grid-line-major) 0 1px, transparent 1px var(--grid-major)),
-    var(--grid-halo);
-  mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent var(--grid-fade-end));
-  -webkit-mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent var(--grid-fade-end));
-}
-
-/*
-  Cursor glow. A fixed monochrome light that drifts toward the pointer.
-  The grid-glow component lerps --gx/--gy on a rAF loop and toggles opacity
-  on pointer enter/leave. Paints at z-index 1: above the canvas and grid,
-  below every surfaced layer (rail 20, topbar 30, ...) and light enough to
-  read as a sheen even where it crosses a card. Disabled on touch devices,
-  where there is no pointer.
-*/
-.grid-cursor-glow {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: var(--cursor-glow);
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
-
-@media (hover: none) {
-  .grid-cursor-glow {
-    display: none;
-  }
+    repeating-linear-gradient(to bottom, var(--grid-line-major) 0 1px, transparent 1px var(--grid-major));
+  mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 120% 100% at 50% 40%, #000 0%, #000 var(--grid-fade), transparent 100%);
 }
 
 /* Tighter cell on small screens so the grid does not read as three huge boxes. */
