@@ -49,7 +49,7 @@ FRONTEND_ADMIN_CMD := cmd.exe /c "cd /d $(WIN_CURDIR)\Frontend\admin_dashboard &
 FRONTEND_PORTAL_CMD := cmd.exe /c "cd /d $(WIN_CURDIR)\Frontend\customer_portal && npm run dev -- --port 8080 --strictPort"
 endif
 
-frontend:  ## Run BOTH frontends: admin dashboard (http://localhost:8081) + customer portal (http://localhost:8080). Ctrl-C stops both.
+frontend: frontend-stop  ## Run BOTH frontends: admin dashboard (http://localhost:8081) + customer portal (http://localhost:8080). Ctrl-C stops both. Frees ports 8080/8081 first.
 	@echo "→ admin dashboard   http://localhost:8081  (Frontend/admin_dashboard)"
 	@echo "→ customer portal   http://localhost:8080  (Frontend/customer_portal)"
 	@trap 'kill 0' INT TERM EXIT; \
@@ -64,7 +64,7 @@ frontend-admin:  ## Run the admin dashboard frontend on http://localhost:8081
 	@$(FRONTEND_ADMIN_CMD)
 
 frontend-stop:  ## Stop both frontend dev servers (kills whatever listens on :8080/:8081)
-	@powershell.exe -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 8080,8081 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $$_.OwningProcess -Force -ErrorAction SilentlyContinue }"
+	@powershell.exe -NoProfile -Command 'Get-NetTCPConnection -State Listen -LocalPort 8080,8081 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $$_.OwningProcess -Force -ErrorAction SilentlyContinue }; exit 0'
 	@echo "→ frontend dev servers stopped (ports 8080/8081)"
 
 infra:  ## Start infrastructure containers (postgres/redis/qdrant/minio/otel)
