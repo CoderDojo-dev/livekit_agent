@@ -36,11 +36,6 @@ class SessionUserData:
     # --- sentiment / escalation (Phase 8) ---
     sentiment_history: list[float] = field(default_factory=list)
     consecutive_negative_turns: int = 0
-    # Accumulated frustration in [0, 1]. Rises a little per negative turn and cools on a positive
-    # or neutral one, so it reflects how a call has been TRENDING rather than its worst sentence.
-    frustration_level: float = 0.0
-    # The high-water mark, persisted as call_sessions.max_frustration_score at the end of the call.
-    peak_frustration: float = 0.0
     should_offer_escalation: bool = False
     clarification_attempts: int = 0
     _clarification_pending: bool = False  # patch #5: streak de deferrals consécutifs

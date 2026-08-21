@@ -155,10 +155,16 @@ async def entrypoint(ctx: JobContext) -> None:
     writer = _open_conversation(ctx, user_data)
 
     async def _finish_conversation() -> None:
-        history = user_data.sentiment_history or [0.0]
+        # Peak of the ACCUMULATED frustration level, not the worst single sentence.
+        #
+        # `-min(sentiment_history)` recorded a call at maximum frustration the moment one turn
+        # scored negative, which made the metric binary in practice: almost every call was 0.0,
+        # and any call with one sharp remark was 1.0. The accumulated level answers the question
+        # the column is actually asked -- how wound up did this caller get -- and it climbs over
+        # several turns rather than in one.
         writer.finish_session(
             disposition=_derive_disposition(user_data),
-            max_frustration=max(0.0, -min(history)),
+            max_frustration=round(getattr(user_data, "peak_frustration", 0.0), 3),
             recording_consent=user_data.recording_consent,
         )
         await writer.aclose()
