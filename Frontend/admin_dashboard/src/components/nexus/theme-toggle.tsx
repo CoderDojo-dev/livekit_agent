@@ -1,5 +1,6 @@
 import { Moon, Sun } from "lucide-react";
 import { updatePreferences, usePreferences } from "@/lib/nexus/preferences";
+import { useTranslation } from "@/lib/nexus/i18n";
 import { IconButton } from "@/components/nexus/primitives";
 
 /**
@@ -16,12 +17,13 @@ import { IconButton } from "@/components/nexus/primitives";
  */
 export function ThemeToggle() {
   const { theme } = usePreferences();
+  const { t } = useTranslation();
   const next = theme === "dark" ? "light" : "dark";
   const Icon = next === "light" ? Sun : Moon;
 
   return (
     <IconButton
-      label={next === "light" ? "Switch to light theme" : "Switch to dark theme"}
+      label={next === "light" ? t("shell.theme.light") : t("shell.theme.dark")}
       icon={Icon}
       aria-pressed={theme === "light"}
       onClick={() => updatePreferences({ theme: next })}

@@ -81,7 +81,7 @@ export function MetricCard({
     <div className={cn("group relative pr-[14px] pt-[14px]", className)}>
       <div
         className={cn(
-          "flex h-full flex-col rounded-r-4 border border-stroke-default bg-surface-2 p-sp-6 shadow-elev-1",
+          "flex h-full flex-col rounded-r-4 border border-stroke-default bg-surface-2 p-sp-5 shadow-elev-1",
           "transition-[border-color,box-shadow] duration-[160ms] group-hover:border-stroke-strong group-hover:shadow-elev-2",
         )}
       >
@@ -97,23 +97,24 @@ export function MetricCard({
         </div>
 
         {/* ---- The number ----
-             t-metric-l (26px), not t-display (40px). At 40px in a four-across grid the figure
-             dominated a card it was supposed to sit inside, and forced the box into a square.
-             26px still leads the card and keeps it a rectangle. */}
-        <p className="t-metric-l mt-sp-5 text-ink-1">{value}</p>
+             t-metric-l (26px). It began at t-display (40px), which dominated a card it was meant
+             to sit inside and forced the box square. Measured: 40px gave a 204px card, 26px gives
+             152px. Dropping further to 20px saved only 6px more and left the figure no longer
+             reading as the card's headline, so the height came out of the PADDING instead. */}
+        <p className="t-metric-l mt-sp-4 text-ink-1">{value}</p>
         {context ? (
           // Two lines maximum: a long context line was the other half of the height problem.
           <p className="t-caption mt-sp-2 line-clamp-2 text-ink-4">{context}</p>
         ) : null}
 
-        {series ? <Sparkline values={series} className="mt-sp-5" /> : null}
+        {series ? <Sparkline values={series} className="mt-sp-4" /> : null}
 
         {/* ---- Supporting figures, under a rule.
              Label and value share ONE line each rather than stacking, which halves the footer.
              mt-auto pins the block to the card floor so a row of cards aligns its footers even
              when the contexts differ in length. ---- */}
         {footer && footer.length > 0 ? (
-          <div className="mt-auto space-y-sp-2 border-t border-stroke-subtle pt-sp-5">
+          <div className="mt-auto space-y-sp-1 border-t border-stroke-subtle pt-sp-4">
             {footer.slice(0, 2).map((item) => (
               <div key={item.label} className="flex items-baseline justify-between gap-sp-4">
                 <span className="t-caption min-w-0 truncate text-ink-5">{item.label}</span>

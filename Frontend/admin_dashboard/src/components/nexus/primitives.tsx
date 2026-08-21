@@ -34,7 +34,7 @@ export function Card({
         "group rounded-r-4 border border-stroke-default bg-surface-2 shadow-elev-1",
         interactive &&
           "transition-[border-color,box-shadow] duration-[160ms] hover:border-stroke-strong hover:shadow-elev-2",
-        padded && "p-sp-7",
+        padded && "p-sp-6",
         className,
       )}
     >

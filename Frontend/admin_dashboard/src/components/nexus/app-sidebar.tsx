@@ -17,6 +17,7 @@ import { BRAND } from "@/lib/nexus/brand";
 import { getNavCounts } from "@/lib/api/nav-counts.server";
 import { navKeys } from "@/lib/nexus/query-keys";
 import { usePreferences } from "@/lib/nexus/preferences";
+import { useTranslation, type TranslationKey } from "@/lib/nexus/i18n";
 import { cn } from "@/lib/utils";
 
 type SidebarContentProps = {
@@ -30,6 +31,7 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
   });
   const { session } = RootRoute.useRouteContext();
   const { showNavCounts } = usePreferences();
+  const { t } = useTranslation();
 
   /**
    * Live queue counts. One request for all three badges (see nav-counts.server.ts).
@@ -62,14 +64,17 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
     : ACCOUNT_FALLBACK;
 
   return (
-    <aside className={cn("h-full flex-col border-r border-stroke-default bg-surface-1", className)}>
+    <aside className={cn("h-full flex-col border-e border-stroke-default bg-surface-1", className)}>
       <div className="flex h-[60px] shrink-0 items-center gap-sp-5 border-b border-stroke-subtle px-sp-7">
         <BrandMark />
         <span className="t-title-3 truncate text-ink-1">{BRAND.shortName}</span>
         <span className="t-mono-s ml-auto shrink-0 text-ink-5">{BRAND.version}</span>
       </div>
 
-      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-sp-5 py-sp-6">
+      <nav
+        aria-label={t("shell.primaryNavigation")}
+        className="flex-1 overflow-y-auto px-sp-5 py-sp-6"
+      >
         {NAV_SECTIONS.map((section) => {
           const items = NAV.filter(
             (item) => item.section === section && canSeeNavItem(item, session),
@@ -79,7 +84,9 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
 
           return (
             <div key={section} className="mb-sp-7 last:mb-0">
-              <p className="t-micro mb-sp-3 px-sp-3 text-ink-5">{section}</p>
+              <p className="t-micro mb-sp-3 px-sp-3 text-ink-5">
+                {t(`nav.section.${section}` as TranslationKey)}
+              </p>
 
               <div className="space-y-sp-1">
                 {items.map((item) => {
@@ -118,7 +125,9 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
                         )}
                         aria-hidden="true"
                       />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {t(`nav.${item.id}` as TranslationKey)}
+                      </span>
 
                       {count !== null ? (
                         <NavBadge
@@ -163,5 +172,5 @@ export function SidebarContent({ className, onNavigate }: SidebarContentProps) {
 }
 
 export function AppSidebar() {
-  return <SidebarContent className="fixed inset-y-0 left-0 z-20 hidden w-[236px] lg:flex" />;
+  return <SidebarContent className="fixed inset-y-0 start-0 z-20 hidden w-[236px] lg:flex" />;
 }

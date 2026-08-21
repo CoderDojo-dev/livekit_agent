@@ -438,13 +438,32 @@
 .nav-item[data-active="true"]::before {
   content: "";
   position: absolute;
-  left: -12px;
+  /* Logical, so the rail hangs from the leading edge in both LTR and RTL. */
+  inset-inline-start: -12px;
   top: 50%;
   transform: translateY(-50%);
   width: 2px;
   height: 16px;
   background: var(--n-12);
-  border-radius: 0 2px 2px 0;
+  border-start-end-radius: 2px;
+  border-end-end-radius: 2px;
+}
+
+/* Arabic: the Geist family has no Arabic coverage, so fall back to the system Arabic faces
+ * rather than rendering tofu. Latin text inside an Arabic page (env vars, ids) still resolves to
+ * Geist because it comes first in the stack. */
+/* Arabic: the Geist family has no Arabic coverage, so without a fallback every Arabic glyph
+ * renders as tofu.
+ *
+ * The override is on the TOKEN, not on `body`. Each of the eighteen type classes sets a `font:`
+ * shorthand built from var(--font-geist-sans), and that shorthand beats any body-level
+ * font-family — so redefining the variable is the only change that reaches all of them at once.
+ * Geist stays first in the stack, so Latin text on an Arabic page (env var names, ids, hashes)
+ * still renders in the product face. */
+:root[lang="ar"] {
+  --font-geist-sans:
+    "Geist", "Segoe UI", Tahoma, "Noto Naskh Arabic", "Noto Sans Arabic", Arial, sans-serif;
+  --font-geist-mono: "Geist Mono", ui-monospace, "Segoe UI Mono", "Noto Sans Arabic", monospace;
 }
 
 @keyframes nexus-pulse {

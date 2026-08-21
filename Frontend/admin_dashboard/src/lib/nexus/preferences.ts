@@ -11,6 +11,9 @@
 import { useSyncExternalStore } from "react";
 
 export type ConsoleTheme = "dark" | "light";
+/** Duplicated rather than imported from i18n.ts: that module imports THIS one for the store, and
+ *  a cycle here would break the pre-paint script's key list. i18n.ts re-exports the same union. */
+export type ConsoleLocale = "en" | "fr" | "ar";
 export type Density = "comfortable" | "compact";
 export type TextSize = "default" | "large";
 
@@ -26,6 +29,8 @@ export type ConsolePreferences = {
   showShortcuts: boolean;
   /** Sidebar queue badges. Off stops the 60s poll entirely. */
   showNavCounts: boolean;
+  /** Interface language. Arabic also flips the document to RTL. */
+  locale: ConsoleLocale;
 };
 
 export const DEFAULT_PREFERENCES: ConsolePreferences = {
@@ -35,6 +40,7 @@ export const DEFAULT_PREFERENCES: ConsolePreferences = {
   textSize: "default",
   showShortcuts: false,
   showNavCounts: true,
+  locale: "en",
 };
 
 export const PREFERENCES_KEY = "admin_console_preferences";
@@ -72,6 +78,7 @@ function coerce(raw: string | null): ConsolePreferences {
     textSize: pick(stored.textSize, ["default", "large"] as const, DEFAULT_PREFERENCES.textSize),
     showShortcuts: bool(stored.showShortcuts, DEFAULT_PREFERENCES.showShortcuts),
     showNavCounts: bool(stored.showNavCounts, DEFAULT_PREFERENCES.showNavCounts),
+    locale: pick(stored.locale, ["en", "fr", "ar"] as const, DEFAULT_PREFERENCES.locale),
   };
 }
 
@@ -105,6 +112,10 @@ export function applyPreferences(next: ConsolePreferences): void {
   root.dataset["shortcuts"] = String(next.showShortcuts);
   // `color-scheme` drives form controls, scrollbars and the native focus ring.
   root.style.colorScheme = next.theme;
+  // lang drives hyphenation, quotation marks and screen-reader pronunciation; dir mirrors the
+  // whole layout through the CSS logical properties the shell is built on.
+  root.lang = next.locale;
+  root.dir = next.locale === "ar" ? "rtl" : "ltr";
 }
 
 /*
@@ -123,7 +134,11 @@ export const PREFERENCES_BOOT_SCRIPT = [
   'd.dataset.reduceMotion=p.reduceMotion===true?"true":"false";',
   'd.dataset.density=p.density==="compact"?"compact":"comfortable";',
   'd.dataset.textSize=p.textSize==="large"?"large":"default";',
-  'd.dataset.shortcuts=p.showShortcuts===true?"true":"false";}catch(e){}})();',
+  'd.dataset.shortcuts=p.showShortcuts===true?"true":"false";',
+  // Language and direction must be painted before first render too: hydrating LTR and flipping to
+  // RTL one frame later visibly throws the whole layout across the screen.
+  'var l=p.locale==="fr"||p.locale==="ar"?p.locale:"en";d.lang=l;',
+  'd.dir=l==="ar"?"rtl":"ltr";}catch(e){}})();',
 ].join("");
 
 /* -------------------------------------------------------------------------- *

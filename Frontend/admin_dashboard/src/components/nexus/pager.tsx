@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { pageCount, pageTokens, rangeFor } from "@/lib/nexus/paginate";
 import { formatInteger } from "@/lib/nexus/format";
+import { useTranslation } from "@/lib/nexus/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -73,6 +74,7 @@ export function Pager({
   busy?: boolean | undefined;
   className?: string | undefined;
 }) {
+  const { t } = useTranslation();
   const pages = pageCount(total, pageSize);
   const range = rangeFor(page, pageSize, total);
   const tokens = pageTokens(page, pages);
@@ -98,7 +100,7 @@ export function Pager({
       {pages > 1 ? (
         <nav aria-label="Pagination" className="flex items-center gap-sp-2">
           <PageButton
-            label="Previous page"
+            label={t("pager.previous")}
             disabled={page <= 0}
             onClick={() => onPageChange(page - 1)}
           >
@@ -117,7 +119,7 @@ export function Pager({
             ) : (
               <PageButton
                 key={token.page}
-                label={`Page ${token.page + 1}`}
+                label={`${t("pager.page")} ${token.page + 1}`}
                 active={token.page === page}
                 onClick={() => onPageChange(token.page)}
               >
@@ -127,7 +129,7 @@ export function Pager({
           )}
 
           <PageButton
-            label="Next page"
+            label={t("pager.next")}
             disabled={page >= pages - 1}
             onClick={() => onPageChange(page + 1)}
           >

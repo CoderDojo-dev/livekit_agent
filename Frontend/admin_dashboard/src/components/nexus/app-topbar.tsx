@@ -5,6 +5,8 @@ import { PAGE_META, ACCOUNT_FALLBACK, type AccountInfo } from "@/lib/nexus/nav";
 import { Avatar, IconButton } from "@/components/nexus/primitives";
 import { SidebarContent } from "@/components/nexus/app-sidebar";
 import { ThemeToggle } from "@/components/nexus/theme-toggle";
+import { LanguageToggle } from "@/components/nexus/language-toggle";
+import { useTranslation } from "@/lib/nexus/i18n";
 import { RouteProgress } from "@/components/nexus/route-progress";
 import {
   Sheet,
@@ -30,6 +32,7 @@ export function AppTopbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const router = useRouter();
   const { session } = RootRoute.useRouteContext();
+  const { t } = useTranslation();
 
   const account: AccountInfo = session
     ? {
@@ -66,7 +69,7 @@ export function AppTopbar() {
         <SheetTrigger asChild>
           <button
             type="button"
-            aria-label="Open navigation"
+            aria-label={t("shell.openNavigation")}
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-r-3 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           >
             <PanelLeft className="size-4" aria-hidden="true" />
@@ -102,8 +105,9 @@ export function AppTopbar() {
          * action, and putting a hairline between them stops the two being fired by mistake. */}
         <span aria-hidden="true" className="mx-sp-1 h-[20px] w-px bg-stroke-default" />
 
+        <LanguageToggle />
         <ThemeToggle />
-        <IconButton label="Sign out" icon={LogOut} onClick={() => void onSignOut()} />
+        <IconButton label={t("shell.signOut")} icon={LogOut} onClick={() => void onSignOut()} />
       </div>
     </header>
   );
@@ -111,7 +115,7 @@ export function AppTopbar() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-surface-0 lg:pl-[236px]">
+    <div className="min-h-screen bg-surface-0 lg:ps-[236px]">
       <AppTopbar />
       {/* Global loading signal for route transitions and any in-flight query. */}
       <RouteProgress />
