@@ -115,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AppTopbar />
       {/* Global loading signal for route transitions and any in-flight query. */}
       <RouteProgress />
-      <main className="mx-auto w-full max-w-[1440px] px-sp-8 pb-sp-12 pt-sp-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1440px] px-sp-8 pb-sp-10 pt-sp-7">{children}</main>
     </div>
   );
 }
@@ -139,7 +139,7 @@ export function PageSection({
 }) {
   return (
     <section
-      className={cn("rise mb-sp-8 last:mb-0", className)}
+      className={cn("rise mb-sp-7 last:mb-0", className)}
       style={{ "--rise-delay": `${Math.min(index, 4) * 40}ms` } as React.CSSProperties}
     >
       {children}

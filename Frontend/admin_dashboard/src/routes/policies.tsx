@@ -203,11 +203,12 @@ function PoliciesPage() {
                 label={rail.label}
                 value={rail.value}
                 icon={rail.icon}
+                /* The rule id identifies the guardrail; the env var is the only actionable fact.
+                 * "Status: Enforced" was dropped — the band is titled "Guardrails in force", so
+                 * every card in it is enforced by definition. The variable name is long, so it
+                 * gets the full footer row and truncates with its value on hover. */
                 context={rail.rule}
-                footer={[
-                  { label: "Governed by", value: rail.envVar },
-                  { label: "Status", value: "Enforced" },
-                ]}
+                footer={[{ label: "Set by", value: rail.envVar }]}
               />
             ))}
           </MetricRow>
@@ -353,60 +354,69 @@ function PolicyRow({
   return (
     <div
       className={cn(
-        "group/policy relative border-b border-stroke-subtle last:border-b-0",
+        "group/policy border-b border-stroke-subtle last:border-b-0",
         open && "bg-surface-1/40",
       )}
     >
-      {/* ---- Collapsed line: everything needed to TRIAGE, nothing needed to READ ---- */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-sp-5 px-sp-6 py-sp-5 text-left transition-colors duration-[120ms] hover:bg-surface-3/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-      >
-        <ChevronDown
-          size={14}
-          strokeWidth={1.5}
-          aria-hidden="true"
-          className={cn(
-            "shrink-0 text-ink-5 transition-transform duration-[200ms]",
-            open && "rotate-180",
-          )}
-        />
+      {/* The positioning context is this ROW only, so the action lane stays vertically centred on
+       * the collapsed line even when the panel below it is open. */}
+      <div className="relative">
+        {/* ---- Collapsed line: everything needed to TRIAGE, nothing needed to READ ---- */}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          /* pr reserves the action lane. It sits on the BUTTON, not on an inner span: the status
+           * chip is the row's last child, so padding applied further in left it sitting under the
+           * edit/delete icons. */
+          className="flex w-full items-center gap-sp-5 py-sp-5 pl-sp-6 pr-[88px] text-left transition-colors duration-[120ms] hover:bg-surface-3/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          <ChevronDown
+            size={14}
+            strokeWidth={1.5}
+            aria-hidden="true"
+            className={cn(
+              "shrink-0 text-ink-5 transition-transform duration-[200ms]",
+              open && "rotate-180",
+            )}
+          />
 
-        <span className="min-w-0 flex-1">
-          <span className="t-mono block truncate text-ink-1">{rule.rule_id}</span>
-          {rule.description ? (
-            /* One line here, in full below. A registry you cannot scan is a registry nobody
-             * reads, so the collapsed row deliberately truncates rather than wrapping. */
-            <span className="t-caption mt-sp-1 block truncate text-ink-4">{rule.description}</span>
-          ) : null}
-        </span>
+          <span className="min-w-0 flex-1">
+            <span className="t-mono block truncate text-ink-1">{rule.rule_id}</span>
+            {rule.description ? (
+              /* One line here, in full below. A registry you cannot scan is a registry nobody
+               * reads, so the collapsed row deliberately truncates rather than wrapping. */
+              <span className="t-caption mt-sp-1 block truncate text-ink-4">
+                {rule.description}
+              </span>
+            ) : null}
+          </span>
 
-        <span className="hidden shrink-0 items-center gap-sp-4 pr-[72px] md:flex">
-          {entries.length > 0 ? (
-            <span className="t-caption text-ink-5">
-              {entries.length} threshold{entries.length === 1 ? "" : "s"}
-            </span>
-          ) : null}
-          <Token strong={rule.enforced}>{enforcementLabel(rule)}</Token>
-          <span className="t-mono w-[36px] text-right text-ink-3">v{rule.version}</span>
-        </span>
+          <span className="hidden shrink-0 items-center gap-sp-4 md:flex">
+            {entries.length > 0 ? (
+              <span className="t-caption text-ink-5">
+                {entries.length} threshold{entries.length === 1 ? "" : "s"}
+              </span>
+            ) : null}
+            <Token strong={rule.enforced}>{enforcementLabel(rule)}</Token>
+            <span className="t-mono w-[36px] text-right text-ink-3">v{rule.version}</span>
+          </span>
 
-        <StatusChip status={ruleStatusKey(rule.active)} className="shrink-0" />
-      </button>
+          <StatusChip status={ruleStatusKey(rule.active)} className="shrink-0" />
+        </button>
 
-      {/* Actions sit OUTSIDE the disclosure button: nesting a button inside a button is invalid
-       * HTML and would make the whole row un-clickable for keyboard users. Absolutely positioned
-       * over the row's right edge so the collapsed line keeps its existing layout. */}
-      <div className="absolute right-sp-6 top-sp-5 flex items-center gap-sp-2 opacity-0 transition-opacity duration-[120ms] group-hover/policy:opacity-100 focus-within:opacity-100">
-        <IconButton
-          size="sm"
-          label={`Edit ${rule.rule_id}`}
-          icon={SquarePen}
-          onClick={() => setEditing(true)}
-        />
-        <PolicyDeleteButton rule={rule} />
+        {/* Actions sit OUTSIDE the disclosure button: nesting a button inside a button is invalid
+         * HTML and would make the whole row un-clickable for keyboard users. Absolutely positioned
+         * over the row's right edge so the collapsed line keeps its existing layout. */}
+        <div className="absolute right-sp-6 top-1/2 flex -translate-y-1/2 items-center gap-sp-2 opacity-45 transition-opacity duration-[120ms] group-hover/policy:opacity-100 focus-within:opacity-100">
+          <IconButton
+            size="sm"
+            label={`Edit ${rule.rule_id}`}
+            icon={SquarePen}
+            onClick={() => setEditing(true)}
+          />
+          <PolicyDeleteButton rule={rule} />
+        </div>
       </div>
 
       {editing ? <PolicyEditDialog rule={rule} onClose={() => setEditing(false)} /> : null}

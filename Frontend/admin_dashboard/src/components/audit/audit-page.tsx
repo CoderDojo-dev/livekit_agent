@@ -15,7 +15,8 @@ import {
 } from "@/components/nexus/primitives";
 import { PageSection } from "@/components/nexus/app-topbar";
 import { TableSkeleton, InlineError, TableErrorRow } from "@/components/nexus/states";
-import { CursorPager } from "@/components/nexus/pager";
+import { Pager } from "@/components/nexus/pager";
+import { clampPage, pageCount, slicePage } from "@/lib/nexus/paginate";
 import { TableBodySwap } from "@/components/nexus/motion";
 import { RetentionPanel } from "@/components/nexus/retention-panel";
 import { SectionHeading } from "@/components/nexus/blocks";
@@ -172,27 +173,46 @@ function AuditLedgerTable() {
   });
 
   /**
-   * The ledger is walked backwards by `beforeSeq`, so there is no total to page against \u2014 hence
-   * CursorPager rather than Pager.
+   * FETCH SIZE AND VIEW SIZE ARE DIFFERENT THINGS.
    *
-   * The important change is that fetched pages now ACCUMULATE IN THE CACHE but only ONE is ever
-   * RENDERED. "Load older" previously flattened every fetched page into a single table, so the
-   * ledger grew without bound: fifty rows became a hundred became two hundred, and the page height
-   * with it. Stepping back through pages stays instant because the data is still cached.
+   * The backend walks the ledger backwards by `beforeSeq` and answers in blocks of ~50. Rendering
+   * `pages[page].entries` therefore put a whole 50-row block on screen \u2014 the view was paging over
+   * BACKEND blocks, not over rows, so "5 per page" never took effect.
+   *
+   * Now every fetched block is flattened into one list and the VIEW pages that list five rows at
+   * a time. Fetching stays coarse (one request per 50 rows, all kept in cache), while the table
+   * stays short. Reaching the last view page pulls the next block in, so scrolling further back
+   * through the ledger just works.
    */
-  const fetchedPages = entries.data?.pages ?? [];
-  const activePage = fetchedPages[page];
-  const rows = activePage?.entries ?? [];
+  const allRows = entries.data?.pages.flatMap((block) => block.entries) ?? [];
+  const safePage = clampPage(page, allRows.length, pageSize);
+  const rows = slicePage(allRows, safePage, pageSize);
+
+  const onLastLoadedPage = safePage >= pageCount(allRows.length, pageSize) - 1;
 
   /* Changing the filter restarts the walk, so any page index from the old filter is meaningless. */
   useEffect(() => setPage(0), [eventType]);
+
+  /* Pull the next block once the reader reaches the end of what is loaded. The pager then simply
+   * grows; there is no separate "load older" button to find.
+   *
+   * The query object is a new identity on every render, so it must NOT be a dependency — that
+   * would re-run this effect continuously and, with `hasNextPage` still true, fire a fetch loop.
+   * Only the three primitives that actually gate the call are tracked; `fetchNextPage` is stable
+   * across renders in react-query. */
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = entries;
+  useEffect(() => {
+    if (onLastLoadedPage && hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [onLastLoadedPage, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <Card padded={false}>
       <div className="p-sp-7">
         <CardHeader
           title="Audit ledger"
-          subtitle="Each page is fetched on demand and kept in cache, so stepping back is instant and the page never grows."
+          subtitle="Five entries at a time, newest first. Older blocks load as you page back."
           icon={ScrollText}
         />
       </div>
@@ -218,20 +238,24 @@ function AuditLedgerTable() {
           </tr>
         }
         footer={
-          <CursorPager
-            page={page}
-            loadedPages={fetchedPages.length}
-            hasMore={entries.hasNextPage}
-            onPageChange={setPage}
-            onLoadMore={() => {
-              void entries.fetchNextPage().then(() => setPage((current) => current + 1));
-            }}
-            loading={entries.isFetchingNextPage}
-            rowsOnPage={rows.length}
-          />
+          <div className="w-full">
+            <Pager
+              page={safePage}
+              pageSize={pageSize}
+              total={allRows.length}
+              onPageChange={setPage}
+              noun="entries"
+              busy={entries.isFetchingNextPage}
+            />
+            {/* The ledger has no known total, so the readout above counts what is LOADED. Saying
+             * so keeps "12 of 12" from reading as "this is the whole ledger". */}
+            <p className="t-caption mt-sp-3 text-ink-5">
+              {entries.hasNextPage ? "Older entries load as you page back." : "End of the ledger."}
+            </p>
+          </div>
         }
       >
-        <TableBodySwap pageKey={`${page}-${eventType}`}>
+        <TableBodySwap pageKey={`${safePage}-${eventType}`}>
           {entries.isPending ? (
             <TableSkeleton rows={pageSize} columns={5} />
           ) : entries.isError && entries.data === undefined ? (

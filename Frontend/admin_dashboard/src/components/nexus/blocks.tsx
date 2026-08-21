@@ -230,7 +230,7 @@ export function LineChart({
 
   return (
     <div>
-      <div className="relative h-[220px] w-full" onMouseLeave={() => setHovered(null)}>
+      <div className="relative h-[180px] w-full" onMouseLeave={() => setHovered(null)}>
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
@@ -415,7 +415,7 @@ export function SeriesChart({
 
   return (
     <div>
-      <div className="relative h-[220px] w-full" onMouseLeave={() => onHover(null)}>
+      <div className="relative h-[180px] w-full" onMouseLeave={() => onHover(null)}>
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"

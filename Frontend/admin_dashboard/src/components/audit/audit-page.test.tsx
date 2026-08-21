@@ -122,18 +122,21 @@ describe("audit ledger", () => {
     });
   });
 
-  it("passes next_before_seq as beforeSeq when paging to older entries", async () => {
-    mocks.listAuditEntries.mockResolvedValue({
-      entries: [entry({ seq: 500 })],
-      has_more: true,
-      next_before_seq: 451,
-    });
+  it("fetches the next block with next_before_seq once the reader reaches the end", async () => {
+    // One block of 6 fills two view pages (5 + 1); the second page is the end of what is loaded,
+    // so arriving there is what pulls the next block in.
+    mocks.listAuditEntries
+      .mockResolvedValueOnce({
+        entries: [500, 499, 498, 497, 496, 495].map((seq) => entry({ seq })),
+        has_more: true,
+        next_before_seq: 451,
+      })
+      .mockResolvedValue({ entries: [], has_more: false, next_before_seq: null });
     const user = userEvent.setup();
 
     renderWithQuery(<AuditPage />);
 
     await screen.findByText("500");
-    // "Load older" became the pager's Next control; the cursor contract is unchanged.
     await user.click(screen.getByRole("button", { name: "Next page" }));
 
     await waitFor(() => {
@@ -143,23 +146,51 @@ describe("audit ledger", () => {
     });
   });
 
-  it("disables paging forward without a cursor", async () => {
+  it("disables paging forward when the ledger is empty", async () => {
     renderWithQuery(<AuditPage />);
 
     await screen.findByText("No audit entries");
 
-    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    // A single (empty) page means there is nowhere forward to go.
+    expect(screen.queryByRole("button", { name: "Next page" })).not.toBeInTheDocument();
   });
 
-  it("renders one page at a time and keeps fetched pages for instant back-paging", async () => {
+  it("shows at most five entries per view, whatever the fetch block size", async () => {
+    // A realistic block: the backend answers in 50s, the VIEW must still show five.
+    mocks.listAuditEntries.mockResolvedValue({
+      entries: Array.from({ length: 12 }, (_, index) => entry({ seq: 500 - index })),
+      has_more: false,
+      next_before_seq: null,
+    });
+    const user = userEvent.setup();
+
+    renderWithQuery(<AuditPage />);
+
+    await screen.findByText("500");
+    // header row + five data rows — this is the regression the old block-per-view paging hid.
+    expect(screen.getAllByRole("row")).toHaveLength(6);
+    expect(screen.queryByText("495")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next page" }));
+
+    await screen.findByText("495");
+    expect(screen.getAllByRole("row")).toHaveLength(6);
+    // The newer page is replaced, not appended: the table never grows.
+    expect(screen.queryByText("500")).not.toBeInTheDocument();
+
+    // Paging within a fetched block is pure slicing — no extra request.
+    expect(mocks.listAuditEntries).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not duplicate rows when a second block is appended", async () => {
     mocks.listAuditEntries
       .mockResolvedValueOnce({
-        entries: [entry({ seq: 500 }), entry({ seq: 499 })],
+        entries: [500, 499, 498, 497, 496, 495].map((seq) => entry({ seq })),
         has_more: true,
-        next_before_seq: 450,
+        next_before_seq: 494,
       })
       .mockResolvedValueOnce({
-        entries: [entry({ seq: 450 }), entry({ seq: 449 })],
+        entries: [494, 493].map((seq) => entry({ seq })),
         has_more: false,
         next_before_seq: null,
       });
@@ -170,23 +201,12 @@ describe("audit ledger", () => {
     await screen.findByText("500");
     await user.click(screen.getByRole("button", { name: "Next page" }));
 
-    // The older page REPLACES the newer one rather than being appended beneath it — this is what
-    // keeps the ledger a fixed height instead of growing without bound.
-    await screen.findByText("450");
-    await waitFor(() => {
-      expect(screen.queryByText("500")).not.toBeInTheDocument();
-    });
-    expect(screen.getByText("449")).toBeInTheDocument();
-    // header row + two data rows
-    expect(screen.getAllByRole("row")).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
-
-    // Stepping back is served from cache: still exactly two requests.
-    await user.click(screen.getByRole("button", { name: "Previous page" }));
-
-    await screen.findByText("500");
-    expect(screen.getByText("499")).toBeInTheDocument();
-    expect(mocks.listAuditEntries).toHaveBeenCalledTimes(2);
+    // Page 2 holds the tail of block one plus the whole of block two, each exactly once.
+    await screen.findByText("494");
+    for (const seq of ["495", "494", "493"]) {
+      expect(screen.getAllByText(seq)).toHaveLength(1);
+    }
+    expect(screen.getAllByRole("row").length).toBeLessThanOrEqual(6);
   });
 
   it("hides link mismatch while the adjacent older row is not loaded", async () => {

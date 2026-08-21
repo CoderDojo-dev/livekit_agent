@@ -57,10 +57,10 @@ export function MetricCard({
   const action =
     to === undefined && onAction === undefined ? null : (
       /* The ring: page-coloured padding around the control carves the corner out of the card. */
-      <div className="absolute right-0 top-0 rounded-r-4 bg-surface-0 p-[5px]">
+      <div className="absolute right-0 top-0 rounded-r-4 bg-surface-0 p-[4px]">
         {to !== undefined ? (
           <Link to={to as "/overview"} aria-label={label_} title={label_} className={ACTION_CLASS}>
-            <ArrowUpRight size={15} strokeWidth={1.6} aria-hidden="true" />
+            <ArrowUpRight size={14} strokeWidth={1.6} aria-hidden="true" />
           </Link>
         ) : (
           <button
@@ -70,7 +70,7 @@ export function MetricCard({
             onClick={onAction}
             className={ACTION_CLASS}
           >
-            <ArrowUpRight size={15} strokeWidth={1.6} aria-hidden="true" />
+            <ArrowUpRight size={14} strokeWidth={1.6} aria-hidden="true" />
           </button>
         )}
       </div>
@@ -78,38 +78,48 @@ export function MetricCard({
 
   return (
     // pt/pr reserve the notch so the action never overlaps the card's own content.
-    <div className={cn("group relative pr-[16px] pt-[16px]", className)}>
+    <div className={cn("group relative pr-[14px] pt-[14px]", className)}>
       <div
         className={cn(
-          "flex h-full flex-col rounded-r-4 border border-stroke-default bg-surface-2 p-sp-7 shadow-elev-1",
+          "flex h-full flex-col rounded-r-4 border border-stroke-default bg-surface-2 p-sp-6 shadow-elev-1",
           "transition-[border-color,box-shadow] duration-[160ms] group-hover:border-stroke-strong group-hover:shadow-elev-2",
         )}
       >
         {/* ---- Header: icon + label, with the delta trailing if there is one ---- */}
-        <div className="flex items-center gap-sp-5">
+        <div className="flex items-center gap-sp-4">
           {Icon ? (
-            <span className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-r-2 border border-stroke-strong text-ink-3 transition-colors duration-[160ms] group-hover:border-stroke-ink group-hover:text-ink-1">
-              <Icon size={15} strokeWidth={1.5} />
+            <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-r-2 border border-stroke-strong text-ink-3 transition-colors duration-[160ms] group-hover:border-stroke-ink group-hover:text-ink-1">
+              <Icon size={13} strokeWidth={1.5} />
             </span>
           ) : null}
-          <p className="t-ui min-w-0 flex-1 truncate text-ink-2">{label}</p>
+          <p className="t-label min-w-0 flex-1 truncate text-ink-3">{label}</p>
           {delta === undefined ? null : <Delta value={delta} good={good ?? null} />}
         </div>
 
-        {/* ---- The number ---- */}
-        <p className="t-display mt-sp-7 text-ink-1">{value}</p>
-        {context ? <p className="t-caption mt-sp-2 text-ink-4">{context}</p> : null}
+        {/* ---- The number ----
+             t-metric-l (26px), not t-display (40px). At 40px in a four-across grid the figure
+             dominated a card it was supposed to sit inside, and forced the box into a square.
+             26px still leads the card and keeps it a rectangle. */}
+        <p className="t-metric-l mt-sp-5 text-ink-1">{value}</p>
+        {context ? (
+          // Two lines maximum: a long context line was the other half of the height problem.
+          <p className="t-caption mt-sp-2 line-clamp-2 text-ink-4">{context}</p>
+        ) : null}
 
-        {series ? <Sparkline values={series} className="mt-sp-6" /> : null}
+        {series ? <Sparkline values={series} className="mt-sp-5" /> : null}
 
-        {/* ---- Supporting figures, under a rule. mt-auto pins them to the card floor so a row
-             of cards aligns its footers even when the contexts differ in length. ---- */}
+        {/* ---- Supporting figures, under a rule.
+             Label and value share ONE line each rather than stacking, which halves the footer.
+             mt-auto pins the block to the card floor so a row of cards aligns its footers even
+             when the contexts differ in length. ---- */}
         {footer && footer.length > 0 ? (
-          <div className="mt-auto grid grid-cols-2 gap-sp-5 border-t border-stroke-subtle pt-sp-6">
+          <div className="mt-auto space-y-sp-2 border-t border-stroke-subtle pt-sp-5">
             {footer.slice(0, 2).map((item) => (
-              <div key={item.label} className="min-w-0">
-                <p className="t-caption truncate text-ink-5">{item.label}</p>
-                <p className="t-body-strong mt-sp-2 text-ink-1">{item.value}</p>
+              <div key={item.label} className="flex items-baseline justify-between gap-sp-4">
+                <span className="t-caption min-w-0 truncate text-ink-5">{item.label}</span>
+                <span className="t-label shrink-0 truncate text-ink-1" title={item.value}>
+                  {item.value}
+                </span>
               </div>
             ))}
           </div>
@@ -122,7 +132,7 @@ export function MetricCard({
 }
 
 const ACTION_CLASS = cn(
-  "inline-flex size-[32px] items-center justify-center rounded-r-3 border border-stroke-default bg-surface-2 text-ink-4",
+  "inline-flex size-[28px] items-center justify-center rounded-r-3 border border-stroke-default bg-surface-2 text-ink-4",
   "transition-[background-color,border-color,color,transform] duration-[160ms]",
   "hover:border-stroke-ink hover:bg-surface-3 hover:text-ink-1 active:translate-y-px",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0",

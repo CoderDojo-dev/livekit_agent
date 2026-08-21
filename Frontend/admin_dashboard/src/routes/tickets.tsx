@@ -137,11 +137,8 @@ function TicketsPage() {
           />
           {/* F2 — never let this read as "all GLPI tickets". */}
           <NoteBanner className="mt-sp-7">
-            Mirrored from GLPI. Tickets raised outside this platform appear here once a caller asks
-            about them.
-            {!timeZone && !coverageQuery.isPending
-              ? " Times are shown in UTC — the business timezone could not be loaded."
-              : null}
+            Mirrored from GLPI. Tickets raised elsewhere appear once a caller asks about them.
+            {!timeZone && !coverageQuery.isPending ? " Times in UTC." : null}
           </NoteBanner>
         </Card>
       </PageSection>

@@ -120,13 +120,12 @@ function NotificationsPage() {
             loading={notificationsQuery.isPending}
           />
           {/* D18.4 / §2.5 — never let this read as "every message the platform sent". */}
+          {/* One sentence. The full explanation of why a failure reason is unavailable lived
+           * here as a three-clause paragraph nobody finished reading. */}
           <NoteBanner className="mt-sp-7">
-            Written by the notification-service after each send attempt. A failed row means the
-            provider or the contact lookup refused it; the reason is returned to the caller but not
-            stored, so it cannot be shown here. Times are when the attempt was logged.
-            {!timeZone && !coverageQuery.isPending
-              ? " Times are shown in UTC — the business timezone could not be loaded."
-              : null}
+            One row per send attempt, logged by the notification-service. Failure reasons are not
+            stored upstream, so they cannot be shown.
+            {!timeZone && !coverageQuery.isPending ? " Times in UTC." : null}
           </NoteBanner>
         </Card>
       </PageSection>

@@ -30,7 +30,20 @@ def _build_context(run_context: RunContext, action_type: str, payload: dict) -> 
     user_data = run_context.session.userdata
     customer = user_data.customer_context
     context = {
-        "session_id": user_data.session_id,
+        # THE DB SESSION ID, not the agent-local one.
+        #
+        # `session_state` carries two ids: `session_id` is minted when the agent session object is
+        # constructed and is written to no table, while `session_db_id` is the primary key of the
+        # conversation.call_sessions row the writer opened for this call.
+        #
+        # Sending the agent-local id meant every policy verdict and every action-ledger row was
+        # stamped with a session that does not exist, so nothing could ever be joined back to the
+        # call: the console's "Policy verdicts" panel was permanently empty, not because no gate
+        # ran, but because the rows pointed nowhere.
+        #
+        # The fallback keeps the previous behaviour if a guarded action somehow runs before the
+        # session row exists -- correlation is then still wrong, but nothing crashes.
+        "session_id": user_data.session_db_id or user_data.session_id,
         "customer_id": customer.customer_id if customer else None,
         "subscription_id": getattr(customer, "subscription_id", None) if customer else None,
         "action_type": action_type,
