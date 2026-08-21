@@ -908,6 +908,312 @@ class SupervisionRepository:
             for r in rows
         ]
 
+    # ---------------------------------------------------------------- reference catalog writes
+    #
+    # These catalogs ARE runtime inputs, unlike the policy registry: the agent reads products,
+    # recharges and geo areas while a caller is on the line. So an edit here changes what the
+    # agent can offer on the very next call, which is the point.
+    #
+    # Two protections follow from that:
+    #   - a product or recharge in use is DEACTIVATED rather than deleted, so historical rows that
+    #     reference it keep resolving;
+    #   - a geo area with children or outages cannot be deleted at all, because oss.outages.area_code
+    #     is a foreign key here and orphaning it would let an outage name a zone that no longer
+    #     exists — the exact failure the geo_areas table was introduced to make impossible.
+
+    def create_product(self, product_code: str, name: str, plan_type: str) -> dict:
+        code = (product_code or "").strip().upper()
+        if not code:
+            raise ValueError("product_code is required")
+        if plan_type not in {"PREPAID", "POSTPAID"}:
+            raise ValueError("plan_type must be PREPAID or POSTPAID")
+        if self._s.scalar(select(Product).where(Product.product_code == code)):
+            raise ValueError(f"{code} already exists")
+
+        row = Product(product_code=code, name=(name or code).strip()[:120],
+                      plan_type=plan_type, active=True)
+        self._s.add(row)
+        self._s.flush()
+        return {"product_code": row.product_code, "name": row.name,
+                "plan_type": row.plan_type, "active": row.active}
+
+    def update_product(self, product_code: str, name: str | None = None,
+                       plan_type: str | None = None, active: bool | None = None) -> dict | None:
+        row = self._s.scalar(select(Product).where(Product.product_code == product_code))
+        if row is None:
+            return None
+        if plan_type is not None:
+            if plan_type not in {"PREPAID", "POSTPAID"}:
+                raise ValueError("plan_type must be PREPAID or POSTPAID")
+            row.plan_type = plan_type
+        if name is not None and name.strip():
+            row.name = name.strip()[:120]
+        if active is not None:
+            row.active = active
+        self._s.flush()
+        return {"product_code": row.product_code, "name": row.name,
+                "plan_type": row.plan_type, "active": row.active}
+
+    def delete_product(self, product_code: str) -> bool:
+        """Delete an UNUSED plan. A plan a subscription points at is deactivated instead."""
+        from persistence.models.crm import Subscription
+
+        row = self._s.scalar(select(Product).where(Product.product_code == product_code))
+        if row is None:
+            return False
+        in_use = self._s.scalar(
+            select(func.count()).select_from(Subscription)
+            .where(Subscription.plan_code == product_code)
+        ) or 0
+        if int(in_use) > 0:
+            raise ValueError(
+                f"{product_code} is used by {int(in_use)} subscription(s); deactivate it instead "
+                "so existing subscriptions keep resolving"
+            )
+        self._s.delete(row)
+        return True
+
+    def create_recharge(self, code: str, amount: float, bonus_amount: float = 0.0) -> dict:
+        clean = (code or "").strip().upper()
+        if not clean:
+            raise ValueError("code is required")
+        if amount is None or float(amount) <= 0:
+            raise ValueError("amount must be greater than zero")
+        if float(bonus_amount or 0) < 0:
+            raise ValueError("bonus_amount cannot be negative")
+        if self._s.scalar(select(RechargeCatalog).where(RechargeCatalog.code == clean)):
+            raise ValueError(f"{clean} already exists")
+
+        row = RechargeCatalog(code=clean, amount=amount, bonus_amount=bonus_amount or 0)
+        self._s.add(row)
+        self._s.flush()
+        return {"code": row.code, "amount": float(row.amount),
+                "bonus_amount": float(row.bonus_amount)}
+
+    def update_recharge(self, code: str, amount: float | None = None,
+                        bonus_amount: float | None = None) -> dict | None:
+        row = self._s.scalar(select(RechargeCatalog).where(RechargeCatalog.code == code))
+        if row is None:
+            return None
+        if amount is not None:
+            if float(amount) <= 0:
+                raise ValueError("amount must be greater than zero")
+            row.amount = amount
+        if bonus_amount is not None:
+            if float(bonus_amount) < 0:
+                raise ValueError("bonus_amount cannot be negative")
+            row.bonus_amount = bonus_amount
+        self._s.flush()
+        return {"code": row.code, "amount": float(row.amount),
+                "bonus_amount": float(row.bonus_amount)}
+
+    def delete_recharge(self, code: str) -> bool:
+        row = self._s.scalar(select(RechargeCatalog).where(RechargeCatalog.code == code))
+        if row is None:
+            return False
+        self._s.delete(row)
+        return True
+
+    def create_geo_area(self, area_code: str, name_fr: str, area_type: str,
+                        parent_code: str | None = None, name_ar: str | None = None,
+                        name_en: str | None = None) -> dict:
+        code = (area_code or "").strip().upper()
+        if not code:
+            raise ValueError("area_code is required")
+        if area_type not in {"governorate", "delegation", "locality"}:
+            raise ValueError("area_type must be governorate, delegation or locality")
+        if self._s.scalar(select(GeoArea).where(GeoArea.area_code == code)):
+            raise ValueError(f"{code} already exists")
+        parent = (parent_code or "").strip().upper() or None
+        if parent and not self._s.scalar(select(GeoArea).where(GeoArea.area_code == parent)):
+            raise ValueError(f"parent {parent} does not exist")
+
+        row = GeoArea(area_code=code, name_fr=(name_fr or code).strip()[:120],
+                      name_ar=(name_ar or None), name_en=(name_en or None),
+                      area_type=area_type, parent_code=parent, active=True)
+        self._s.add(row)
+        self._s.flush()
+        return {"area_code": row.area_code, "name": row.name_fr, "area_type": row.area_type,
+                "parent_code": row.parent_code, "active": row.active}
+
+    def update_geo_area(self, area_code: str, name_fr: str | None = None,
+                        active: bool | None = None, name_ar: str | None = None,
+                        name_en: str | None = None) -> dict | None:
+        row = self._s.scalar(select(GeoArea).where(GeoArea.area_code == area_code))
+        if row is None:
+            return None
+        if name_fr is not None and name_fr.strip():
+            row.name_fr = name_fr.strip()[:120]
+        if name_ar is not None:
+            row.name_ar = name_ar.strip() or None
+        if name_en is not None:
+            row.name_en = name_en.strip() or None
+        if active is not None:
+            row.active = active
+        self._s.flush()
+        return {"area_code": row.area_code, "name": row.name_fr, "area_type": row.area_type,
+                "parent_code": row.parent_code, "active": row.active}
+
+    def delete_geo_area(self, area_code: str) -> bool:
+        """Refused while anything still points at the area — see the note above."""
+        from persistence.models.oss import Outage
+
+        row = self._s.scalar(select(GeoArea).where(GeoArea.area_code == area_code))
+        if row is None:
+            return False
+
+        children = self._s.scalar(
+            select(func.count()).select_from(GeoArea).where(GeoArea.parent_code == area_code)
+        ) or 0
+        if int(children) > 0:
+            raise ValueError(f"{area_code} has {int(children)} child area(s); remove them first")
+
+        outages = self._s.scalar(
+            select(func.count()).select_from(Outage).where(Outage.area_code == area_code)
+        ) or 0
+        if int(outages) > 0:
+            raise ValueError(
+                f"{area_code} is referenced by {int(outages)} outage record(s); "
+                "deactivate the area instead"
+            )
+
+        self._s.delete(row)
+        return True
+
+    # ---------------------------------------------------------------- outages
+    #
+    # This is the surface the agent actually speaks from. get_network_status() resolves a caller's
+    # spoken place to an area_code, walks the geo hierarchy, and reads the ACTIVE outages here —
+    # so an outage opened in the console is audible on the next call, and a description written
+    # here is the sentence the caller hears.
+
+    #: Mirrors the ck_outages_cause CHECK constraint exactly. Kept here so an unknown cause is
+    #: refused with a readable message instead of surfacing a raw IntegrityError to the console.
+    #: Note the spelling: the column allows "fiber_cut", not "fibre_cut".
+    OUTAGE_CAUSES = (
+        "fiber_cut",
+        "power_failure",
+        "equipment_failure",
+        "planned_maintenance",
+        "congestion",
+        "weather",
+        "third_party_damage",
+    )
+
+    def list_outages(self, active_only: bool = False, limit: int = 200) -> list[dict]:
+        from persistence.models.oss import Outage
+
+        stmt = select(Outage).order_by(Outage.start_time.desc())
+        if active_only:
+            stmt = stmt.where(Outage.resolved.is_(False))
+        rows = self._s.scalars(stmt.limit(max(1, min(limit, 500)))).all()
+
+        # The area's human name, resolved in one query rather than per row.
+        codes = {r.area_code for r in rows if r.area_code}
+        names = {}
+        if codes:
+            names = {
+                g.area_code: g.name_fr
+                for g in self._s.scalars(select(GeoArea).where(GeoArea.area_code.in_(codes))).all()
+            }
+
+        return [
+            {
+                "id": str(r.id),
+                "area_code": r.area_code,
+                "area_name": names.get(r.area_code) if r.area_code else None,
+                "area": r.area,
+                "region": r.region,
+                "severity": r.severity,
+                "cause": r.cause,
+                "affected_services": r.affected_services,
+                "resolved": r.resolved,
+                "start_time": r.start_time.isoformat() if r.start_time else None,
+                "end_time": r.end_time.isoformat() if r.end_time else None,
+                "description_fr": r.description_fr,
+                "description_ar": r.description_ar,
+                "description_en": r.description_en,
+            }
+            for r in rows
+        ]
+
+    def create_outage(self, *, area_code: str, severity: str, cause: str | None,
+                      affected_services: str | None, description_fr: str | None,
+                      description_ar: str | None, description_en: str | None,
+                      start_time=None, end_time=None) -> dict:
+        from persistence.models.oss import Outage
+
+        code = (area_code or "").strip().upper()
+        area = self._s.scalar(select(GeoArea).where(GeoArea.area_code == code))
+        if area is None:
+            # The FK would reject this anyway; failing here gives the console a usable message.
+            raise ValueError(f"unknown area_code {code}")
+        if severity not in {"minor", "major", "critical"}:
+            raise ValueError("severity must be minor, major or critical")
+        if cause and cause not in self.OUTAGE_CAUSES:
+            raise ValueError(f"cause must be one of {', '.join(self.OUTAGE_CAUSES)}")
+        if not (description_fr or "").strip():
+            # The agent speaks FR by default and falls back to it for every other language, so an
+            # outage without a French description is one the agent can detect but not explain.
+            raise ValueError("description_fr is required — it is what the agent says to callers")
+
+        row = Outage(
+            area_code=code,
+            area=area.name_fr,
+            region=area.parent_code or area.name_fr,
+            severity=severity,
+            cause=(cause or None),
+            affected_services=(affected_services or None),
+            description_fr=description_fr.strip(),
+            description_ar=(description_ar or None),
+            description_en=(description_en or None),
+            resolved=False,
+        )
+        if start_time is not None:
+            row.start_time = start_time
+        if end_time is not None:
+            row.end_time = end_time
+        self._s.add(row)
+        self._s.flush()
+        return {"id": str(row.id), "area_code": row.area_code, "severity": row.severity,
+                "resolved": row.resolved}
+
+    def update_outage(self, outage_id: str, *, severity: str | None = None,
+                      resolved: bool | None = None, end_time=None,
+                      description_fr: str | None = None, description_ar: str | None = None,
+                      description_en: str | None = None) -> dict | None:
+        from persistence.models.oss import Outage
+
+        oid = to_uuid(outage_id)
+        row = self._s.get(Outage, oid) if oid else None
+        if row is None:
+            return None
+
+        if severity is not None:
+            if severity not in {"minor", "major", "critical"}:
+                raise ValueError("severity must be minor, major or critical")
+            row.severity = severity
+        if description_fr is not None and description_fr.strip():
+            row.description_fr = description_fr.strip()
+        if description_ar is not None:
+            row.description_ar = description_ar.strip() or None
+        if description_en is not None:
+            row.description_en = description_en.strip() or None
+        if end_time is not None:
+            row.end_time = end_time
+        if resolved is not None:
+            row.resolved = resolved
+            # Closing an outage without an end time leaves "when did it stop?" unanswerable.
+            if resolved and row.end_time is None:
+                from datetime import UTC, datetime as _dt
+
+                row.end_time = _dt.now(UTC)
+
+        self._s.flush()
+        return {"id": str(row.id), "area_code": row.area_code, "severity": row.severity,
+                "resolved": row.resolved,
+                "end_time": row.end_time.isoformat() if row.end_time else None}
+
     # ---------------------------------------------------------------- policy registry writes
     #
     # SAFETY, stated once and enforced below.

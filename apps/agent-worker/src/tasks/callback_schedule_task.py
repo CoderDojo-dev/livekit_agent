@@ -300,7 +300,11 @@ class CallbackScheduleTask(AgentTask[bool]):
             chosen,
             customer_id=getattr(self._customer, "customer_id", None),
             subscription_id=getattr(self._customer, "subscription_id", None),
-            session_id=getattr(user_data, "session_id", None),
+            # The DB session id, not the agent-local one: a callback stamped with the
+            # agent-local id cannot be joined back to the call that produced it, so the console
+            # could never show which conversation asked for the callback.
+            session_id=getattr(user_data, "session_db_id", None)
+            or getattr(user_data, "session_id", None),
             preferred_window=_spoken(chosen, language),
             reason=self._reason,
         )

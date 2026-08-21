@@ -9,6 +9,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -685,6 +686,306 @@ def admin_update_ticket(
         )
 
     return ticket
+
+
+# ==============================================================================================
+# Reference catalogs — the agent's runtime inputs.
+#
+# Unlike the policy registry, these ARE read by the agent mid-call: products and recharges are
+# what it can offer, and geo areas are how it resolves "I'm in Sfax" into an area it can check for
+# outages. An edit here therefore changes agent behaviour on the very next call, which is the
+# whole point of exposing them.
+#
+# Every mutation is administrateur-only and audited.
+# ==============================================================================================
+
+
+class ProductPayload(BaseModel):
+    product_code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=120)
+    plan_type: str = Field(default="PREPAID")
+
+
+class ProductUpdatePayload(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    plan_type: str | None = None
+    active: bool | None = None
+
+
+class RechargePayload(BaseModel):
+    code: str = Field(min_length=1, max_length=50)
+    amount: float
+    bonus_amount: float = 0.0
+
+
+class RechargeUpdatePayload(BaseModel):
+    amount: float | None = None
+    bonus_amount: float | None = None
+
+
+class GeoAreaPayload(BaseModel):
+    area_code: str = Field(min_length=1, max_length=40)
+    name_fr: str = Field(min_length=1, max_length=120)
+    area_type: str = Field(default="locality")
+    parent_code: str | None = None
+    name_ar: str | None = Field(default=None, max_length=120)
+    name_en: str | None = Field(default=None, max_length=120)
+
+
+class GeoAreaUpdatePayload(BaseModel):
+    name_fr: str | None = Field(default=None, max_length=120)
+    name_ar: str | None = Field(default=None, max_length=120)
+    name_en: str | None = Field(default=None, max_length=120)
+    active: bool | None = None
+
+
+class OutagePayload(BaseModel):
+    """A network incident the agent will report to callers in the affected area."""
+
+    area_code: str = Field(min_length=1, max_length=40)
+    severity: str = Field(default="minor")
+    cause: str | None = Field(default=None, max_length=60)
+    affected_services: str | None = Field(default=None, max_length=120)
+    # Required by the repository: FR is the agent's default and its fallback for every other
+    # language, so an outage without it is one the agent can detect but not explain.
+    description_fr: str = Field(min_length=1)
+    description_ar: str | None = None
+    description_en: str | None = None
+    end_time: datetime | None = None
+
+
+class OutageUpdatePayload(BaseModel):
+    severity: str | None = None
+    resolved: bool | None = None
+    end_time: datetime | None = None
+    description_fr: str | None = None
+    description_ar: str | None = None
+    description_en: str | None = None
+
+
+def _audit_reference(session, principal, event: str, payload: dict, reference: str) -> None:
+    PgAuditLedger(session).append(
+        None, event, {"actor": _audit_actor(principal), **payload}, entity_reference=reference
+    )
+
+
+# ---------------------------------------------------------------------------- products (plans)
+
+
+@app.post("/api/v1/reference/products", status_code=201)
+def create_product(payload: ProductPayload, role: AdministrateurRole,
+                   principal: CurrentPrincipal) -> dict:
+    """Add a plan the agent may offer from the next call onward."""
+    with session_scope() as session:
+        try:
+            created = SupervisionRepository(session).create_product(
+                payload.product_code, payload.name, payload.plan_type
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        _audit_reference(session, principal, "reference_product_created",
+                         {"product_code": created["product_code"]},
+                         f"products:{created['product_code']}")
+    return created
+
+
+@app.patch("/api/v1/reference/products/{product_code}")
+def update_product(product_code: str, payload: ProductUpdatePayload,
+                   role: AdministrateurRole, principal: CurrentPrincipal) -> dict:
+    with session_scope() as session:
+        try:
+            updated = SupervisionRepository(session).update_product(
+                product_code, payload.name, payload.plan_type, payload.active
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if updated is None:
+            raise HTTPException(status_code=404, detail="product not found")
+        _audit_reference(session, principal, "reference_product_updated",
+                         {"product_code": product_code, "active": updated["active"]},
+                         f"products:{product_code}")
+    return updated
+
+
+@app.delete("/api/v1/reference/products/{product_code}", status_code=204,
+            response_class=Response)
+def delete_product(product_code: str, role: AdministrateurRole,
+                   principal: CurrentPrincipal) -> Response:
+    """Delete an unused plan. One a subscription points at is refused — deactivate it instead."""
+    with session_scope() as session:
+        try:
+            removed = SupervisionRepository(session).delete_product(product_code)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if not removed:
+            raise HTTPException(status_code=404, detail="product not found")
+        _audit_reference(session, principal, "reference_product_deleted",
+                         {"product_code": product_code}, f"products:{product_code}")
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------------- recharges
+
+
+@app.post("/api/v1/reference/recharges", status_code=201)
+def create_recharge(payload: RechargePayload, role: AdministrateurRole,
+                    principal: CurrentPrincipal) -> dict:
+    with session_scope() as session:
+        try:
+            created = SupervisionRepository(session).create_recharge(
+                payload.code, payload.amount, payload.bonus_amount
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        _audit_reference(session, principal, "reference_recharge_created",
+                         {"code": created["code"], "amount": created["amount"]},
+                         f"recharge_catalog:{created['code']}")
+    return created
+
+
+@app.patch("/api/v1/reference/recharges/{code}")
+def update_recharge(code: str, payload: RechargeUpdatePayload,
+                    role: AdministrateurRole, principal: CurrentPrincipal) -> dict:
+    with session_scope() as session:
+        try:
+            updated = SupervisionRepository(session).update_recharge(
+                code, payload.amount, payload.bonus_amount
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if updated is None:
+            raise HTTPException(status_code=404, detail="recharge not found")
+        _audit_reference(session, principal, "reference_recharge_updated",
+                         {"code": code, "amount": updated["amount"]},
+                         f"recharge_catalog:{code}")
+    return updated
+
+
+@app.delete("/api/v1/reference/recharges/{code}", status_code=204, response_class=Response)
+def delete_recharge(code: str, role: AdministrateurRole,
+                    principal: CurrentPrincipal) -> Response:
+    with session_scope() as session:
+        if not SupervisionRepository(session).delete_recharge(code):
+            raise HTTPException(status_code=404, detail="recharge not found")
+        _audit_reference(session, principal, "reference_recharge_deleted",
+                         {"code": code}, f"recharge_catalog:{code}")
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------------- geo areas
+
+
+@app.post("/api/v1/reference/geo-areas", status_code=201)
+def create_geo_area(payload: GeoAreaPayload, role: AdministrateurRole,
+                    principal: CurrentPrincipal) -> dict:
+    with session_scope() as session:
+        try:
+            created = SupervisionRepository(session).create_geo_area(
+                payload.area_code, payload.name_fr, payload.area_type,
+                payload.parent_code, payload.name_ar, payload.name_en,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        _audit_reference(session, principal, "reference_geo_area_created",
+                         {"area_code": created["area_code"]},
+                         f"geo_areas:{created['area_code']}")
+    return created
+
+
+@app.patch("/api/v1/reference/geo-areas/{area_code}")
+def update_geo_area(area_code: str, payload: GeoAreaUpdatePayload,
+                    role: AdministrateurRole, principal: CurrentPrincipal) -> dict:
+    with session_scope() as session:
+        updated = SupervisionRepository(session).update_geo_area(
+            area_code, payload.name_fr, payload.active, payload.name_ar, payload.name_en
+        )
+        if updated is None:
+            raise HTTPException(status_code=404, detail="area not found")
+        _audit_reference(session, principal, "reference_geo_area_updated",
+                         {"area_code": area_code, "active": updated["active"]},
+                         f"geo_areas:{area_code}")
+    return updated
+
+
+@app.delete("/api/v1/reference/geo-areas/{area_code}", status_code=204,
+            response_class=Response)
+def delete_geo_area(area_code: str, role: AdministrateurRole,
+                    principal: CurrentPrincipal) -> Response:
+    """Refused while children or outages still reference the area."""
+    with session_scope() as session:
+        try:
+            removed = SupervisionRepository(session).delete_geo_area(area_code)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if not removed:
+            raise HTTPException(status_code=404, detail="area not found")
+        _audit_reference(session, principal, "reference_geo_area_deleted",
+                         {"area_code": area_code}, f"geo_areas:{area_code}")
+    return Response(status_code=204)
+
+
+# ------------------------------------------------------------------------------------ outages
+
+
+@app.get("/api/v1/outages")
+def list_outages(role: SuperviseurRole, active_only: bool = False, limit: int = 200) -> dict:
+    """Known network incidents. These are exactly what the agent reports to callers."""
+    with session_scope() as session:
+        return {"outages": SupervisionRepository(session).list_outages(active_only, limit)}
+
+
+@app.post("/api/v1/outages", status_code=201)
+def create_outage(payload: OutagePayload, role: AdministrateurRole,
+                  principal: CurrentPrincipal) -> dict:
+    """Declare an incident on an area.
+
+    The agent picks this up immediately: get_network_status() resolves the caller's spoken place
+    to an area, walks the geo hierarchy, and reads the active outages here — so `description_fr`
+    is the sentence a caller in that area will hear on their next call.
+    """
+    with session_scope() as session:
+        try:
+            created = SupervisionRepository(session).create_outage(
+                area_code=payload.area_code,
+                severity=payload.severity,
+                cause=payload.cause,
+                affected_services=payload.affected_services,
+                description_fr=payload.description_fr,
+                description_ar=payload.description_ar,
+                description_en=payload.description_en,
+                end_time=payload.end_time,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _audit_reference(session, principal, "outage_declared",
+                         {"area_code": created["area_code"], "severity": created["severity"]},
+                         f"outages:{created['id']}")
+    return created
+
+
+@app.patch("/api/v1/outages/{outage_id}")
+def update_outage(outage_id: str, payload: OutageUpdatePayload,
+                  role: AdministrateurRole, principal: CurrentPrincipal) -> dict:
+    """Edit or resolve an incident. Resolving stamps an end time if none was given."""
+    with session_scope() as session:
+        try:
+            updated = SupervisionRepository(session).update_outage(
+                outage_id,
+                severity=payload.severity,
+                resolved=payload.resolved,
+                end_time=payload.end_time,
+                description_fr=payload.description_fr,
+                description_ar=payload.description_ar,
+                description_en=payload.description_en,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if updated is None:
+            raise HTTPException(status_code=404, detail="outage not found")
+        _audit_reference(session, principal, "outage_updated",
+                         {"outage_id": outage_id, "resolved": updated["resolved"]},
+                         f"outages:{outage_id}")
+    return updated
 
 
 class BusinessRuleCreatePayload(BaseModel):

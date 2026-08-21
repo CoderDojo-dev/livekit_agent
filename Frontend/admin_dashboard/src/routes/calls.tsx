@@ -146,12 +146,23 @@ function CallsPage() {
 
   return (
     <>
-      {/* items-start: each column takes its own height. Without it the grid stretched the master
-       * list to match the transcript column, which is exactly the empty space under the search
-       * panel. */}
-      <PageSection index={0} className="grid gap-sp-6 xl:grid-cols-[340px_1fr] xl:items-start">
+      {/*
+       * FIXED, EQUAL HEIGHT FOR BOTH COLUMNS.
+       *
+       * Both panels used to size to their content, so a short call collapsed the transcript card
+       * to a sliver while the list beside it stayed tall, and a long call did the reverse. The
+       * band now declares ONE height and both children fill it: the list scrolls its rows, the
+       * transcript scrolls its turns, and the card outlines never move between calls.
+       *
+       * The height is expressed in viewport units so it adapts to the display without ever being
+       * derived from the content inside it.
+       */}
+      <PageSection
+        index={0}
+        className="grid gap-sp-6 xl:h-[calc(100vh-190px)] xl:min-h-[520px] xl:grid-cols-[340px_1fr]"
+      >
         {/* ---------------- Master list ---------------- */}
-        <Card padded={false} className="overflow-hidden">
+        <Card padded={false} className="flex min-h-0 flex-col overflow-hidden">
           <div className="space-y-sp-5 border-b border-stroke-subtle p-sp-6">
             <SearchInput placeholder="Search by number" value={search} onChange={setSearch} />
             <Segmented
@@ -177,7 +188,12 @@ function CallsPage() {
             </div>
           ) : (
             <>
-              <PageSwap pageKey={safePage}>
+              {/* min-h-0 is what lets a flex child actually shrink and scroll; without it the
+               * list forces the card taller than the band. */}
+              <PageSwap
+                pageKey={safePage}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+              >
                 <ul>
                   {rows.map((row) => {
                     const active = row.session_id === selected;
@@ -214,7 +230,7 @@ function CallsPage() {
                 </ul>
               </PageSwap>
 
-              <div className="border-t border-stroke-subtle px-sp-6 py-sp-5">
+              <div className="mt-auto border-t border-stroke-subtle px-sp-6 py-sp-5">
                 <Pager
                   page={safePage}
                   pageSize={pageSize}
@@ -229,7 +245,7 @@ function CallsPage() {
         </Card>
 
         {/* ---------------- Detail ---------------- */}
-        <div className="space-y-sp-6">
+        <div className="flex min-h-0 flex-col gap-sp-6">
           {!selected ? (
             <Card>
               <EmptyState
@@ -288,8 +304,8 @@ function CallsPage() {
                 ) : null}
               </Card>
 
-              <Card padded={false}>
-                <div className="flex items-center justify-between gap-sp-5 p-sp-7">
+              <Card padded={false} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="flex shrink-0 items-center justify-between gap-sp-5 p-sp-7">
                   <CardHeader
                     title="Transcript"
                     subtitle="Speaker-attributed and PII-masked at capture."

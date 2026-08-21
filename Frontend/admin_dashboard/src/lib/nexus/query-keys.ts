@@ -166,6 +166,9 @@ export const agentKeys = {
 /* Feature 14 â€” reference catalogs. Catalog + search are both in the key so
  * switching tabs or typing never serves a stale term against another table. */
 export const referenceKeys = {
+  /** Network incidents. Keyed by scope so the Active and All views cache separately. */
+  outagesAll: ["reference", "outages"] as const,
+  outages: (activeOnly: boolean) => ["reference", "outages", activeOnly] as const,
   all: ["reference"] as const,
   catalog: (catalog: string, search: string) => ["reference", "catalog", catalog, search] as const,
 };

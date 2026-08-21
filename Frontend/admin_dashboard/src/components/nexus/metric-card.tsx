@@ -41,7 +41,7 @@ export function MetricCard({
   value: string;
   icon?: MetricIcon | undefined;
   /** Up to two supporting figures, rendered under a divider. */
-  footer?: readonly { label: string; value: string }[] | undefined;
+  footer?: readonly { label: string; value: string; title?: string }[] | undefined;
   series?: number[] | undefined;
   delta?: number | undefined;
   good?: boolean | null | undefined;
@@ -118,7 +118,12 @@ export function MetricCard({
             {footer.slice(0, 2).map((item) => (
               <div key={item.label} className="flex items-baseline justify-between gap-sp-4">
                 <span className="t-caption min-w-0 truncate text-ink-5">{item.label}</span>
-                <span className="t-label shrink-0 truncate text-ink-1" title={item.value}>
+                {/* max-w so a long value (an env var name) truncates instead of wrapping the
+                    row onto a second line and pushing the card taller than its neighbours. */}
+                <span
+                  className="t-label max-w-[62%] shrink-0 truncate text-ink-1"
+                  title={item.title ?? item.value}
+                >
                   {item.value}
                 </span>
               </div>

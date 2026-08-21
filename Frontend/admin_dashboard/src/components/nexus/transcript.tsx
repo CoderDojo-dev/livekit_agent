@@ -25,9 +25,10 @@ export function Transcript({
 
   return (
     <ul
-      /* Sized in viewport units so the panel always ends inside the window, on a laptop and on a
-       * 27" display alike, instead of being pinned to one hard-coded pixel height. */
-      className="max-h-[min(52vh,560px)] overflow-y-auto overscroll-contain"
+      /* h-full, not max-h: the parent card now declares the height for the whole band, so the
+       * transcript fills it exactly. A max-height here would let a short call collapse the card
+       * again, which is the blank-background problem this replaced. */
+      className="h-full min-h-0 flex-1 overflow-y-auto overscroll-contain"
       tabIndex={0}
       role="log"
       aria-label="Call transcript"

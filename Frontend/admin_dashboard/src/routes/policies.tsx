@@ -73,6 +73,18 @@ const SCOPES = [
 
 type Scope = (typeof SCOPES)[number]["id"];
 
+/**
+ * "POLICY_DEFERRAL_UNPAID_THRESHOLD_TND" -> "DEFERRAL_UNPAID_THRESHOLD_TND".
+ *
+ * Every governed variable starts with the same POLICY_ prefix, so on a card where each one is
+ * already labelled a guardrail the prefix is eight characters of pure repetition — and it was
+ * what pushed these names past the card's width. The full name stays in the title attribute and
+ * in the expanded rule, so nothing is lost for someone who needs to go and change it.
+ */
+function shortEnvVar(name: string): string {
+  return name.startsWith("POLICY_") ? name.slice("POLICY_".length) : name;
+}
+
 /** Threshold label -> icon. Falls back to a generic badge for anything unmapped. */
 const GUARDRAIL_ICON: Record<
   string,
@@ -162,7 +174,8 @@ function PoliciesPage() {
             rule: rule.rule_id,
             /* One rule can be governed by several variables, in the same order its definition
              * keys are emitted; fall back to the first rather than mislabelling. */
-            envVar: envVars[index] ?? envVars[0] ?? "—",
+            envVar: shortEnvVar(envVars[index] ?? envVars[0] ?? "—"),
+            fullEnvVar: envVars[index] ?? envVars[0] ?? "—",
             icon: GUARDRAIL_ICON[entry.label] ?? BadgeCheck,
           }));
         }),
@@ -208,7 +221,7 @@ function PoliciesPage() {
                  * every card in it is enforced by definition. The variable name is long, so it
                  * gets the full footer row and truncates with its value on hover. */
                 context={rail.rule}
-                footer={[{ label: "Set by", value: rail.envVar }]}
+                footer={[{ label: "Set by", value: rail.envVar, title: rail.fullEnvVar }]}
               />
             ))}
           </MetricRow>
