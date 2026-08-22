@@ -35,6 +35,7 @@ export function MetricCard({
   to,
   onAction,
   actionLabel,
+  compact = false,
   className,
 }: {
   label: string;
@@ -50,6 +51,16 @@ export function MetricCard({
   to?: string | undefined;
   onAction?: (() => void) | undefined;
   actionLabel?: string | undefined;
+  /**
+   * Denser variant for readouts rather than KPIs.
+   *
+   * The guardrail cards on /policies carry settings ("200 TND", "180 days"), a rule id and an
+   * environment variable name — none of which is a headline number, and all of which are long.
+   * At KPI weight they shouted and the identifiers ran out of room. Compact drops the value a
+   * step and renders the identifiers in mono, which is both smaller and the right voice for a
+   * machine name. Overview, Analytics and Callbacks keep the full size.
+   */
+  compact?: boolean | undefined;
   className?: string | undefined;
 }) {
   const label_ = actionLabel ?? `Open ${label}`;
@@ -101,10 +112,15 @@ export function MetricCard({
              to sit inside and forced the box square. Measured: 40px gave a 204px card, 26px gives
              152px. Dropping further to 20px saved only 6px more and left the figure no longer
              reading as the card's headline, so the height came out of the PADDING instead. */}
-        <p className="t-metric-l mt-sp-4 text-ink-1">{value}</p>
+        <p className={cn(compact ? "t-metric-m" : "t-metric-l", "mt-sp-4 text-ink-1")}>{value}</p>
         {context ? (
           // Two lines maximum: a long context line was the other half of the height problem.
-          <p className="t-caption mt-sp-2 line-clamp-2 text-ink-4">{context}</p>
+          <p
+            className={cn("mt-sp-2 line-clamp-2 text-ink-4", compact ? "t-mono-s" : "t-caption")}
+            title={compact ? context : undefined}
+          >
+            {context}
+          </p>
         ) : null}
 
         {series ? <Sparkline values={series} className="mt-sp-4" /> : null}
@@ -121,7 +137,10 @@ export function MetricCard({
                 {/* max-w so a long value (an env var name) truncates instead of wrapping the
                     row onto a second line and pushing the card taller than its neighbours. */}
                 <span
-                  className="t-label max-w-[62%] shrink-0 truncate text-ink-1"
+                  className={cn(
+                    "max-w-[64%] shrink-0 truncate text-ink-1",
+                    compact ? "t-mono-s" : "t-label",
+                  )}
                   title={item.title ?? item.value}
                 >
                   {item.value}

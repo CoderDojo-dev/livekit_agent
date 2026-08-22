@@ -16,6 +16,7 @@ import {
   Token,
 } from "@/components/nexus/primitives";
 import { Modal } from "@/components/nexus/modal";
+import { AreaPicker } from "@/components/nexus/area-picker";
 import { InlineError, TableErrorRow, TableSkeleton } from "@/components/nexus/states";
 import { Pager } from "@/components/nexus/pager";
 import { TableBodySwap } from "@/components/nexus/motion";
@@ -281,11 +282,12 @@ function OutageDialog({ outage, onClose }: { outage?: OutageEntry; onClose: () =
     >
       <div className="space-y-sp-6">
         {!isEdit ? (
-          <TextField
-            label="Area code"
-            placeholder="TN-12"
+          /* Searched by NAME, submitted as a code. An operator declaring an incident knows they
+           * mean Ariana, not that Ariana is TN-12. */
+          <AreaPicker
+            label="Affected area"
             value={areaCode}
-            onChange={(event) => setAreaCode(event.target.value.toUpperCase())}
+            onChange={(code) => setAreaCode(code)}
           />
         ) : null}
 

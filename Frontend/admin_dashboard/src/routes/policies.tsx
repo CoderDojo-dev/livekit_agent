@@ -213,6 +213,7 @@ function PoliciesPage() {
             {guardrails.map((rail) => (
               <MetricCard
                 key={rail.key}
+                compact
                 label={rail.label}
                 value={rail.value}
                 icon={rail.icon}
