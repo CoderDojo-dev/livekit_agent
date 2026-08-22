@@ -79,8 +79,8 @@ create-db:  ## Create the telecom database in Postgres if it does not exist yet
 migrate: create-db  ## Apply DB migrations (alembic upgrade head)
 	cd packages/persistence && $(PYTHON) -m alembic upgrade head
 
-seed:  ## Seed pilot callers + reference catalogs + the logins P0-1 made mandatory
-	cd packages/persistence && $(PYTHON) -m seed.seed_pilot && $(PYTHON) -m seed.seed_reference && $(PYTHON) -m seed.seed_auth_credentials
+seed:  ## Seed pilot callers + reference catalogs + portal history + the logins P0-1 made mandatory
+	cd packages/persistence && $(PYTHON) -m seed.seed_pilot && $(PYTHON) -m seed.seed_reference && $(PYTHON) -m seed.seed_portal_activity && $(PYTHON) -m seed.seed_auth_credentials
 	$(PYTHON) -m business_api.seed_admin
 
 dev: install infra migrate seed  ## ONE COMMAND: install + infra + migrate + seed, then run everything (honcho)

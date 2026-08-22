@@ -1,7 +1,7 @@
 import { Moon, Sun } from "lucide-react";
 import { updatePreferences, usePreferences } from "@/lib/preferences";
 import { IconButton } from "@/components/portal/primitives";
-import { copy } from "@/lib/copy";
+import { useTranslation } from "@/lib/i18n";
 
 /**
  * components/shell/theme-toggle.tsx — the theme, one click from anywhere.
@@ -16,12 +16,13 @@ import { copy } from "@/lib/copy";
  */
 export function ThemeToggle() {
   const { theme } = usePreferences();
+  const { t } = useTranslation();
   const next = theme === "dark" ? "light" : "dark";
   const Icon = next === "light" ? Sun : Moon;
 
   return (
     <IconButton
-      label={copy.shell.theme[next]}
+      label={next === "light" ? t("shell.theme.light") : t("shell.theme.dark")}
       aria-pressed={theme === "light"}
       onClick={() => updatePreferences({ theme: next })}
     >

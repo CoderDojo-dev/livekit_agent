@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { copy } from "@/lib/copy";
 import { usePortalReducedMotion } from "@/hooks/use-portal-motion";
-import { T_PANEL } from "@/components/portal/data";
-import { cn } from "@/lib/utils";
+import { EASE_OUT, T_PANEL } from "@/components/portal/data";
 
 /**
  * components/assistant/scene-backdrop.tsx — chapitre 40, le fond de la scene.
@@ -70,55 +69,113 @@ const PROMPT_ICONS: Record<string, LucideIcon> = {
 const PROMPTS = copy.assistant.prompts;
 
 /**
- * Where the four prompts live.
+ * WHERE A PROMPT LANDS.
  *
- * All four are pinned well outside the middle third, which belongs to the orb
- * and its copy, and all four sit in the OUTER half of their quadrant so that
- * when the stage narrows during a call they are already out of the way.
- * Measured at 1280x720: the four chips clear the 446px central stage region
- * entirely, with the nearest edge 250px away from it.
+ * The four chips used to sit at four hard-coded corners, which after the second
+ * rotation reads as four little signs bolted to the page rather than as things
+ * drifting through it. Every appearance now picks a fresh spot.
  *
- * BELOW md THE PROMPTS DO NOT RENDER AT ALL. The orb is 320px at rest and a
- * phone column is 375px wide, so there is no outer margin left to put a chip
- * in — anything placed there lands on top of the orb or on the state copy
- * underneath it. The grid, the aurora and the scan still run: those are the
- * layers that cost nothing in width.
+ * Random, but never *anywhere*. Three constraints shape the region:
+ *
+ *  1. THE ORB IS SACRED. The stage owns the middle of the screen — a 320px orb
+ *     at rest, its two lines of state copy, and the start control under them.
+ *     Chips are therefore confined to the two outer bands, addressed with the
+ *     LOGICAL start/end insets so the scene mirrors correctly in Arabic.
+ *  2. TWO CHIPS MUST NEVER COLLIDE. Rather than rejection-sampling and hoping,
+ *     each of the four slots owns one band-half (start-upper, end-upper,
+ *     start-lower, end-lower) and randomises only WITHIN it. Overlap is then
+ *     impossible by construction rather than by luck, and the placement still
+ *     lands somewhere new every single time.
+ *  3. THE TWO SIDES MUST NOT LINE UP. The end-side bands are pushed a few
+ *     percent down from the start-side ones, so a left and a right chip never
+ *     form an accidental horizontal pair.
+ *
+ * BELOW md NO PROMPT RENDERS AT ALL. The orb is 320px at rest and a phone
+ * column is 375px wide: there is no outer band left to place anything in. The
+ * grid, the aurora and the scan still run — those cost nothing in width.
  */
-const SLOTS = [
-  { key: "tl", position: "left-[6%] top-[14%]", float: 0 },
-  { key: "tr", position: "right-[7%] top-[22%]", float: 1600 },
-  { key: "bl", position: "left-[11%] bottom-[20%]", float: 3200 },
-  { key: "br", position: "right-[6%] bottom-[15%]", float: 800 },
+type Placement = {
+  /** Logical side, so the scene mirrors under dir="rtl". */
+  side: "start" | "end";
+  /** Distance from that edge, in percent. */
+  inset: number;
+  /** Distance from the top, in percent. */
+  top: number;
+  /** Phase offset for the CSS float, so two chips never breathe in unison. */
+  floatDelay: number;
+};
+
+/** The four bands. Each is one slot's private region; they do not intersect. */
+const BANDS = [
+  { side: "start", insetFrom: 3, insetTo: 13, topFrom: 8, topTo: 30 },
+  { side: "end", insetFrom: 3, insetTo: 12, topFrom: 15, topTo: 37 },
+  { side: "start", insetFrom: 4, insetTo: 14, topFrom: 58, topTo: 80 },
+  { side: "end", insetFrom: 3, insetTo: 13, topFrom: 64, topTo: 86 },
 ] as const;
+
+function between(from: number, to: number): number {
+  return from + Math.random() * (to - from);
+}
+
+function place(slot: number): Placement {
+  const band = BANDS[slot % BANDS.length]!;
+  return {
+    side: band.side,
+    inset: Number(between(band.insetFrom, band.insetTo).toFixed(2)),
+    top: Number(between(band.topFrom, band.topTo).toFixed(2)),
+    // A whole float cycle is 7s; spreading the offset across it means two chips
+    // that happen to appear together still rise and fall out of step.
+    floatDelay: Math.round(between(0, 7000)),
+  };
+}
+
+/** Render order. Indices rather than the band objects: a band only decides
+ *  where a chip MAY go, and the slot state decides where it currently is. */
+const SLOT_INDICES = BANDS.map((_, index) => index);
 
 /** One slot changes every this many ms. Four slots, so any given chip holds
  *  for roughly ten seconds — long enough to read twice without trying. */
 const ROTATE_MS = 2600;
 
+/** What one slot is showing: which prompt, and where. The two travel together
+ *  in ONE state object on purpose — the position has to change on exactly the
+ *  frame the prompt does, or the outgoing chip slides to the incoming chip's
+ *  spot while it is still fading out. */
+type Slot = { prompt: number; at: Placement };
+
 export function SceneBackdrop({ inCall }: { inCall: boolean }) {
   const reduce = usePortalReducedMotion();
 
-  // Slot -> index into PROMPTS. Opens with the first four, which are the four
-  // most-asked things, in the order copy.ts lists them.
-  const [visible, setVisible] = useState<number[]>(() => SLOTS.map((_, index) => index));
+  /*
+   * Opens with the first four prompts — the four most-asked things, in the
+   * order copy.ts lists them — each already placed at random inside its band.
+   *
+   * Randomising in the initialiser is safe HERE and nowhere else in the portal:
+   * this route is `ssr: false`, so there is no server render for the client to
+   * disagree with. On any SSR route this would be a hydration mismatch.
+   */
+  const [slots, setSlots] = useState<Slot[]>(() =>
+    BANDS.map((_, index) => ({ prompt: index, at: place(index) })),
+  );
 
   useEffect(() => {
     // A rotation nobody asked to see is exactly the animation reduced motion
-    // exists to switch off. The opening four stay on screen.
+    // exists to switch off. The opening four stay where they are.
     if (reduce) return;
 
-    let cursor = SLOTS.length;
+    let cursor = BANDS.length;
     let slot = 0;
     const timer = window.setInterval(() => {
       const at = slot;
       const next = cursor % PROMPTS.length;
-      setVisible((previous) => {
+      // New prompt AND new position in one update: they are one visual event.
+      setSlots((previous) => {
         const draft = [...previous];
-        draft[at] = next;
+        draft[at] = { prompt: next, at: place(at) };
         return draft;
       });
       cursor += 1;
-      slot = (slot + 1) % SLOTS.length;
+      slot = (slot + 1) % BANDS.length;
     }, ROTATE_MS);
 
     return () => window.clearInterval(timer);
@@ -150,43 +207,50 @@ export function SceneBackdrop({ inCall }: { inCall: boolean }) {
       {/* 4 — the pass. */}
       <span className="scene-scan absolute inset-x-[12%] h-px bg-[var(--grid-line-lit)]" />
 
-      {/* 5 — the prompts. */}
-      <AnimatePresence>
-        {!inCall
-          ? SLOTS.map((slot, index) => {
-              const prompt = PROMPTS[visible[index] ?? index] ?? PROMPTS[0]!;
-              const Icon = PROMPT_ICONS[prompt.id] ?? MessageCircleQuestion;
-              return (
-                <motion.div
-                  key={slot.key}
-                  className={cn("scene-float absolute hidden md:block", slot.position)}
-                  style={{ ["--float-delay" as string]: `${slot.float}ms` }}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={reduce ? { duration: 0 } : { duration: 0.32 }}
-                >
-                  {/* The chip itself cross-fades on its own key, inside the
-                      slot that holds the position - so the rotation is a word
-                      changing, never a chip flying across the screen. */}
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.span
-                      key={prompt.id}
-                      className="t-ui inline-flex items-center gap-sp-4 rounded-r-3 border border-stroke-subtle bg-surface-1/50 px-sp-5 py-sp-3 text-ink-4 backdrop-blur-[2px]"
-                      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6, filter: "blur(4px)" }}
-                      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                      exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6, filter: "blur(4px)" }}
-                      transition={reduce ? { duration: 0 } : { duration: 0.42 }}
-                    >
-                      <Icon size={13} strokeWidth={1.5} className="shrink-0 text-ink-5" />
-                      {prompt.label}
-                    </motion.span>
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })
-          : null}
-      </AnimatePresence>
+      {/* 5 — the prompts.
+             The POSITIONED element is the one AnimatePresence keys on, so the
+             outgoing chip finishes fading out where it was and the incoming one
+             fades in at its new spot. Keying an inner span inside a positioned
+             wrapper would instead drag the departing chip across the screen to
+             the new coordinates first, which is the one motion this scene must
+             never make. `mode="wait"` holds the slot empty in between, so a
+             chip is never visible in two places at once. */}
+      {SLOT_INDICES.map((index) => {
+        const slot = slots[index];
+        if (!slot) return null;
+        const prompt = PROMPTS[slot.prompt] ?? PROMPTS[0]!;
+        const Icon = PROMPT_ICONS[prompt.id] ?? MessageCircleQuestion;
+        return (
+          <AnimatePresence key={index} mode="wait" initial={false}>
+            {!inCall ? (
+              <motion.div
+                // The placement is part of the key: a rotation that happens to
+                // repeat a prompt still counts as a new appearance.
+                key={prompt.id + "@" + slot.at.top}
+                className="scene-float absolute hidden md:block"
+                style={{
+                  [slot.at.side === "start" ? "insetInlineStart" : "insetInlineEnd"]:
+                    slot.at.inset + "%",
+                  top: slot.at.top + "%",
+                  ["--float-delay" as string]: slot.at.floatDelay + "ms",
+                }}
+                // The entrance every chip shares, unchanged from the fixed-slot
+                // version: rise six pixels out of a four-pixel blur over 420ms,
+                // and leave the same way.
+                initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6, filter: "blur(4px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6, filter: "blur(4px)" }}
+                transition={reduce ? { duration: 0 } : { duration: 0.42, ease: EASE_OUT }}
+              >
+                <span className="t-ui inline-flex items-center gap-sp-4 rounded-r-3 border border-stroke-subtle bg-surface-1/50 px-sp-5 py-sp-3 text-ink-4 backdrop-blur-[2px]">
+                  <Icon size={13} strokeWidth={1.5} className="shrink-0 text-ink-5" />
+                  {prompt.label}
+                </span>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        );
+      })}
     </motion.div>
   );
 }

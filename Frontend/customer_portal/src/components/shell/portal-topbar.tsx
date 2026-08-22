@@ -16,12 +16,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NAV, PAGE_HEAD } from "@/lib/nav";
-import { copy } from "@/lib/copy";
+import { useTranslation } from "@/lib/i18n";
 import { qk } from "@/lib/query-keys";
 import { fetchNotifications } from "@/lib/api/notifications.server";
 import { fetchProfileDetail } from "@/lib/api/me.server";
 import { AccountMenu } from "@/components/shell/account-menu";
 import { NotificationTray } from "@/components/shell/notification-tray";
+import { LanguageToggle } from "@/components/shell/language-toggle";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { IconFrame, StatusChip } from "@/components/portal/primitives";
 
@@ -53,8 +54,11 @@ const NAV_ITEMS = NAV.flatMap((group) => group.items);
 
 export function PortalTopbar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { t } = useTranslation();
   const base = "/" + pathname.split("/").filter(Boolean)[0];
-  const head = PAGE_HEAD[base] ?? { title: "Assistant", subtitle: null };
+  // Every route in the portal is in PAGE_HEAD; the fallback exists only so an unknown path during
+  // a navigation cannot blank the bar.
+  const head = PAGE_HEAD[base] ?? { titleKey: "page.assistant.title" as const, subtitleKey: null };
   const item = NAV_ITEMS.find((entry) => entry.href === base);
   const Icon = item ? (ICONS[item.icon] ?? Info) : Info;
 
@@ -81,16 +85,22 @@ export function PortalTopbar() {
       <IconFrame icon={Icon} tone="strong" className="hidden sm:inline-flex" />
 
       <div className="min-w-0 flex-1">
-        <h1 className="t-title-2 truncate text-ink-1">{head.title}</h1>
-        {head.subtitle ? <p className="t-caption truncate text-ink-4">{head.subtitle}</p> : null}
+        <h1 className="t-title-2 truncate text-ink-1">{t(head.titleKey)}</h1>
+        {head.subtitleKey ? (
+          <p className="t-caption truncate text-ink-4">{t(head.subtitleKey)}</p>
+        ) : null}
       </div>
 
       <div className="hidden items-center gap-sp-4 md:flex">
         <StatusChip tone="muted">
           <Lock size={10} strokeWidth={1.5} />
-          {copy.shell.secure}
+          {t("shell.secure")}
         </StatusChip>
       </div>
+
+      {/* Language before theme: it is the control that changes the most on screen, and a customer
+          who cannot read the interface needs to find it without reading the interface. */}
+      <LanguageToggle />
 
       <ThemeToggle />
 

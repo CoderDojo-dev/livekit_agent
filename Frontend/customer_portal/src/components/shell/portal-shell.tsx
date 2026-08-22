@@ -19,7 +19,7 @@ export function PortalShell({ children, scene = false }: { children: ReactNode; 
         className={cn(
           "flex flex-col transition-[padding] duration-300",
           scene ? "h-screen overflow-hidden" : "min-h-screen",
-          collapsed ? "lg:pl-16" : "lg:pl-64",
+          collapsed ? "lg:ps-16" : "lg:ps-64",
         )}
       >
         <PortalTopbar />

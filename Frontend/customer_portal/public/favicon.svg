@@ -1,6 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">
-  <!-- The orb: a ring with a single node. The product's visual signature,
-       reduced to two strokes that survive 16px. -->
-  <circle cx="8" cy="8" r="5.25" stroke="currentColor" stroke-width="1.5" />
-  <circle cx="10.75" cy="5.25" r="1.875" fill="currentColor" />
+  <!-- The mark: a person. Matches components/shell/brand-mark.tsx, reduced to
+       two strokes that survive 16px. `currentColor` so the light/dark pair
+       below only has to change one value. -->
+  <circle cx="8" cy="5.5" r="2.35" stroke="currentColor" stroke-width="1.4" />
+  <path d="M3.1 13.1c0-2.3 2.18-3.85 4.9-3.85s4.9 1.55 4.9 3.85"
+        stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
 </svg>

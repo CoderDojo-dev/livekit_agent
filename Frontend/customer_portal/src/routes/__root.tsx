@@ -120,7 +120,15 @@ function RootShell({ children }: { children: ReactNode }) {
       stop reporting it. Without this the console carries a hydration error on
       every single page load.
     */
-    <html lang="en" suppressHydrationWarning>
+    /*
+      lang and dir are the SERVER's best guess and nothing more. The real values are written by
+      the boot script below, synchronously, from localStorage — which the server cannot read. They
+      are left as en/ltr here so a crawler and a no-JS reader get a sane document, and
+      suppressHydrationWarning (see above) already covers the mismatch when the stored locale is
+      Arabic. Do not try to "fix" this by computing the locale on the server: there is nothing to
+      compute it from.
+    */
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
         {/*
           Pre-paint preferences: reads localStorage synchronously so a

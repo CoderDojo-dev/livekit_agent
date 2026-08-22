@@ -20,7 +20,7 @@ while ($attempts -lt 30) {
 Write-Output "========== Applying migrations =========="
 docker compose -f "$root\infra\docker-compose\docker-compose.yml" exec -T postgres sh -c "pg_isready -U telecom"
 # Migrations run inside the context-service container:
-docker compose -f "$root\infra\docker-compose\docker-compose.yml" -f "$root\infra\docker-compose\docker-compose.apps.yml" exec -T context-service sh -c "cd /app/packages/persistence && alembic upgrade head && python -m seed.seed_pilot && python -m seed.seed_reference"
+docker compose -f "$root\infra\docker-compose\docker-compose.yml" -f "$root\infra\docker-compose\docker-compose.apps.yml" exec -T context-service sh -c "cd /app/packages/persistence && alembic upgrade head && python -m seed.seed_pilot && python -m seed.seed_reference && python -m seed.seed_portal_activity"
 
 Write-Output "`nAll containers running. Health check:"
 Write-Output "  python scripts\health_check.py"

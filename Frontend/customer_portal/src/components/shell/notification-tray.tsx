@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Bell, BellOff, Mail, MessageSquare, MessagesSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { copy } from "@/lib/copy";
+import { useTranslation } from "@/lib/i18n";
 import { relative } from "@/lib/format";
 import type { NotificationItem } from "@/lib/api/notifications.server";
 import { IconButton, IconFrame, StatusChip } from "@/components/portal/primitives";
@@ -50,6 +51,7 @@ function notificationMessage(item: NotificationItem): string {
 }
 
 export function NotificationTray({ items }: { items: NotificationItem[] }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const reduce = usePortalReducedMotion();
@@ -73,7 +75,7 @@ export function NotificationTray({ items }: { items: NotificationItem[] }) {
   return (
     <div ref={wrapper} className="relative">
       <IconButton
-        label={copy.shell.notifications}
+        label={t("shell.notifications")}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
@@ -85,15 +87,15 @@ export function NotificationTray({ items }: { items: NotificationItem[] }) {
         {open ? (
           <motion.div
             role="dialog"
-            aria-label={copy.notifications.heading}
+            aria-label={t("shell.notifications.heading")}
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.985 }}
             transition={reduce ? { duration: 0 } : { duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 top-11 z-50 w-[336px] overflow-hidden rounded-r-4 border border-stroke-default bg-surface-2 shadow-elev-4"
+            className="absolute end-0 top-11 z-50 w-[336px] overflow-hidden rounded-r-4 border border-stroke-default bg-surface-2 shadow-elev-4"
           >
             <div className="flex items-center justify-between gap-sp-5 border-b border-stroke-subtle px-sp-6 py-sp-5">
-              <span className="t-micro text-ink-4">{copy.notifications.heading}</span>
+              <span className="t-micro text-ink-4">{t("shell.notifications.heading")}</span>
               {items.length > 0 ? (
                 <span className="t-mono-s text-ink-5">{items.length}</span>
               ) : null}
@@ -106,7 +108,7 @@ export function NotificationTray({ items }: { items: NotificationItem[] }) {
               <div className="flex flex-col items-center gap-sp-4 px-sp-6 py-sp-9 text-center">
                 <IconFrame icon={BellOff} tone="strong" />
                 <p className="t-caption max-w-[220px] text-ink-4">
-                  {copy.shell.notificationsEmpty}
+                  {t("shell.notificationsEmpty")}
                 </p>
               </div>
             ) : (
@@ -143,7 +145,7 @@ export function NotificationTray({ items }: { items: NotificationItem[] }) {
                   onClick={() => setOpen(false)}
                   className="focus-ring t-ui group flex items-center justify-between gap-sp-4 border-t border-stroke-subtle px-sp-6 py-sp-5 text-ink-4 transition-colors duration-200 hover:bg-surface-3 hover:text-ink-1"
                 >
-                  {copy.notifications.seeAll}
+                  {t("shell.notifications.seeAll")}
                   <ArrowUpRight
                     size={14}
                     strokeWidth={1.6}

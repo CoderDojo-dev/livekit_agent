@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, LogOut, Shield, UserRound } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { copy } from "@/lib/copy";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
  * only place that calls the logout server function.
  */
 export function AccountMenu({ name, email }: { name: string; email: string }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
 
@@ -44,7 +45,7 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={copy.shell.account}
+        aria-label={t("shell.account")}
         onClick={() => setOpen((value) => !value)}
         className="focus-ring flex h-9 items-center gap-sp-4 rounded-r-2 px-sp-3 text-ink-3 transition-colors duration-200 hover:bg-surface-2 hover:text-ink-1"
       >
@@ -67,7 +68,7 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.985 }}
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 top-11 z-30 w-64 overflow-hidden rounded-r-3 border border-stroke-default bg-surface-2 shadow-elev-3"
+            className="absolute end-0 top-11 z-30 w-64 overflow-hidden rounded-r-3 border border-stroke-default bg-surface-2 shadow-elev-3"
           >
             <div className="border-b border-stroke-subtle px-sp-6 py-sp-5">
               <div className="t-body-strong truncate text-ink-1">{name}</div>
@@ -77,13 +78,13 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
               <MenuLink
                 to="/profile"
                 icon={UserRound}
-                label={copy.shell.menu.profile}
+                label={t("shell.menu.profile")}
                 onDone={() => setOpen(false)}
               />
               <MenuLink
                 to="/security"
                 icon={Shield}
-                label={copy.shell.menu.security}
+                label={t("shell.menu.security")}
                 onDone={() => setOpen(false)}
               />
             </div>
@@ -92,7 +93,7 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
                 to="/logout"
                 search={{ reason: "manual" as const }}
                 icon={LogOut}
-                label={copy.shell.signOut}
+                label={t("shell.signOut")}
                 onDone={() => setOpen(false)}
               />
             </div>

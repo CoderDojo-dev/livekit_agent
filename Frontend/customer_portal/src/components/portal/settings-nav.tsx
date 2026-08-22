@@ -45,7 +45,7 @@ export function SettingsNav<T extends string>({
                 onClick={() => onChange(section.id)}
                 aria-current={active ? "true" : undefined}
                 className={cn(
-                  "focus-ring group relative flex h-9 w-full items-center gap-sp-5 rounded-r-2 px-sp-5 text-left transition-colors duration-200",
+                  "focus-ring group relative flex h-9 w-full items-center gap-sp-5 rounded-r-2 px-sp-5 text-start transition-colors duration-200",
                   active
                     ? "bg-surface-3 text-ink-1"
                     : "text-ink-4 hover:bg-surface-2 hover:text-ink-2",

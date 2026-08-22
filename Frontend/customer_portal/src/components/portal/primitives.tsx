@@ -283,8 +283,8 @@ export function SwitchRow({
       >
         <span
           className={cn(
-            "absolute top-sp-1 h-4 w-4 rounded-r-1 transition-all duration-200",
-            checked ? "left-6 bg-n-0" : "left-sp-1 bg-n-8",
+            "absolute top-sp-1 h-4 w-4 rounded-r-1 transition-[inset-inline-start,background-color] duration-200",
+            checked ? "start-6 bg-n-0" : "start-sp-1 bg-n-8",
           )}
         />
       </button>
@@ -438,7 +438,7 @@ export function Segmented<T extends string>({
           aria-pressed={value === o}
           className={cn(
             "focus-ring t-label h-8 px-sp-6 transition-colors duration-200",
-            i > 0 && "border-l border-stroke-default",
+            i > 0 && "border-s border-stroke-default",
             value === o
               ? "bg-n-12 text-ink-inverse"
               : "bg-surface-2 text-ink-3 hover:bg-surface-3 hover:text-ink-1",

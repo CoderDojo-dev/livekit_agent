@@ -426,7 +426,7 @@ export function Panel({
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="fixed inset-x-0 bottom-0 z-30 max-h-[88vh] overflow-y-auto rounded-t-r-4 border-t border-stroke-default bg-surface-1 p-sp-8 lg:inset-y-0 lg:left-auto lg:right-0 lg:max-h-none lg:w-[520px] lg:rounded-none lg:border-l lg:border-t-0"
+            className="fixed inset-x-0 bottom-0 z-30 max-h-[88vh] overflow-y-auto rounded-t-r-4 border-t border-stroke-default bg-surface-1 p-sp-8 lg:inset-y-0 lg:start-auto lg:end-0 lg:max-h-none lg:w-[520px] lg:rounded-none lg:border-s lg:border-t-0"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
@@ -473,7 +473,7 @@ export function InteractiveRow({
         // `group` so the row's own children can answer the cursor - the icon
         // frames brighten, the chevron slides. `row-accent` grows the same 2px
         // leading stroke the rail uses for the active destination.
-        "focus-ring group row-accent block w-full rounded-r-2 px-sp-5 py-sp-6 text-left transition-all duration-200",
+        "focus-ring group row-accent block w-full rounded-r-2 px-sp-5 py-sp-6 text-start transition-all duration-200",
         "hover:bg-surface-2 hover:shadow-elev-1 active:scale-[0.995]",
         className,
       )}
@@ -537,7 +537,7 @@ export function AnimatedTabs<T extends string>({
           >
             {tab.label}
             {typeof tab.count === "number" ? (
-              <span className="t-mono-s ml-sp-3 text-ink-5">{tab.count}</span>
+              <span className="t-mono-s ms-sp-3 text-ink-5">{tab.count}</span>
             ) : null}
             {active ? (
               <motion.span
@@ -614,7 +614,7 @@ export function Disclosure({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={id}
-        className="focus-ring group flex w-full items-center gap-sp-5 rounded-r-2 py-sp-6 text-left transition-colors duration-200"
+        className="focus-ring group flex w-full items-center gap-sp-5 rounded-r-2 py-sp-6 text-start transition-colors duration-200"
       >
         <ChevronRight
           size={15}

@@ -266,8 +266,9 @@ def requests(
     """Support tickets raised for this customer.
 
     Narrower than repositories.ticket_list: customer_vip and last_synced_at are
-    operational metadata and stay out. ticketing.tickets has no updated_at
-    column, so rows carry created_at only.
+    operational metadata and stay out. `updated_at` (migration 0021) is not:
+    the portal renders "when did this last change" on the request panel and in
+    Activity, and until that column existed both screens printed an em dash.
     """
     size, start = _page(limit, offset)
 
@@ -288,6 +289,7 @@ def requests(
             Ticket.status,
             Ticket.priority,
             Ticket.created_at,
+            Ticket.updated_at,
         )
         .where(*conditions)
         .order_by(Ticket.created_at.desc())
@@ -307,6 +309,7 @@ def requests(
                 "status": row.status,
                 "priority": row.priority,
                 "created_at": _iso(row.created_at),
+                "updated_at": _iso(row.updated_at),
             }
             for row in rows
         ],

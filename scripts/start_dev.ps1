@@ -32,6 +32,10 @@ Write-Output "========== Seeding pilot data =========="
 Push-Location "$root\packages\persistence"
 python -m seed.seed_pilot
 python -m seed.seed_reference
+# Tickets, conversations, callbacks, notifications, payments and top-ups for the three pilot
+# callers. Without it the portal's Requests and Activity tabs are four empty states on a fresh
+# database - the endpoints work, there is simply nothing for them to return.
+python -m seed.seed_portal_activity
 Pop-Location
 
 Write-Output "========== Starting all services via honcho =========="

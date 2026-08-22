@@ -15,7 +15,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NAV } from "@/lib/nav";
-import { brand, copy } from "@/lib/copy";
+import { brand } from "@/lib/copy";
+import { useTranslation } from "@/lib/i18n";
 import { CountBadge } from "@/components/portal/primitives";
 import { useNavCounts } from "@/hooks/use-nav-counts";
 import { cn } from "@/lib/utils";
@@ -40,12 +41,13 @@ const ICONS: Record<string, LucideIcon> = {
 export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const counts = useNavCounts();
+  const { t } = useTranslation();
 
   return (
     <nav
       aria-label="Portal"
       className={cn(
-        "fixed inset-y-0 left-0 z-20 hidden shrink-0 flex-col border-r border-stroke-subtle bg-surface-1 transition-[width] duration-300 lg:flex",
+        "fixed inset-y-0 start-0 z-20 hidden shrink-0 flex-col border-e border-stroke-subtle bg-surface-1 transition-[width] duration-300 lg:flex",
         collapsed ? "w-16" : "w-64",
       )}
     >
@@ -65,7 +67,7 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
         {NAV.map((group) => (
           <div key={group.section} className="mb-sp-8 last:mb-0">
             {!collapsed && (
-              <div className="t-micro-2 px-sp-4 pb-sp-4 text-ink-5">{group.section}</div>
+              <div className="t-micro-2 px-sp-4 pb-sp-4 text-ink-5">{t(group.sectionKey)}</div>
             )}
             <ul className="space-y-sp-1">
               {group.items.map((item) => {
@@ -78,7 +80,7 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
                   <li key={item.href}>
                     <Link
                       to={item.href}
-                      title={collapsed ? item.label : undefined}
+                      title={collapsed ? t(item.labelKey) : undefined}
                       className={cn(
                         "focus-ring group relative flex h-9 items-center gap-sp-5 rounded-r-2 px-sp-4 transition-colors duration-200",
                         active
@@ -101,9 +103,9 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
                           active ? "text-ink-2" : "text-ink-5 group-hover:text-ink-3",
                         )}
                       />
-                      {!collapsed && <span className="t-ui truncate">{item.label}</span>}
+                      {!collapsed && <span className="t-ui truncate">{t(item.labelKey)}</span>}
                       {!collapsed && (
-                        <span className="ml-auto flex shrink-0 items-center gap-sp-4">
+                        <span className="ms-auto flex shrink-0 items-center gap-sp-4">
                           {/* The shortcut sits BEFORE the badge and only fades
                               in, so it never displaces the count: it holds its
                               width at rest and nothing on the row moves on
@@ -131,7 +133,7 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
           className="focus-ring flex h-9 w-full items-center gap-sp-5 rounded-r-2 px-sp-4 text-ink-4 transition-colors duration-200 hover:bg-surface-2 hover:text-ink-2"
         >
           <PanelLeft size={16} strokeWidth={1.5} className="shrink-0" />
-          {!collapsed && <span className="t-label">{copy.shell.collapseRail}</span>}
+          {!collapsed && <span className="t-label">{t("shell.collapseRail")}</span>}
         </button>
       </div>
     </nav>

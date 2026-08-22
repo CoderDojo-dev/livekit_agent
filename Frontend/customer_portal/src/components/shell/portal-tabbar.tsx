@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NAV } from "@/lib/nav";
+import { useTranslation } from "@/lib/i18n";
 import { useNavCounts } from "@/hooks/use-nav-counts";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ const ITEMS = MOBILE_HREFS.map((href) => {
 export function PortalTabbar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const counts = useNavCounts();
+  const { t } = useTranslation();
   return (
     <nav
       aria-label="Portal"
@@ -71,13 +73,13 @@ export function PortalTabbar() {
               {count !== null && count > 0 ? (
                 <span
                   aria-hidden="true"
-                  className="t-micro-2 absolute -right-sp-5 -top-sp-2 tabular-nums text-ink-4"
+                  className="t-micro-2 absolute -end-sp-5 -top-sp-2 tabular-nums text-ink-4"
                 >
                   {count}
                 </span>
               ) : null}
             </span>
-            <span className="t-micro-2">{item.label}</span>
+            <span className="t-micro-2">{t(item.labelKey)}</span>
           </Link>
         );
       })}

@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,4 +57,14 @@ class Ticket(UUIDPrimaryKey, Base):
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    # When the TICKET last changed, as distinct from last_synced_at above, which is bumped by
+    # every reconciliation pass including one that changed nothing. `onupdate` means every ORM
+    # mutation already in the codebase - mirror_update, mirror_set_status, mirror_resolve,
+    # upsert_from_glpi - stamps this without a call-site change (migration 0021).
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=func.now(),
     )

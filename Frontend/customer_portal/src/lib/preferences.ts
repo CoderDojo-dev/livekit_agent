@@ -14,6 +14,12 @@ import { useSyncExternalStore } from "react";
 export type Density = "comfortable" | "compact";
 export type TextSize = "default" | "large";
 export type PortalTheme = "dark" | "light";
+/**
+ * Duplicated rather than imported from i18n.ts: that module imports THIS one for the store, and a
+ * cycle here would break the pre-paint script's key list. i18n.ts re-exports the same union as
+ * `Locale`, and the two are kept in step by the `pick()` call in coerce() below.
+ */
+export type PortalLocale = "en" | "fr" | "ar";
 
 export type PortalPreferences = {
   theme: PortalTheme;
@@ -21,6 +27,13 @@ export type PortalPreferences = {
   density: Density;
   textSize: TextSize;
   captions: boolean;
+  /**
+   * INTERFACE language. Presentation only: it never reaches a server, and it is NOT the language
+   * the assistant speaks — that is crm.customers.preferred_language, set through
+   * me.server.setPreferredLanguage and read by the agent-worker at session start. Arabic also
+   * flips the document to RTL.
+   */
+  locale: PortalLocale;
 };
 
 export const DEFAULT_PREFERENCES: PortalPreferences = {
@@ -29,6 +42,7 @@ export const DEFAULT_PREFERENCES: PortalPreferences = {
   density: "comfortable",
   textSize: "default",
   captions: true,
+  locale: "en",
 };
 
 export const PREFERENCES_KEY = "portal_preferences";
@@ -65,6 +79,7 @@ function coerce(raw: string | null): PortalPreferences {
     density: pick(stored.density, ["comfortable", "compact"] as const, DEFAULT_PREFERENCES.density),
     textSize: pick(stored.textSize, ["default", "large"] as const, DEFAULT_PREFERENCES.textSize),
     captions: typeof stored.captions === "boolean" ? stored.captions : DEFAULT_PREFERENCES.captions,
+    locale: pick(stored.locale, ["en", "fr", "ar"] as const, DEFAULT_PREFERENCES.locale),
   };
 }
 
@@ -98,6 +113,12 @@ export function applyPreferences(next: PortalPreferences): void {
   root.dataset["density"] = next.density;
   root.dataset["textSize"] = next.textSize;
   root.dataset["captions"] = String(next.captions);
+  // `lang` drives hyphenation, quotation marks and screen-reader pronunciation; `dir` mirrors the
+  // whole layout through the CSS logical properties the shell is built on.
+  root.lang = next.locale;
+  root.dir = next.locale === "ar" ? "rtl" : "ltr";
+  // colorScheme drives the native form controls, the scrollbar and the OS focus ring.
+  root.style.colorScheme = next.theme;
 }
 
 /*
@@ -116,7 +137,11 @@ export const PREFERENCES_BOOT_SCRIPT = [
   'd.dataset.reduceMotion=p.reduceMotion===true?"true":"false";',
   'd.dataset.density=p.density==="compact"?"compact":"comfortable";',
   'd.dataset.textSize=p.textSize==="large"?"large":"default";',
-  'd.dataset.captions=p.captions===false?"false":"true";}catch(e){}})();',
+  'd.dataset.captions=p.captions===false?"false":"true";',
+  // Language and direction have to be set BEFORE first paint like everything else here: applying
+  // dir from the bundle would render one frame of a left-to-right Arabic page and then flip it.
+  'var l=p.locale;if(l!=="fr"&&l!=="ar"){l="en";}d.lang=l;d.dir=l==="ar"?"rtl":"ltr";',
+  'd.style.colorScheme=p.theme==="light"?"light":"dark";}catch(e){}})();',
 ].join("");
 
 /* -------------------------------------------------------------------------- *
