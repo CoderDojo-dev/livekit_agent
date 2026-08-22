@@ -89,11 +89,18 @@ export function PortalRail({ collapsed, onToggle }: { collapsed: boolean; onTogg
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "absolute left-0 top-sp-3 h-3 w-px bg-n-12 transition-opacity duration-200",
-                          active ? "opacity-100" : "opacity-0",
+                          "absolute start-0 top-1/2 w-0.5 -translate-y-1/2 rounded-r-1 bg-n-12 transition-[height,opacity] duration-200",
+                          active ? "h-4 opacity-100" : "h-0 opacity-0",
                         )}
                       />
-                      <Icon size={16} strokeWidth={1.5} className="shrink-0" />
+                      <Icon
+                        size={16}
+                        strokeWidth={1.5}
+                        className={cn(
+                          "shrink-0 transition-colors duration-200",
+                          active ? "text-ink-2" : "text-ink-5 group-hover:text-ink-3",
+                        )}
+                      />
                       {!collapsed && <span className="t-ui truncate">{item.label}</span>}
                       {!collapsed && (
                         <span className="ml-auto flex shrink-0 items-center gap-sp-4">

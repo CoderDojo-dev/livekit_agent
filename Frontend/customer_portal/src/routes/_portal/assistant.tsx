@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAgent, useSessionContext } from "@livekit/components-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Mic, MicOff, PhoneCall, PhoneOff, LockKeyhole } from "lucide-react";
+import { AudioLines, Mic, MicOff, PhoneCall, PhoneOff, LockKeyhole } from "lucide-react";
 import { Orb } from "@/components/orb/orb";
 import { OrbPlinth } from "@/components/orb/orb-plinth";
 import { ORB_SIZE, type OrbState } from "@/lib/orb-config";
@@ -17,6 +17,7 @@ import { VoiceSessionProvider } from "@/components/assistant/voice-session";
 import { useParticipantName } from "@/components/assistant/participant-name";
 import { StartAudioButton } from "@/components/assistant/start-audio-button";
 import { LiveStream } from "@/components/assistant/live-stream";
+import { SceneBackdrop } from "@/components/assistant/scene-backdrop";
 import { Button, Card, IconButton, StatusChip } from "@/components/portal/primitives";
 import { T_BASE, T_MICRO, T_PANEL, T_STAGE } from "@/components/portal/data";
 import { duration } from "@/lib/format";
@@ -262,11 +263,20 @@ function AssistantStage() {
           hears the assistant. Same component the client-widget uses. */}
       <StartAudioButton label={copy.assistant.enableAudio} />
 
-      <div className="flex items-center gap-sp-5">
+      {/* The three assurances, in the order a first-time caller worries about
+          them: who can hear this, what is being captured, what is kept. The
+          third was already true (the worker never persists audio, see
+          copy.about.dataBody) and was the one thing the scene never said. */}
+      <div className="flex flex-wrap items-center justify-center gap-sp-4">
         <StatusChip tone="outline">
           <LockKeyhole size={12} strokeWidth={1.5} /> {copy.assistant.assurance.encrypted}
         </StatusChip>
-        <StatusChip tone="dotted">{copy.assistant.assurance.audioOnly}</StatusChip>
+        <StatusChip tone="dotted">
+          <AudioLines size={12} strokeWidth={1.5} /> {copy.assistant.assurance.audioOnly}
+        </StatusChip>
+        <StatusChip tone="dashed">
+          <MicOff size={12} strokeWidth={1.5} /> {copy.assistant.assurance.noRecording}
+        </StatusChip>
       </div>
     </>
   );
@@ -277,7 +287,14 @@ function AssistantStage() {
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
+    // `relative isolate` so the backdrop's absolute layers are measured against
+    // the scene and its z-index cannot escape into the shell. Nothing else in
+    // this subtree changed: every component the call depends on - the orb, the
+    // controls, the live stream - is untouched, and the backdrop is a sibling
+    // painted underneath them.
+    <div className="relative isolate flex h-full min-h-0 w-full flex-col">
+      <SceneBackdrop inCall={inCall} />
+
       {/*
         One grid, two states. The stage column always exists; the transcript
         column is a real grid track that animates from 0fr to 1fr, so the orb
@@ -289,7 +306,7 @@ function AssistantStage() {
       {isLg ? (
         <motion.div
           layout
-          className="grid min-h-0 flex-1 items-center gap-sp-8 lg:gap-sp-10"
+          className="relative z-10 grid min-h-0 flex-1 items-center gap-sp-8 lg:gap-sp-10"
           animate={{
             gridTemplateColumns: inCall
               ? "minmax(0,0.85fr) minmax(0,1.15fr)"
@@ -323,7 +340,7 @@ function AssistantStage() {
       ) : (
         // Below lg: plain stacked column. The whole thing scrolls as one
         // region; pb-20 clears the mobile tabbar, lg:pb-0 is a no-op here.
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-sp-7 overflow-y-auto pb-20 lg:pb-0">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-sp-7 overflow-y-auto pb-20 lg:pb-0">
           {stage}
           {inCall ? liveStream : null}
         </div>
@@ -332,7 +349,7 @@ function AssistantStage() {
       {/* SUMMARY — real duration from server, real turn count from recap query.
           Stays below the stage, outside the grid. */}
       {!inCall && startedAt ? (
-        <Card className="w-full max-w-lg">
+        <Card className="relative z-10 w-full max-w-lg">
           <div className="t-micro-2 text-ink-5">{copy.assistant.summary.heading}</div>
           <div className="mt-sp-5 grid grid-cols-2 gap-sp-6">
             <MetricPair

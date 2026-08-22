@@ -2,7 +2,18 @@ import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AudioLines, Inbox, PhoneCall } from "lucide-react";
+import {
+  AudioLines,
+  Bell,
+  CalendarClock,
+  Clock,
+  Inbox,
+  MessageSquare,
+  MessagesSquare,
+  PhoneCall,
+  Search,
+  type LucideIcon,
+} from "lucide-react";
 import { brand, copy, pageTitle, personaLabel } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import {
@@ -22,6 +33,7 @@ import {
   Button,
   Card,
   Divider,
+  IconFrame,
   SearchField,
   SectionLabel,
   StatusChip,
@@ -35,6 +47,7 @@ import {
   PageSection,
   Pagination,
   Panel,
+  RowChevron,
   SkeletonList,
   SkeletonMetric,
 } from "@/components/portal/data";
@@ -70,11 +83,20 @@ const TABS = [
   { id: "callback", label: copy.activity.tabs.callbacks },
 ] as const;
 
-const KIND_ICON = {
+const KIND_ICON: Record<ListItem["kind"], LucideIcon> = {
   conversation: AudioLines,
   request: Inbox,
   callback: PhoneCall,
-} as const;
+};
+
+/* The three notification channels, as glyphs. The tray in the topbar and this
+ * list are the only two places a channel is named; the glyph makes the column
+ * scannable without repeating the word on every row. */
+const CHANNEL_ICON: Record<NotificationItem["channel"], LucideIcon> = {
+  sms: MessageSquare,
+  whatsapp: MessagesSquare,
+  email: Bell,
+};
 
 const CALLBACK_TONE: Record<CallbackItem["status"], "solid" | "outline" | "dashed" | "muted"> = {
   pending: "dashed",
@@ -282,15 +304,15 @@ function ConversationBody({ sessionId }: { sessionId: string }) {
       >
         {copy.labels.channel[detail.channel as keyof typeof copy.labels.channel] ?? detail.channel}
       </SectionLabel>
-      <dl className="mt-sp-6 grid grid-cols-3 gap-sp-5">
+      <dl className="mt-sp-6 grid grid-cols-3 gap-sp-4">
         {[
           [copy.activity.when, dateTime(detail.started_at)],
           [copy.activity.duration, duration(detail.duration_seconds)],
           [copy.activity.turns, String(turnCount(detail.turns))],
         ].map(([k, v]) => (
-          <div key={k}>
+          <div key={k} className="rounded-r-2 border border-stroke-subtle bg-surface-2 p-sp-5">
             <dt className="t-micro-2 text-ink-5">{k}</dt>
-            <dd className="t-mono mt-sp-2 text-ink-2">{v}</dd>
+            <dd className="t-mono mt-sp-2 text-ink-1">{v}</dd>
           </div>
         ))}
       </dl>
@@ -329,17 +351,24 @@ function ConversationBody({ sessionId }: { sessionId: string }) {
                       <span className="h-px flex-1 bg-stroke-subtle" />
                     </div>
                   ) : null}
-                  <div className="t-micro-2 mb-sp-2 flex gap-sp-4 text-ink-5">
+                  <div className="t-micro-2 mb-sp-3 flex gap-sp-4 text-ink-5">
                     <span>{copy.labels.speaker[line.speaker] ?? line.speaker}</span>
                     <span className="t-mono-s">{dateTime(line.at)}</span>
                   </div>
+                  {/* Two speakers, two treatments, no colour: the assistant
+                      speaks from a raised surface behind a leading rule, and
+                      you speak in plain ink on the page. That is enough to
+                      read a transcript by shape rather than by re-reading the
+                      label above every paragraph. */}
                   <p
                     className={cn(
                       "t-body",
-                      line.speaker === "caller" ? "text-ink-3" : "text-ink-1",
+                      isAgentTurn
+                        ? "rounded-r-2 border-s-2 border-stroke-strong bg-surface-2 px-sp-5 py-sp-4 text-ink-1"
+                        : "ps-sp-5 text-ink-3",
                     )}
                   >
-                    {line.text ?? "—"}
+                    {line.text ?? copy.common.notApplicable}
                   </p>
                 </div>
               );
@@ -365,7 +394,7 @@ function RequestBody({ item }: { item: RequestItem }) {
       </SectionLabel>
       <h3 className="t-title-2 mt-sp-6 text-ink-1">{requestTitle(item)}</h3>
       <Divider className="my-sp-7" />
-      <dl className="grid grid-cols-2 gap-sp-5">
+      <dl className="grid grid-cols-2 gap-sp-4">
         {[
           [copy.requests.category, requestCaption(item)],
           [
@@ -375,9 +404,9 @@ function RequestBody({ item }: { item: RequestItem }) {
           [copy.requests.created, dateTime(item.created_at)],
           [copy.requests.updated, dateTime(item.updated_at)],
         ].map(([k, v]) => (
-          <div key={k}>
+          <div key={k} className="rounded-r-2 border border-stroke-subtle bg-surface-2 p-sp-5">
             <dt className="t-micro-2 text-ink-5">{k}</dt>
-            <dd className="t-body-strong mt-sp-2 text-ink-2">{v}</dd>
+            <dd className="t-body-strong mt-sp-2 text-ink-1">{v}</dd>
           </div>
         ))}
       </dl>
@@ -421,15 +450,15 @@ function CallbackBody({ item }: { item: CallbackItem }) {
         {copy.activity.tabs.callbacks}
       </SectionLabel>
       <Divider className="mt-sp-7" />
-      <dl className="mt-sp-7 grid grid-cols-2 gap-sp-5">
+      <dl className="mt-sp-7 grid grid-cols-2 gap-sp-4">
         {[
           [copy.activity.callbackTime, dateTime(item.scheduled_time)],
-          [copy.activity.callbackWindow, item.preferred_window ?? "—"],
-          [copy.requests.category, item.reason ?? "—"],
+          [copy.activity.callbackWindow, item.preferred_window ?? copy.common.notApplicable],
+          [copy.requests.category, item.reason ?? copy.common.notApplicable],
         ].map(([k, v]) => (
-          <div key={k}>
+          <div key={k} className="rounded-r-2 border border-stroke-subtle bg-surface-2 p-sp-5">
             <dt className="t-micro-2 text-ink-5">{k}</dt>
-            <dd className="t-body-strong mt-sp-2 text-ink-2">{v}</dd>
+            <dd className="t-body-strong mt-sp-2 text-ink-1">{v}</dd>
           </div>
         ))}
       </dl>
@@ -565,6 +594,7 @@ function ActivityScreen() {
     ? {
         title: copy.empty.filtered.title,
         body: copy.empty.filtered.body,
+        icon: Search,
         action: (
           <Button
             variant="secondary"
@@ -581,6 +611,7 @@ function ActivityScreen() {
       ? {
           title: copy.requests.empty.title,
           body: copy.requests.empty.body,
+          icon: Inbox,
           action: (
             <Button variant="secondary" onClick={() => setTab("all")}>
               {copy.requests.empty.action}
@@ -591,10 +622,12 @@ function ActivityScreen() {
         ? {
             title: copy.empty.callbacks.title,
             body: copy.empty.callbacks.body,
+            icon: PhoneCall,
           }
         : {
             title: copy.empty.activityA.title,
             body: copy.empty.activityA.body,
+            icon: AudioLines,
             action: (
               <Button variant="primary" onClick={() => void navigate({ to: "/assistant" })}>
                 {copy.empty.activityA.action}
@@ -614,7 +647,7 @@ function ActivityScreen() {
   return (
     <div className="space-y-sp-9">
       {heroQuery.isPending ? (
-        <PageSection label={copy.activity.heroLabel}>
+        <PageSection label={copy.activity.heroLabel} index={0}>
           <Card>
             <div className="grid gap-sp-6 sm:grid-cols-2 lg:grid-cols-3">
               <SkeletonMetric />
@@ -625,6 +658,7 @@ function ActivityScreen() {
         </PageSection>
       ) : hero ? (
         <PageSection
+          index={0}
           label={copy.activity.heroLabel}
           right={
             hero.disposition ? (
@@ -638,9 +672,21 @@ function ActivityScreen() {
         >
           <Card>
             <div className="grid gap-sp-6 sm:grid-cols-2 lg:grid-cols-3">
-              <MetricTile label={copy.activity.when} value={dateTime(hero.started_at)} />
-              <MetricTile label={copy.activity.duration} value={duration(hero.duration_seconds)} />
-              <MetricTile label={copy.activity.turns} value={String(turnCount(hero.turns))} />
+              <MetricTile
+                icon={CalendarClock}
+                label={copy.activity.when}
+                value={dateTime(hero.started_at)}
+              />
+              <MetricTile
+                icon={Clock}
+                label={copy.activity.duration}
+                value={duration(hero.duration_seconds)}
+              />
+              <MetricTile
+                icon={MessagesSquare}
+                label={copy.activity.turns}
+                value={String(turnCount(hero.turns))}
+              />
             </div>
             {/* Between the tiles and the action, at the tiles' own rhythm
                 (sp-7 above, sp-7 below): the strip reads as part of the metric
@@ -655,6 +701,7 @@ function ActivityScreen() {
                 variant="primary"
                 onClick={() => setSelected({ kind: "conversation", sessionId: hero.session_id })}
               >
+                <AudioLines size={15} strokeWidth={1.5} />
                 {copy.activity.open}
               </Button>
             </div>
@@ -682,7 +729,14 @@ function ActivityScreen() {
         />
       </div>
 
-      <DataSection state={state} items={rows} skeletonRows={5} empty={empty} onRetry={retry}>
+      <DataSection
+        index={1}
+        state={state}
+        items={rows}
+        skeletonRows={5}
+        empty={empty}
+        onRetry={retry}
+      >
         {(items) => (
           <>
             <ul className="divide-y divide-stroke-subtle">
@@ -694,9 +748,11 @@ function ActivityScreen() {
                       onClick={() => setSelected(selectionFor(item))}
                       className="flex items-start gap-sp-6"
                     >
-                      <span className="mt-sp-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-r-2 border border-stroke-subtle bg-surface-3 text-ink-3">
-                        <Icon size={16} strokeWidth={1.5} />
-                      </span>
+                      {/* Was a hand-rolled 9x9 plate, repeated verbatim on
+                          three screens with three slightly different borders.
+                          One primitive now, so the whole portal's icons
+                          brighten with their row on hover. */}
+                      <IconFrame icon={Icon} className="mt-sp-1" />
                       <span className="min-w-0 flex-1">
                         <span className="t-body-strong block truncate text-ink-1">
                           {item.title}
@@ -715,6 +771,9 @@ function ActivityScreen() {
                       </span>
                       <span className="t-mono-s shrink-0 pt-sp-2 text-ink-5">
                         {relative(item.at)}
+                      </span>
+                      <span className="pt-sp-2">
+                        <RowChevron />
                       </span>
                     </InteractiveRow>
                   </li>
@@ -752,24 +811,38 @@ function ActivityScreen() {
           >
             {(items) => (
               <ul className="divide-y divide-stroke-subtle">
-                {items.map((cb, i) => (
-                  <li
-                    key={cb.scheduled_time ?? `${cb.reason ?? "callback"}-${i}`}
-                    className="flex items-baseline justify-between gap-sp-5 py-sp-4"
-                  >
-                    <div className="min-w-0">
-                      <p className="t-body-strong text-ink-1">
-                        {copy.labels.callbackStatus[
-                          cb.status as keyof typeof copy.labels.callbackStatus
-                        ] ?? cb.status}
-                      </p>
-                      <p className="t-caption text-ink-4">{cb.reason ?? "—"}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="t-caption text-ink-4">{dateTime(cb.scheduled_time)}</p>
-                    </div>
-                  </li>
-                ))}
+                {items.map((cb, i) => {
+                  // CallbackItem.status is a plain string on the wire; both maps
+                  // below are keyed by the three values the worker writes and both
+                  // fall back, so an unexpected value degrades to a muted chip
+                  // showing itself rather than to an empty cell.
+                  const status = cb.status as keyof typeof copy.labels.callbackStatus;
+                  return (
+                    <li
+                      key={cb.scheduled_time ?? `${cb.reason ?? "callback"}-${i}`}
+                      className="group flex items-center gap-sp-5 py-sp-5"
+                    >
+                      <IconFrame icon={PhoneCall} />
+                      <div className="min-w-0 flex-1">
+                        <p className="t-body-strong truncate text-ink-1">
+                          {cb.reason ?? copy.activity.tabs.callbacks}
+                        </p>
+                        <p className="t-mono-s mt-sp-1 text-ink-5">{dateTime(cb.scheduled_time)}</p>
+                      </div>
+                      {/* The status was the headline and the reason was the
+                          caption, which put "Scheduled" in bold on every row
+                          and buried the one line that says what the call is
+                          about. Swapped: the reason leads, the status becomes
+                          a chip like every other status in the portal. */}
+                      <StatusChip
+                        tone={CALLBACK_TONE[status] ?? "muted"}
+                        live={status === "pending"}
+                      >
+                        {copy.labels.callbackStatus[status] ?? cb.status}
+                      </StatusChip>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </DataSection>
@@ -787,28 +860,28 @@ function ActivityScreen() {
                   {items.map((n, i) => (
                     <li
                       key={`${n.created_at ?? "na"}-${i}`}
-                      className="flex items-baseline justify-between gap-sp-5 py-sp-4"
+                      className="group flex items-center gap-sp-5 py-sp-5"
                     >
-                      <div className="min-w-0">
-                        <p className="t-body-strong text-ink-1">
-                          {copy.labels.notificationChannel[n.channel]}
-                        </p>
-                        <p className="t-caption text-ink-4">
+                      <IconFrame icon={CHANNEL_ICON[n.channel] ?? Bell} />
+                      <div className="min-w-0 flex-1">
+                        {/* The message leads and the channel drops to the
+                            caption. A column of "Text message" in bold said
+                            nothing; the template line is the message. */}
+                        <p className="t-body-strong truncate text-ink-1">
                           {n.template_code
                             ? (copy.notificationTemplates[
                                 n.template_code as keyof typeof copy.notificationTemplates
                               ] ?? copy.notifications.genericMessage)
                             : copy.notifications.genericMessage}
                         </p>
-                      </div>
-                      <div className="text-right">
-                        <StatusChip tone={NOTIFICATION_TONE[n.status]}>
-                          {copy.labels.notificationStatus[n.status]}
-                        </StatusChip>
-                        <p className="t-caption text-ink-4">
+                        <p className="t-caption mt-sp-1 truncate text-ink-5">
+                          {copy.labels.notificationChannel[n.channel]} ·{" "}
                           {relative(n.sent_at ?? n.created_at)}
                         </p>
                       </div>
+                      <StatusChip tone={NOTIFICATION_TONE[n.status]}>
+                        {copy.labels.notificationStatus[n.status]}
+                      </StatusChip>
                     </li>
                   ))}
                 </ul>

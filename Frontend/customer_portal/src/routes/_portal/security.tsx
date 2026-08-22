@@ -3,15 +3,22 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Monitor, Smartphone, Laptop } from "lucide-react";
+import { History, KeyRound, Laptop, Monitor, MonitorSmartphone, Smartphone } from "lucide-react";
 import { brand, copy, pageTitle } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
 import { changePassword, fetchPortalSessions, revokeAllSessions } from "@/lib/api/account.server";
 import { errorMessage } from "@/lib/api/errors";
 import { dateTime, deviceLabel, relative } from "@/lib/format";
-import { Button, Card, FieldRow, SectionLabel, StatusChip } from "@/components/portal/primitives";
-import { ErrorState, SkeletonList } from "@/components/portal/data";
-import { cn } from "@/lib/utils";
+import {
+  Button,
+  Card,
+  FieldRow,
+  IconFrame,
+  SectionLabel,
+  StatusChip,
+} from "@/components/portal/primitives";
+import { ErrorState, PageSection, SkeletonList } from "@/components/portal/data";
+import { SettingsNav } from "@/components/portal/settings-nav";
 
 export const Route = createFileRoute("/_portal/security")({
   head: () => ({
@@ -32,9 +39,9 @@ export const Route = createFileRoute("/_portal/security")({
 });
 
 const SECTIONS = [
-  { id: "signIn", label: copy.security.nav.signIn },
-  { id: "sessions", label: copy.security.nav.sessions },
-  { id: "activity", label: copy.security.nav.activity },
+  { id: "signIn", label: copy.security.nav.signIn, icon: KeyRound },
+  { id: "sessions", label: copy.security.nav.sessions, icon: MonitorSmartphone },
+  { id: "activity", label: copy.security.nav.activity, icon: History },
 ] as const;
 
 const DEVICE_ICON = [Laptop, Smartphone, Monitor];
@@ -155,42 +162,31 @@ function SecurityScreen() {
 
   return (
     <div className="grid gap-sp-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <nav className="lg:sticky lg:top-24 lg:self-start">
-        <ul className="space-y-sp-1">
-          {SECTIONS.map((s) => (
-            <li key={s.id}>
-              <button
-                onClick={() => setSection(s.id)}
-                className={cn(
-                  "focus-ring t-ui flex h-9 w-full items-center rounded-r-2 px-sp-5 text-left transition-colors duration-200",
-                  section === s.id
-                    ? "bg-surface-3 text-ink-1"
-                    : "text-ink-4 hover:bg-surface-2 hover:text-ink-2",
-                )}
-              >
-                {s.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SettingsNav
+        sections={SECTIONS}
+        value={section}
+        onChange={setSection}
+        label={copy.security.navLabel}
+      />
 
       <div className="space-y-sp-8">
         {section === "signIn" && (
-          <Card>
-            <SectionLabel>{copy.security.signIn}</SectionLabel>
-            <div className="mt-sp-4 divide-y divide-stroke-subtle">
-              <FieldRow
-                label={copy.security.password}
-                value={
-                  passwordChangedAt
-                    ? copy.security.lastChanged(relative(passwordChangedAt))
-                    : copy.security.lastChangedNever
-                }
-                action={<ChangePasswordPanel />}
-              />
-            </div>
-          </Card>
+          <PageSection>
+            <Card>
+              <SectionLabel>{copy.security.signIn}</SectionLabel>
+              <div className="mt-sp-4 divide-y divide-stroke-subtle">
+                <FieldRow
+                  label={copy.security.password}
+                  value={
+                    passwordChangedAt
+                      ? copy.security.lastChanged(relative(passwordChangedAt))
+                      : copy.security.lastChangedNever
+                  }
+                  action={<ChangePasswordPanel />}
+                />
+              </div>
+            </Card>
+          </PageSection>
         )}
 
         {section === "sessions" && (
@@ -213,20 +209,22 @@ function SecurityScreen() {
                 {sessions.map((s, i) => {
                   const Icon = DEVICE_ICON[i % DEVICE_ICON.length]!;
                   return (
-                    <li key={s.session_id} className="flex items-center gap-sp-6 py-sp-6">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-r-2 border border-stroke-subtle bg-surface-3 text-ink-3">
-                        <Icon size={16} strokeWidth={1.5} />
-                      </span>
+                    <li key={s.session_id} className="group flex items-center gap-sp-6 py-sp-6">
+                      <IconFrame icon={Icon} tone={s.current ? "strong" : "default"} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-sp-4">
                           <span className="t-body-strong text-ink-1">
                             {deviceLabel(s.user_agent)}
                           </span>
                           {s.current && (
-                            <StatusChip tone="solid">{copy.security.thisDevice}</StatusChip>
+                            <StatusChip tone="solid" live>
+                              {copy.security.thisDevice}
+                            </StatusChip>
                           )}
                         </div>
-                        <div className="t-caption text-ink-4">{s.ip_address ?? "—"}</div>
+                        <div className="t-caption text-ink-4">
+                          {s.ip_address ?? copy.common.notApplicable}
+                        </div>
                       </div>
                       <span className="t-mono-s shrink-0 text-ink-5">
                         {relative(s.signed_in_at)}
@@ -247,13 +245,11 @@ function SecurityScreen() {
             ) : (
               <ul className="mt-sp-6 divide-y divide-stroke-subtle">
                 {sessions.map((s) => (
-                  <li
-                    key={s.session_id}
-                    className="flex items-center justify-between gap-sp-6 py-sp-5"
-                  >
-                    <div className="min-w-0">
+                  <li key={s.session_id} className="group flex items-center gap-sp-5 py-sp-5">
+                    <IconFrame icon={History} size="sm" />
+                    <div className="min-w-0 flex-1">
                       <div className="t-ui text-ink-1">{copy.security.signedIn}</div>
-                      <div className="t-caption text-ink-4">
+                      <div className="t-caption truncate text-ink-4">
                         {deviceLabel(s.user_agent)}
                         {s.ip_address ? ` · ${s.ip_address}` : ""}
                       </div>

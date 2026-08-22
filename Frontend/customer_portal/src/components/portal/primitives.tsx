@@ -1,4 +1,5 @@
 import * as React from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -89,16 +90,86 @@ export function CountBadge({
 export function Card({
   className,
   inset = true,
+  interactive = false,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & { inset?: boolean }) {
+}: React.HTMLAttributes<HTMLDivElement> & {
+  inset?: boolean;
+  /**
+   * Opt-in hover response, for a card that is itself a target — a topic tile, a
+   * subscription, a balance. A card that only displays a figure does NOT get
+   * this: a surface that lifts under the cursor and then does nothing when
+   * clicked is a lie about affordance, and the portal tells no small lies.
+   */
+  interactive?: boolean;
+}) {
   return (
     <div
       className={cn(
         "rounded-r-5 border border-stroke-default bg-surface-1 shadow-elev-1",
         inset && "p-sp-8",
+        interactive && "card-lift",
         className,
       )}
       {...props}
+    />
+  );
+}
+
+/**
+ * The squircle that holds an icon.
+ *
+ * Written once because it was being written by hand on six screens with three
+ * different sizes and two different border weights. Chapter 4.6 still applies:
+ * a squircle, never a true circle. Inside a `group`, it brightens with its
+ * card — the icon is the first thing that answers the cursor, before the
+ * border and well before the shadow.
+ */
+export function IconFrame({
+  icon: Icon,
+  size = "md",
+  tone = "default",
+  className,
+}: {
+  icon: LucideIcon;
+  size?: "sm" | "md" | "lg";
+  tone?: "default" | "strong" | "quiet";
+  className?: string;
+}) {
+  const box =
+    size === "sm"
+      ? "h-7 w-7 rounded-r-2"
+      : size === "lg"
+        ? "h-12 w-12 rounded-r-3"
+        : "h-9 w-9 rounded-r-2";
+  const glyph = size === "sm" ? 13 : size === "lg" ? 20 : 16;
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center border transition-[color,border-color,background-color] duration-200",
+        box,
+        tone === "strong" && "border-stroke-strong bg-surface-4 text-ink-1 shadow-elev-1",
+        tone === "default" &&
+          "border-stroke-subtle bg-surface-3 text-ink-3 group-hover:border-stroke-strong group-hover:text-ink-1",
+        tone === "quiet" && "border-transparent bg-transparent text-ink-4 group-hover:text-ink-2",
+        className,
+      )}
+    >
+      <Icon size={glyph} strokeWidth={1.5} />
+    </span>
+  );
+}
+
+/**
+ * A two-pixel mark that something is happening right now. The only infinite
+ * animation outside the assistant scene, and it is silenced with everything
+ * else under reduced motion.
+ */
+export function LiveDot({ className }: { className?: string | undefined }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("live-dot inline-block h-1.5 w-1.5 rounded-r-1 bg-ink-2", className)}
     />
   );
 }
@@ -126,16 +197,19 @@ export type ChipTone = "solid" | "outline" | "dashed" | "dotted" | "muted";
 export function StatusChip({
   children,
   tone = "outline",
+  live = false,
   className,
 }: {
   children: React.ReactNode;
   tone?: ChipTone;
+  /** Prefixes a pulsing dot. Only for a state that is genuinely in motion. */
+  live?: boolean;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        "t-micro-2 inline-flex h-6 items-center gap-sp-3 rounded-r-1 border px-sp-4",
+        "t-micro-2 inline-flex h-6 items-center gap-sp-3 rounded-r-1 border px-sp-4 transition-colors duration-200",
         tone === "solid" && "border-transparent bg-n-12 text-ink-inverse",
         tone === "outline" && "border-stroke-ink bg-transparent text-ink-2",
         tone === "dashed" && "border-dashed border-stroke-strong bg-transparent text-ink-2",
@@ -144,6 +218,7 @@ export function StatusChip({
         className,
       )}
     >
+      {live ? <LiveDot className={tone === "solid" ? "bg-ink-inverse" : undefined} /> : null}
       {children}
     </span>
   );
@@ -257,15 +332,26 @@ export function EmptyState({
   title,
   body,
   action,
+  icon: Icon,
 }: {
   title: string;
   body: string;
-  action?: React.ReactNode;
+  action?: React.ReactNode | undefined;
+  /** Names the absence. An empty box only said "something is missing here". */
+  icon?: LucideIcon | undefined;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-r-5 border border-dashed border-stroke-default px-sp-8 py-sp-12 text-center">
-      <div className="h-10 w-10 rounded-r-3 border border-stroke-strong bg-surface-2 shadow-elev-1" />
-      <h3 className="t-title-3 mt-sp-7 text-ink-1">{title}</h3>
+    <div className="flex flex-col items-center justify-center rounded-r-5 border border-dashed border-stroke-default px-sp-8 py-sp-11 text-center">
+      {/* The plate behind the glyph is what the bare grey square was reaching
+          for: a held object rather than a gap in the layout. */}
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-r-3 border border-stroke-strong bg-surface-2 text-ink-4 shadow-elev-1">
+        {Icon ? <Icon size={20} strokeWidth={1.4} aria-hidden="true" /> : null}
+        <span
+          aria-hidden="true"
+          className="absolute -inset-sp-4 rounded-r-4 border border-dashed border-stroke-subtle"
+        />
+      </div>
+      <h3 className="t-title-3 mt-sp-8 text-ink-1">{title}</h3>
       <p className="t-body mt-sp-3 max-w-sm text-ink-4">{body}</p>
       {action ? <div className="mt-sp-7">{action}</div> : null}
     </div>

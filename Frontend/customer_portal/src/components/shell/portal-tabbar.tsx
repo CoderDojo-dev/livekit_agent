@@ -36,7 +36,7 @@ export function PortalTabbar() {
   return (
     <nav
       aria-label="Portal"
-      className="fixed inset-x-0 bottom-0 z-20 flex h-14 border-t border-stroke-subtle bg-surface-1 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 flex h-14 border-t border-stroke-subtle bg-surface-1/90 backdrop-blur-md lg:hidden"
     >
       {ITEMS.map((item) => {
         const Icon = ICONS[item.icon] ?? Info;
@@ -46,11 +46,23 @@ export function PortalTabbar() {
           <Link
             key={item.href}
             to={item.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-sp-2 transition-colors duration-200",
+              "focus-ring relative flex flex-1 flex-col items-center justify-center gap-sp-2 transition-colors duration-200 active:scale-[0.97]",
               active ? "text-ink-1" : "text-ink-5",
             )}
           >
+            {/* The bar's only mark of position was the ink level of the label,
+                which at t-micro-2 is a 10px difference in grey. A 2px rule on
+                the leading edge of the cell is the same device the rail and the
+                settings nav use, at the size a 56px bar can carry. */}
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute inset-x-sp-7 top-0 h-0.5 rounded-b-r-1 bg-n-12 transition-opacity duration-200",
+                active ? "opacity-100" : "opacity-0",
+              )}
+            />
             {/* A 14px bar has no room for a pill, so the count becomes a
                 superscript on the icon - the same fact, at the size the bar
                 can carry. */}

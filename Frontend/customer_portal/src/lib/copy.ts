@@ -71,7 +71,29 @@ export const copy = {
     assurance: {
       encrypted: "Encrypted end to end",
       audioOnly: "Audio only",
+      noRecording: "Never recorded",
     },
+    /*
+     * The ambient prompts that drift across the scene while no call is running.
+     *
+     * They exist to answer the question the empty screen actually provokes —
+     * "what am I allowed to say?" — before the customer has to ask it. Every
+     * one of them is something the assistant can genuinely do: the list is a
+     * subset of copy.about.can, never a wish list. The `id` is the icon key in
+     * the backdrop; nothing here is read aloud, because a rotating aria-live
+     * region is hostile, and copy.assistant.state already says the same thing
+     * to a screen reader once.
+     */
+    prompts: [
+      { id: "ask", label: "Ask a question" },
+      { id: "problem", label: "Report a problem" },
+      { id: "bill", label: "Explain my bill" },
+      { id: "balance", label: "Check my balance" },
+      { id: "request", label: "Track a request" },
+      { id: "callback", label: "Arrange a call back" },
+      { id: "person", label: "Speak to a person" },
+      { id: "plan", label: "Change my plan" },
+    ],
     state: {
       disconnected: {
         label: "Ready when you are",
@@ -211,6 +233,8 @@ export const copy = {
     },
     expires: (on: string) => `expires ${on}`,
     recharges: "Top-ups",
+    /** Chip beside a balance whose allowance runs out inside the week. */
+    expiringSoon: "Expiring soon",
     balancesEmpty: {
       title: "No balances yet",
       body: "Balances appear here once your line is active. If you expect credit, ask the assistant to check the line.",
@@ -231,6 +255,24 @@ export const copy = {
     total: "TOTAL",
     issued: "ISSUED",
     due: "DUE",
+    /* The three tiles that qualify the amount due. Every one of them is a
+       figure the /me/billing payload already carried and the screen threw
+       away - a card with one number on it and a third of the page empty under
+       it was a layout problem caused by unused data, not by spacing. */
+    invoiceCount: "INVOICES",
+    invoiceCountHint: (paid: number) => `${paid} settled`,
+    lastPayment: "LAST PAYMENT",
+    nextDue: "NEXT DUE",
+    nextDueNone: "Nothing scheduled",
+    noPaymentYet: "None yet",
+    settled: "Settled",
+    outstandingOf: (paid: string, total: string) => `${paid} of ${total} settled`,
+    payments: "PAYMENTS",
+    paymentsNote: "The most recent payments we have recorded against your account.",
+    noPayments: {
+      title: "No payments recorded",
+      body: "Payments settled against your invoices appear here with the method used.",
+    },
     noInvoices: {
       title: "No invoices yet",
       body: "Postpaid invoices appear here after your first billing cycle.",
@@ -245,6 +287,42 @@ export const copy = {
       "The assistant can answer most questions instantly, and hand you to a specialist when it cannot.",
     talkToAssistant: "Talk to the assistant",
     openRequest: "Open a request",
+    faqHeading: "COMMON QUESTIONS",
+    faqIntro: "The six things people ask before they call for the first time.",
+    /*
+     * Every answer below restates something the product already guarantees
+     * elsewhere - about.dataBody, about.can, about.cannot,
+     * preferences.agentLanguageNote, profile.locked. Nothing here is a new
+     * promise, because a help page that invents behaviour is worse than a help
+     * page that is missing.
+     */
+    faq: [
+      {
+        q: "Am I speaking to a real person?",
+        a: "No. The assistant is automated. It says so at the start of every conversation, and it can pass you to a human specialist the moment you ask or the moment it cannot help.",
+      },
+      {
+        q: "Is my voice recorded?",
+        a: "No audio is ever stored. Your words are turned into text so the assistant can understand them, and a masked written record is kept so you and our advisors can refer back to it.",
+      },
+      {
+        q: "Can it actually change things on my account?",
+        a: "For a defined set of actions, yes — and it tells you what it is about to do before it does it. You can stop it at any point. It can never take a payment or change your password.",
+      },
+      {
+        q: "What language will it speak?",
+        a: "French, Arabic or English. Set the language new conversations open in under Preferences, and ask the assistant to switch at any point during a call — asking always wins.",
+      },
+      {
+        q: "What if it gets something wrong?",
+        a: "Ask it to pass you to a person, or open a request from this page. Everything the assistant did during your conversation is listed in Activity, so an advisor can see exactly what happened.",
+      },
+      {
+        q: "Why can I not edit my details here?",
+        a: "Your name, reference and addresses come from your account record and are read-only in the portal, so nothing can be changed by someone who reaches an unlocked screen. Ask the assistant if anything is wrong.",
+      },
+    ],
+    quickHeading: "IN A HURRY?",
     topics: {
       plan: {
         title: "Plans and subscriptions",
@@ -274,6 +352,10 @@ export const copy = {
     },
   },
   profile: {
+    navLabel: "Profile sections",
+    /** Copies the customer reference to the clipboard. */
+    copied: "Copied to your clipboard.",
+    copyFailed: "Your browser would not let us copy that.",
     nav: {
       identity: "Identity",
       contact: "Contact",
@@ -317,6 +399,8 @@ export const copy = {
     },
   },
   preferences: {
+    /** Names the section switcher for assistive technology. */
+    navLabel: "Preference sections",
     nav: {
       appearance: "Appearance",
       voice: "Voice and audio",
@@ -363,6 +447,7 @@ export const copy = {
       "Applies across the portal immediately, including the assistant visual. Your system setting still wins when it asks for reduced motion.",
   },
   security: {
+    navLabel: "Security sections",
     nav: {
       signIn: "Sign-in",
       sessions: "Active sessions",
@@ -513,6 +598,28 @@ export const copy = {
       scratch_card: "Scratch card",
       agent: "In store",
     },
+    /* billing.recharges.status. The rows rendered the raw enum - "completed",
+       lowercase, straight from the OCS - next to five labels that had all been
+       translated. Truth in labelling is not optional on one column. */
+    rechargeStatus: { pending: "Pending", completed: "Completed", failed: "Failed" },
+    /* billing.payments.method and .status. Both columns are constrained enums
+       in packages/persistence (method IN card|bank_transfer|wallet|voucher|cash,
+       status IN pending|succeeded|failed|refunded) and both reach the portal as
+       plain strings, so each map falls back to the raw value rather than
+       rendering nothing for a value added later. */
+    paymentMethod: {
+      card: "Card",
+      bank_transfer: "Bank transfer",
+      wallet: "Wallet",
+      voucher: "Voucher",
+      cash: "Cash",
+    },
+    paymentStatus: {
+      pending: "Pending",
+      succeeded: "Paid",
+      failed: "Failed",
+      refunded: "Refunded",
+    },
     notificationChannel: { sms: "Text message", whatsapp: "WhatsApp", email: "Email" },
     notificationStatus: { queued: "Queued", sent: "Sent", failed: "Not delivered" },
     callbackStatus: { pending: "Scheduled", completed: "Done", cancelled: "Cancelled" },
@@ -529,6 +636,8 @@ export const copy = {
   },
   notifications: {
     heading: "RECENT MESSAGES",
+    /** Footer of the topbar tray. The tray holds twenty; Activity holds all. */
+    seeAll: "See every message",
     genericMessage: "A message about your account",
     empty: "No messages from us recently. Alerts about your line appear here.",
   },

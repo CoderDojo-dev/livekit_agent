@@ -1,7 +1,8 @@
+import * as React from "react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button, Card, EmptyState, SectionLabel } from "@/components/portal/primitives";
+import { ChevronLeft, ChevronRight, RotateCw, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Button, Card, EmptyState, IconFrame, SectionLabel } from "@/components/portal/primitives";
 import { copy } from "@/lib/copy";
 import { usePortalReducedMotion } from "@/hooks/use-portal-motion";
 import { errorMessage } from "@/lib/api/errors";
@@ -30,14 +31,24 @@ export function PageSection({
   right,
   children,
   className,
+  index = 0,
 }: {
   label?: string | undefined;
   right?: ReactNode | undefined;
   children: ReactNode;
   className?: string | undefined;
+  /**
+   * Position in the page, used only to stagger the entrance. Capped at four
+   * steps (240ms): past that the reader is waiting on the animation rather
+   * than watching the page arrive, which is the opposite of the point.
+   */
+  index?: number | undefined;
 }) {
   return (
-    <section className={cn("portal-section", className)}>
+    <section
+      className={cn("portal-section", className)}
+      style={{ "--rise-delay": `${Math.min(index, 4) * 60}ms` } as React.CSSProperties}
+    >
       {label ? <SectionLabel right={right}>{label}</SectionLabel> : null}
       <div className={cn(label && "mt-sp-6")}>{children}</div>
     </section>
@@ -248,27 +259,38 @@ export function DataSection<T>({
   empty,
   onRetry,
   children,
+  index,
+  icon,
 }: {
   label?: string;
   right?: ReactNode;
   state: { isPending: boolean; isFetching: boolean; isPlaceholderData?: boolean; error: unknown };
   items: T[] | undefined;
   skeletonRows?: number;
-  empty: { title: string; body: string; action?: ReactNode };
+  empty: { title: string; body: string; action?: ReactNode; icon?: LucideIcon | undefined };
   onRetry?: () => void;
   children: (items: T[]) => ReactNode;
+  /** Entrance stagger, forwarded to PageSection. */
+  index?: number | undefined;
+  /** Glyph for the empty state, when the caller has not put one in `empty`. */
+  icon?: LucideIcon | undefined;
 }) {
   const { isPending, error } = state;
 
   return (
-    <PageSection label={label} right={right}>
+    <PageSection label={label} right={right} index={index}>
       <Card>
         {isPending ? (
           <SkeletonList rows={skeletonRows} />
         ) : error ? (
           <ErrorState error={error} onRetry={onRetry} />
         ) : !items || items.length === 0 ? (
-          <EmptyState title={empty.title} body={empty.body} action={empty.action} />
+          <EmptyState
+            title={empty.title}
+            body={empty.body}
+            action={empty.action}
+            icon={empty.icon ?? icon}
+          />
         ) : (
           <motion.div
             // Dim only when the rows on screen are about to be replaced by a
@@ -296,14 +318,21 @@ export function ErrorState({
 }) {
   // errorMessage() already covers 401 / 403 / 429 / transport (Cookbook 2).
   return (
-    <div className="flex flex-col items-start gap-sp-5 py-sp-8">
-      <div className="hatch-45 h-6 w-full rounded-r-1 opacity-40" aria-hidden="true" />
-      <div>
-        <div className="t-body-strong text-ink-1">{copy.common.couldNotLoad}</div>
-        <p className="t-caption mt-sp-2 max-w-md text-ink-4">{errorMessage(error)}</p>
+    <div className="flex flex-col items-start gap-sp-5 py-sp-7">
+      {/* The hatch is the portal's failure texture (38.4). It keeps its band,
+          but the glyph and the sentence now sit on one line under it, so a
+          failed section reads as a short notice rather than a stack. */}
+      <div className="hatch-45 h-5 w-full rounded-r-1 opacity-40" aria-hidden="true" />
+      <div className="flex items-start gap-sp-5">
+        <IconFrame icon={TriangleAlert} tone="strong" />
+        <div className="min-w-0">
+          <div className="t-body-strong text-ink-1">{copy.common.couldNotLoad}</div>
+          <p className="t-caption mt-sp-2 max-w-md text-ink-4">{errorMessage(error)}</p>
+        </div>
       </div>
       {onRetry ? (
         <Button variant="secondary" size="sm" onClick={onRetry}>
+          <RotateCw size={14} strokeWidth={1.5} />
           {copy.common.tryAgain}
         </Button>
       ) : null}
@@ -441,13 +470,35 @@ export function InteractiveRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "focus-ring block w-full rounded-r-2 px-sp-4 py-sp-6 text-left transition-all duration-200",
+        // `group` so the row's own children can answer the cursor - the icon
+        // frames brighten, the chevron slides. `row-accent` grows the same 2px
+        // leading stroke the rail uses for the active destination.
+        "focus-ring group row-accent block w-full rounded-r-2 px-sp-5 py-sp-6 text-left transition-all duration-200",
         "hover:bg-surface-2 hover:shadow-elev-1 active:scale-[0.995]",
         className,
       )}
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * The chevron that ends an InteractiveRow.
+ *
+ * Holds its width at rest and only fades and slides, so nothing on the row
+ * moves when the cursor arrives - the same rule the rail's shortcut hint
+ * follows. Opt-in: a row whose last cell is already a status chip does not
+ * need a second "there is more this way".
+ */
+export function RowChevron() {
+  return (
+    <ChevronRight
+      size={15}
+      strokeWidth={1.5}
+      aria-hidden="true"
+      className="shrink-0 text-ink-5 opacity-0 transition-all duration-200 group-hover:translate-x-sp-1 group-hover:text-ink-3 group-hover:opacity-100"
+    />
   );
 }
 
@@ -531,6 +582,87 @@ export function TabPanel({
   );
 }
 
+/**
+ * Disclosure — one question, one answer, height-animated.
+ *
+ * `height: auto` is animatable here because Framer measures the element first.
+ * A hard-coded max-height is the usual substitute and it clips the moment an
+ * answer runs to three lines, which is most of them.
+ *
+ * The whole header is the control (a button, not a div with a click handler),
+ * so it is reachable by keyboard and announces its state through
+ * aria-expanded. The chevron only rotates; it never changes glyph, because a
+ * glyph swap under the cursor reads as two different buttons.
+ */
+export function Disclosure({
+  question,
+  children,
+  defaultOpen = false,
+}: {
+  question: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const reduce = usePortalReducedMotion();
+  const id = useId();
+
+  return (
+    <div className="border-b border-stroke-subtle last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={id}
+        className="focus-ring group flex w-full items-center gap-sp-5 rounded-r-2 py-sp-6 text-left transition-colors duration-200"
+      >
+        <ChevronRight
+          size={15}
+          strokeWidth={1.5}
+          aria-hidden="true"
+          className={cn(
+            "shrink-0 text-ink-5 transition-transform duration-200 group-hover:text-ink-3",
+            open && "rotate-90",
+          )}
+        />
+        <span
+          className={cn(
+            "t-body-strong min-w-0 flex-1 transition-colors duration-200",
+            open ? "text-ink-1" : "text-ink-2 group-hover:text-ink-1",
+          )}
+        >
+          {question}
+        </span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            id={id}
+            key="answer"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={
+              reduce
+                ? { duration: 0 }
+                : {
+                    height: { duration: 0.24, ease: EASE_OUT },
+                    opacity: { duration: 0.12, ease: EASE_OUT },
+                  }
+            }
+            style={{ overflow: "hidden" }}
+          >
+            {/* The indent lines the answer up with the question, not with the
+                chevron: the answer belongs to the words, not to the marker. */}
+            <div className="pb-sp-6 ps-sp-8">{children}</div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 /** Metric tile — the anti-cramming device: one number, one label, real space. */
 export function MetricTile({
   label,
@@ -538,6 +670,7 @@ export function MetricTile({
   hint,
   size = "m",
   share,
+  icon,
   /** Shows a shimmer at the value's own type size instead of a placeholder
    *  glyph, so "still loading" is never read as "zero" or "nothing". */
   pending = false,
@@ -546,6 +679,12 @@ export function MetricTile({
   value: string;
   hint?: string | undefined;
   size?: "m" | "l" | "xl";
+  /**
+   * Sits beside the label, never beside the number. A tile is read
+   * label-then-figure; an icon next to the figure competes with it for the
+   * one thing the tile exists to say.
+   */
+  icon?: LucideIcon | undefined;
   /**
    * A hairline proportion bar under the value. Only pass this when the metric
    * genuinely IS a part of a whole that the same payload already carries -
@@ -560,8 +699,11 @@ export function MetricTile({
   const barHeight = size === "xl" ? "h-10" : size === "l" ? "h-8" : "h-6";
   const ratio = share && share.of > 0 ? Math.min(Math.max(share.value / share.of, 0), 1) : null;
   return (
-    <div className="min-w-0">
-      <div className="t-micro-2 text-ink-5">{label}</div>
+    <div className="group/tile min-w-0">
+      <div className="flex items-center gap-sp-4">
+        {icon ? <IconFrame icon={icon} size="sm" /> : null}
+        <div className="t-micro-2 min-w-0 truncate text-ink-5">{label}</div>
+      </div>
       {pending ? (
         <div
           className={cn("skeleton mt-sp-3 w-32 rounded-r-2", barHeight)}

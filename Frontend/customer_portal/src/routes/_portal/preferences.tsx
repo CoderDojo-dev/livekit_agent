@@ -3,8 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { brand, copy, pageTitle } from "@/lib/copy";
+import { Languages, Palette, Volume2 } from "lucide-react";
 import { Card, Divider, Segmented, SectionLabel, SwitchRow } from "@/components/portal/primitives";
-import { SkeletonLine } from "@/components/portal/data";
+import { PageSection, SkeletonLine } from "@/components/portal/data";
+import { SettingsNav } from "@/components/portal/settings-nav";
 import { updatePreferences, usePreferences } from "@/lib/preferences";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { qk } from "@/lib/query-keys";
@@ -39,9 +41,9 @@ export const Route = createFileRoute("/_portal/preferences")({
 });
 
 const SECTIONS = [
-  { id: "appearance", label: copy.preferences.nav.appearance },
-  { id: "voice", label: copy.preferences.nav.voice },
-  { id: "language", label: copy.preferences.nav.language },
+  { id: "appearance", label: copy.preferences.nav.appearance, icon: Palette },
+  { id: "voice", label: copy.preferences.nav.voice, icon: Volume2 },
+  { id: "language", label: copy.preferences.nav.language, icon: Languages },
 ] as const;
 
 /*
@@ -149,90 +151,85 @@ function PreferencesScreen() {
 
   return (
     <div className="grid gap-sp-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <nav className="lg:sticky lg:top-24 lg:self-start">
-        <ul className="space-y-sp-1">
-          {SECTIONS.map((s) => (
-            <li key={s.id}>
-              <button
-                onClick={() => setSection(s.id)}
-                className={cn(
-                  "focus-ring t-ui flex h-9 w-full items-center rounded-r-2 px-sp-5 text-left transition-colors duration-200",
-                  section === s.id
-                    ? "bg-surface-3 text-ink-1"
-                    : "text-ink-4 hover:bg-surface-2 hover:text-ink-2",
-                )}
-              >
-                {s.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SettingsNav
+        sections={SECTIONS}
+        value={section}
+        onChange={setSection}
+        label={copy.preferences.navLabel}
+      />
 
       <div className="space-y-sp-8">
         {section === "appearance" && (
-          <Card>
-            <SectionLabel>{copy.preferences.appearance}</SectionLabel>
-            <div className="mt-sp-7 space-y-sp-7">
-              <div>
-                <div className="t-label text-ink-4">{copy.preferences.theme}</div>
-                <div className="mt-sp-4">
-                  <Segmented
-                    label={copy.preferences.theme}
-                    options={copy.preferences.themes}
-                    value={prefs.theme === "light" ? "Light" : "Dark"}
-                    onChange={(v) => update({ theme: v === "Light" ? "light" : "dark" })}
-                  />
+          <PageSection>
+            <Card>
+              <SectionLabel>{copy.preferences.appearance}</SectionLabel>
+              <div className="mt-sp-7 space-y-sp-7">
+                <div>
+                  <div className="t-label text-ink-4">{copy.preferences.theme}</div>
+                  <div className="mt-sp-4">
+                    <Segmented
+                      label={copy.preferences.theme}
+                      options={copy.preferences.themes}
+                      value={prefs.theme === "light" ? "Light" : "Dark"}
+                      onChange={(v) => update({ theme: v === "Light" ? "light" : "dark" })}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="t-label text-ink-4">{copy.preferences.density}</div>
-                <div className="mt-sp-4">
-                  <Segmented
-                    label={copy.preferences.density}
-                    options={copy.preferences.densities}
-                    value={prefs.density === "compact" ? "Compact" : "Comfortable"}
-                    onChange={(v) =>
-                      update({ density: v === "Compact" ? "compact" : "comfortable" })
-                    }
-                  />
+                <div>
+                  <div className="t-label text-ink-4">{copy.preferences.density}</div>
+                  <div className="mt-sp-4">
+                    <Segmented
+                      label={copy.preferences.density}
+                      options={copy.preferences.densities}
+                      value={prefs.density === "compact" ? "Compact" : "Comfortable"}
+                      onChange={(v) =>
+                        update({ density: v === "Compact" ? "compact" : "comfortable" })
+                      }
+                    />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="t-label text-ink-4">{copy.preferences.textSize}</div>
-                <div className="mt-sp-4">
-                  <Segmented
-                    label={copy.preferences.textSize}
-                    options={copy.preferences.textSizes}
-                    value={prefs.textSize === "large" ? "Large" : "Default"}
-                    onChange={(v) => update({ textSize: v === "Large" ? "large" : "default" })}
-                  />
+                <div>
+                  <div className="t-label text-ink-4">{copy.preferences.textSize}</div>
+                  <div className="mt-sp-4">
+                    <Segmented
+                      label={copy.preferences.textSize}
+                      options={copy.preferences.textSizes}
+                      value={prefs.textSize === "large" ? "Large" : "Default"}
+                      onChange={(v) => update({ textSize: v === "Large" ? "large" : "default" })}
+                    />
+                  </div>
                 </div>
+                <Divider />
+                <SwitchRow
+                  {...copy.preferences.switches.reduceMotion}
+                  checked={prefs.reduceMotion}
+                  onChange={(v) => update({ reduceMotion: v })}
+                />
+                <p className="t-caption text-ink-4">{copy.preferences.reduceMotionNote}</p>
               </div>
-              <Divider />
-              <SwitchRow
-                {...copy.preferences.switches.reduceMotion}
-                checked={prefs.reduceMotion}
-                onChange={(v) => update({ reduceMotion: v })}
-              />
-              <p className="t-caption text-ink-4">{copy.preferences.reduceMotionNote}</p>
-            </div>
-          </Card>
+            </Card>
+          </PageSection>
         )}
 
-        {section === "language" && <LanguageSection />}
+        {section === "language" && (
+          <PageSection>
+            <LanguageSection />
+          </PageSection>
+        )}
 
         {section === "voice" && (
-          <Card>
-            <SectionLabel>{copy.preferences.voice}</SectionLabel>
-            <div className="mt-sp-4 divide-y divide-stroke-subtle">
-              <SwitchRow
-                {...copy.preferences.switches.captions}
-                checked={prefs.captions}
-                onChange={(v) => update({ captions: v })}
-              />
-            </div>
-          </Card>
+          <PageSection>
+            <Card>
+              <SectionLabel>{copy.preferences.voice}</SectionLabel>
+              <div className="mt-sp-4 divide-y divide-stroke-subtle">
+                <SwitchRow
+                  {...copy.preferences.switches.captions}
+                  checked={prefs.captions}
+                  onChange={(v) => update({ captions: v })}
+                />
+              </div>
+            </Card>
+          </PageSection>
         )}
       </div>
     </div>

@@ -2,12 +2,28 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { usePortalSession } from "@/lib/use-portal-session";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  ArrowUpRight,
+  Banknote,
+  BanknoteArrowUp,
+  CalendarClock,
+  CreditCard,
+  FileText,
+  Landmark,
+  Ticket,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { brand, copy, pageTitle } from "@/lib/copy";
 import { qk } from "@/lib/query-keys";
-import { fetchBalance, fetchBilling, type InvoiceItem } from "@/lib/api/billing.server";
-import { date, money } from "@/lib/format";
-import type { Paged } from "@/lib/api/activity.server";
-import { Card, Divider, SectionLabel, StatusChip } from "@/components/portal/primitives";
+import {
+  fetchBalance,
+  fetchBilling,
+  type InvoiceItem,
+  type PaymentItem,
+} from "@/lib/api/billing.server";
+import { date, dateTime, money } from "@/lib/format";
+import { Card, Divider, IconFrame, SectionLabel, StatusChip } from "@/components/portal/primitives";
 import {
   DataSection,
   ErrorState,
@@ -16,6 +32,7 @@ import {
   PageSection,
   Pagination,
   Panel,
+  RowChevron,
 } from "@/components/portal/data";
 
 export const Route = createFileRoute("/_portal/billing")({
@@ -51,10 +68,37 @@ const INVOICE_TONE: Record<
   void: "muted",
 };
 
+/* billing.payments.method is a constrained enum in persistence but arrives as a
+ * plain string, so both maps are keyed loosely and fall back — an enum value
+ * added later renders as itself rather than as a blank cell. */
+const METHOD_ICON: Record<string, LucideIcon> = {
+  card: CreditCard,
+  bank_transfer: Landmark,
+  wallet: Wallet,
+  voucher: Ticket,
+  cash: Banknote,
+};
+
+const PAYMENT_TONE: Record<string, "solid" | "outline" | "dashed" | "muted"> = {
+  succeeded: "outline",
+  pending: "dashed",
+  failed: "muted",
+  refunded: "muted",
+};
+
 function invoicePeriod(invoice: InvoiceItem): string {
   return invoice.period_start && invoice.period_end
     ? `${date(invoice.period_start)} – ${date(invoice.period_end)}`
     : "—";
+}
+
+/** The most recent payment that actually settled. A pending or failed capture
+ *  is not "what you last paid", and showing one as such would be a small lie
+ *  about the state of the account. */
+function lastSettled(payments: PaymentItem[]): PaymentItem | undefined {
+  return payments
+    .filter((payment) => payment.status === "succeeded" && payment.paid_at)
+    .sort((a, b) => new Date(b.paid_at!).getTime() - new Date(a.paid_at!).getTime())[0];
 }
 
 function BillingScreen() {
@@ -86,21 +130,64 @@ function BillingScreen() {
 
   const invoices = billing?.invoices?.items ?? [];
   const invoiceTotal = billing?.invoices?.total ?? 0;
+  const payments = billing?.payments ?? [];
+  const settled = lastSettled(payments);
+  // Counted over the loaded page only, and labelled as a count of invoices —
+  // the endpoint gives a whole-account invoice total but no whole-account paid
+  // total, so this qualifies the page rather than claiming to describe the
+  // account.
+  const paidOnPage = invoices.filter((invoice) => invoice.status === "paid").length;
 
   return (
     <div className="space-y-sp-9">
-      <PageSection>
+      {/*
+        THE HEADLINE.
+
+        This was one tile alone on a full-width card: a single figure with two
+        thirds of a card of empty space beside it. The two facts that qualify
+        it — when the next payment is due, and what was last actually paid —
+        were both already in the payload and both thrown away. Three tiles, one
+        card, no new request.
+      */}
+      <PageSection index={0}>
         <Card>
           {billingQuery.isError ? (
             <ErrorState error={billingQuery.error} onRetry={() => void billingQuery.refetch()} />
           ) : (
-            <MetricTile
-              size="xl"
-              pending={billingQuery.isPending}
-              label={copy.billing.amountDue}
-              value={billing ? money(billing.total_outstanding, billing.currency_code) : ""}
-              hint={billing?.next_due_date ? date(billing.next_due_date) : undefined}
-            />
+            <div className="grid gap-sp-7 sm:grid-cols-2 lg:grid-cols-3">
+              <MetricTile
+                icon={Wallet}
+                size="xl"
+                pending={billingQuery.isPending}
+                label={copy.billing.amountDue}
+                value={billing ? money(billing.total_outstanding, billing.currency_code) : ""}
+                hint={billing?.next_due_date ? date(billing.next_due_date) : undefined}
+              />
+              <MetricTile
+                icon={CalendarClock}
+                size="l"
+                pending={billingQuery.isPending}
+                label={copy.billing.nextDue}
+                value={
+                  billing?.next_due_date ? date(billing.next_due_date) : copy.billing.nextDueNone
+                }
+                hint={
+                  billing && invoiceTotal > 0
+                    ? copy.billing.invoiceCountHint(paidOnPage)
+                    : undefined
+                }
+              />
+              <MetricTile
+                icon={BanknoteArrowUp}
+                size="l"
+                pending={billingQuery.isPending}
+                label={copy.billing.lastPayment}
+                value={
+                  settled ? money(settled.amount, settled.currency_code) : copy.billing.noPaymentYet
+                }
+                hint={settled?.paid_at ? date(settled.paid_at) : undefined}
+              />
+            </div>
           )}
         </Card>
       </PageSection>
@@ -108,6 +195,8 @@ function BillingScreen() {
       {postpaid && (
         <DataSection<InvoiceItem>
           label={copy.billing.invoices}
+          index={1}
+          icon={FileText}
           state={{
             isPending: billingQuery.isPending,
             isFetching: billingQuery.isFetching,
@@ -131,6 +220,7 @@ function BillingScreen() {
                       onClick={() => setSelected(invoice)}
                       className="flex items-center gap-sp-5"
                     >
+                      <IconFrame icon={FileText} />
                       <span className="t-mono min-w-0 flex-1 truncate text-ink-2">
                         {invoice.invoice_number}
                       </span>
@@ -143,6 +233,7 @@ function BillingScreen() {
                       <StatusChip tone={INVOICE_TONE[invoice.status]}>
                         {copy.labels.invoiceStatus[invoice.status] ?? invoice.status}
                       </StatusChip>
+                      <RowChevron />
                     </InteractiveRow>
                   </li>
                 ))}
@@ -158,17 +249,90 @@ function BillingScreen() {
         </DataSection>
       )}
 
+      {/*
+        THE PAYMENTS.
+
+        /me/billing has returned a `payments` array since the endpoint was
+        written and no screen has ever rendered it, so "did my payment go
+        through?" — the single most common billing question there is — had no
+        answer anywhere in the portal. It is a short unpaged list by design on
+        the server side ("context for the invoices, not a browsable ledger"),
+        so it gets a section and no pager.
+      */}
+      {postpaid && (
+        <DataSection<PaymentItem>
+          label={copy.billing.payments}
+          index={2}
+          icon={BanknoteArrowUp}
+          right={<span className="t-caption text-ink-5">{copy.billing.paymentsNote}</span>}
+          state={{
+            isPending: billingQuery.isPending,
+            isFetching: billingQuery.isFetching,
+            isPlaceholderData: billingQuery.isPlaceholderData,
+            error: billingQuery.error,
+          }}
+          items={payments}
+          skeletonRows={3}
+          empty={copy.billing.noPayments}
+          onRetry={() => void billingQuery.refetch()}
+        >
+          {(items) => (
+            <ul className="divide-y divide-stroke-subtle">
+              {items.map((payment, index) => {
+                const method = payment.method ?? "";
+                const Icon = METHOD_ICON[method] ?? Banknote;
+                return (
+                  <li
+                    key={`${payment.invoice_number ?? "na"}-${payment.paid_at ?? index}`}
+                    className="group flex items-center gap-sp-5 py-sp-6 first:pt-0 last:pb-0"
+                  >
+                    <IconFrame icon={Icon} />
+                    <div className="min-w-0 flex-1">
+                      <div className="t-body-strong text-ink-1">
+                        {money(payment.amount, payment.currency_code)}
+                      </div>
+                      <div className="t-caption mt-sp-1 truncate text-ink-5">
+                        {copy.labels.paymentMethod[
+                          method as keyof typeof copy.labels.paymentMethod
+                        ] ?? method}
+                        {payment.invoice_number ? ` · ${payment.invoice_number}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-sp-2">
+                      <StatusChip tone={PAYMENT_TONE[payment.status] ?? "muted"}>
+                        {copy.labels.paymentStatus[
+                          payment.status as keyof typeof copy.labels.paymentStatus
+                        ] ?? payment.status}
+                      </StatusChip>
+                      <span className="t-mono-s text-ink-5">{dateTime(payment.paid_at)}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </DataSection>
+      )}
+
       {hasBalances && (
-        <PageSection>
-          <Card className="flex items-center justify-between gap-sp-6">
-            <p className="t-caption max-w-md text-ink-4">{copy.billing.prepaidPointer}</p>
-            <Link
-              to="/services"
-              className="focus-ring t-ui shrink-0 rounded-r-2 px-sp-5 py-sp-3 text-ink-2 transition-colors duration-200 hover:bg-surface-2 hover:text-ink-1"
-            >
-              {copy.billing.prepaidPointerAction}
-            </Link>
-          </Card>
+        <PageSection index={3}>
+          <Link to="/services" className="focus-ring group block rounded-r-5">
+            <Card interactive className="flex items-center justify-between gap-sp-6 p-sp-7">
+              <div className="flex min-w-0 items-center gap-sp-5">
+                <IconFrame icon={Wallet} />
+                <p className="t-body min-w-0 text-ink-3">{copy.billing.prepaidPointer}</p>
+              </div>
+              <span className="t-ui inline-flex shrink-0 items-center gap-sp-3 text-ink-4 transition-colors duration-200 group-hover:text-ink-1">
+                {copy.billing.prepaidPointerAction}
+                <ArrowUpRight
+                  size={15}
+                  strokeWidth={1.6}
+                  aria-hidden="true"
+                  className="transition-transform duration-200 group-hover:-translate-y-px group-hover:translate-x-px"
+                />
+              </span>
+            </Card>
+          </Link>
         </PageSection>
       )}
 
@@ -196,6 +360,44 @@ function BillingScreen() {
               {copy.billing.invoices}
             </SectionLabel>
             <Divider className="mt-sp-7" />
+
+            {/* How much of this invoice is actually settled. Both numbers are
+                on the row above; the bar only draws the relationship between
+                them, and it is skipped entirely when the total is missing or
+                zero rather than rendering a full bar over no data. */}
+            {selected.total_amount ? (
+              <div className="mt-sp-7">
+                <div className="flex items-baseline justify-between gap-sp-5">
+                  <span className="t-micro-2 text-ink-5">{copy.billing.settled}</span>
+                  <span className="t-mono-s text-ink-4">
+                    {copy.billing.outstandingOf(
+                      money(
+                        selected.total_amount - (selected.outstanding_amount ?? 0),
+                        selected.currency_code,
+                      ),
+                      money(selected.total_amount, selected.currency_code),
+                    )}
+                  </span>
+                </div>
+                <div className="mt-sp-4 h-1.5 w-full overflow-hidden rounded-r-1 border border-stroke-subtle bg-surface-3">
+                  <div
+                    className="h-full bg-ink-2 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(
+                          0,
+                          ((selected.total_amount - (selected.outstanding_amount ?? 0)) /
+                            selected.total_amount) *
+                            100,
+                        ),
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
+
             <dl className="mt-sp-7 grid grid-cols-2 gap-sp-5">
               {[
                 [
@@ -206,9 +408,12 @@ function BillingScreen() {
                 [copy.billing.issued, date(selected.issue_date)],
                 [copy.billing.due, date(selected.due_date)],
               ].map(([k, v]) => (
-                <div key={k}>
+                <div
+                  key={k}
+                  className="rounded-r-2 border border-stroke-subtle bg-surface-2 p-sp-5"
+                >
                   <dt className="t-micro-2 text-ink-5">{k}</dt>
-                  <dd className="t-body-strong mt-sp-2 text-ink-2">{v}</dd>
+                  <dd className="t-body-strong mt-sp-2 text-ink-1">{v}</dd>
                 </div>
               ))}
             </dl>

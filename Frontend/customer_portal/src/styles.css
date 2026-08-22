@@ -79,16 +79,14 @@
 
   /* --- 6.2 elevations --- */
   --elev-0: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --elev-1:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --elev-2:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px -2px rgba(0, 0, 0, 0.5);
+  --elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elev-2: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px -2px rgba(0, 0, 0, 0.5);
   --elev-3:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 12px 24px -6px rgba(0, 0, 0, 0.6), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 24px -6px rgba(0, 0, 0, 0.6),
+    0 2px 6px -2px rgba(0, 0, 0, 0.4);
   --elev-4:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    0 32px 64px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
+    inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 32px 64px -12px rgba(0, 0, 0, 0.7),
+    0 8px 20px -6px rgba(0, 0, 0, 0.5);
 
   /* --- 6.6 lueur --- */
   --glow-soft: 0 0 24px rgba(255, 255, 255, 0.06);
@@ -567,4 +565,256 @@
 /* Large text: one multiplier, applied by the type scale above. */
 [data-text-size="large"] {
   --text-scale: 1.15;
+}
+
+/* ===========================================================================
+ * VOLUME III — LE PORTAIL PREND VIE
+ *
+ * Everything below is additive: no token above is redefined, no existing rule
+ * is altered. Volume II decided WHAT the portal looks like; this volume
+ * decides how it MOVES and how a surface answers the cursor. The constraint is
+ * unchanged and absolute — every colour value here still satisfies
+ * R === G === B, and every animation is already silenced by the two
+ * reduced-motion blocks above, which match on `*`.
+ * ========================================================================= */
+
+:root {
+  /* Hairlines for the assistant's field grid. Two weights: the resting rule
+     and the one a passing highlight lights up. */
+  --grid-line: rgba(255, 255, 255, 0.05);
+  --grid-line-lit: rgba(255, 255, 255, 0.11);
+  /* The drifting light behind the orb. Achromatic by construction: white at
+     8% over a near-black canvas is a value, not a hue. */
+  --aurora-ink: rgba(255, 255, 255, 0.08);
+  /* Shared by the pulse ring and the hover sheen. */
+  --sheen: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="light"] {
+  /* On a light field the same three things are darkenings rather than
+     lightenings, and they need less of themselves to read. */
+  --grid-line: rgba(0, 0, 0, 0.055);
+  --grid-line-lit: rgba(0, 0, 0, 0.1);
+  --aurora-ink: rgba(0, 0, 0, 0.05);
+  --sheen: rgba(0, 0, 0, 0.05);
+}
+
+/* --- 4.4 : le dix-neuvieme token ---
+   help.tsx has asked for `t-body-l` since the screen was written and the class
+   never existed, so its topic titles silently rendered at the inherited size.
+   15/24 sits between t-body (14/22) and t-title-3 (15/20 semibold): the size
+   for a line that leads a card without being a heading. */
+@utility t-body-l {
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 400;
+  line-height: calc(24px * var(--text-scale));
+}
+
+/* --- 7.1 l'assemblage de la page ---
+   Every PageSection carries .portal-section. The class was referenced by
+   data.tsx and by help.tsx and defined nowhere, so it did nothing at all.
+   It now owns the entrance: bands rise in sequence, driven by --rise-delay,
+   which PageSection sets from its `index` and caps — so the page assembles
+   top-down instead of blinking in whole, and a long page never makes the
+   reader wait on its last band. */
+@keyframes portal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.portal-section {
+  animation: portal-rise var(--d-4) var(--ease-out) both;
+  animation-delay: var(--rise-delay, 0ms);
+  /* The topbar is h-16 and sticky; an anchored section must clear it. */
+  scroll-margin-top: 88px;
+}
+
+/* --- 6.3 la carte repond au curseur ---
+   Border, shadow and a two-pixel lift. Two pixels is the whole budget: a card
+   that jumps is a card that moves the row underneath it. */
+@utility card-lift {
+  transition:
+    border-color var(--d-3) var(--ease-out),
+    box-shadow var(--d-3) var(--ease-out),
+    background-color var(--d-3) var(--ease-out),
+    transform var(--d-3) var(--ease-out);
+
+  &:hover {
+    border-color: var(--stroke-strong);
+    box-shadow: var(--elev-3);
+    transform: translateY(-2px);
+  }
+}
+
+/* --- 6.4 la ligne repond au curseur ---
+   A row cannot lift: it lives in a divided list and lifting it tears the
+   hairline above it. It grows a leading stroke instead — the same 2px mark the
+   rail uses for the active destination, so "you are pointing at this" and
+   "you are on this" are visibly the same language. Logical inset so it hangs
+   from the leading edge in both directions. */
+@utility row-accent {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 50%;
+    width: 2px;
+    height: 0;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background: var(--ink-2);
+    opacity: 0;
+    transition:
+      height var(--d-3) var(--ease-out),
+      opacity var(--d-2) var(--ease-out);
+  }
+
+  &:hover::before,
+  &:focus-visible::before {
+    height: 56%;
+    opacity: 1;
+  }
+}
+
+/* --- 6.5 le point vivant ---
+   The only thing in the portal allowed to animate forever outside the
+   assistant scene, and only where something genuinely is live. */
+@keyframes portal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 var(--sheen);
+  }
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+.live-dot {
+  animation: portal-pulse 2000ms var(--ease-in-out) infinite;
+}
+
+/* ---------------------------------------------------------------------------
+ * 40. LA SCENE DE L'ASSISTANT — le fond
+ *
+ * Four layers, all decorative, all pointer-events:none, all behind the stage:
+ *
+ *   1. the field grid, drifting one cell every twenty-four seconds;
+ *   2. the aurora, a slow achromatic light breathing where the orb sits;
+ *   3. the scan, a single hairline crossing the field on a long cycle;
+ *   4. the prompts, which are the only layer that carries meaning — they
+ *      answer "what do I say?" before the customer has to ask it.
+ *
+ * Nothing here reacts to the call. The whole backdrop dims when a call starts:
+ * during a conversation the transcript is the subject and the wallpaper must
+ * get out of its way.
+ * ------------------------------------------------------------------------- */
+@keyframes portal-grid-drift {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      64px 64px,
+      64px 64px;
+  }
+}
+
+.scene-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size:
+    64px 64px,
+    64px 64px;
+  animation: portal-grid-drift 24s linear infinite;
+  /* Without the mask the grid runs into the topbar and the rail and reads as a
+     rendering artefact. Masked, it reads as a field the orb sits in. */
+  -webkit-mask-image: radial-gradient(
+    ellipse 72% 62% at 50% 46%,
+    #000 0%,
+    rgba(0, 0, 0, 0.5) 46%,
+    transparent 80%
+  );
+  mask-image: radial-gradient(
+    ellipse 72% 62% at 50% 46%,
+    #000 0%,
+    rgba(0, 0, 0, 0.5) 46%,
+    transparent 80%
+  );
+}
+
+@keyframes portal-aurora {
+  0% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(4%, 3%, 0) scale(1.14);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+    opacity: 0.5;
+  }
+}
+
+.scene-aurora {
+  background: radial-gradient(closest-side, var(--aurora-ink), transparent 72%);
+  animation: portal-aurora 20s var(--ease-in-out) infinite;
+}
+
+@keyframes portal-scan {
+  0% {
+    top: 6%;
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    top: 94%;
+    opacity: 0;
+  }
+}
+
+.scene-scan {
+  animation: portal-scan 11s var(--ease-in-out) infinite;
+}
+
+/* The prompts breathe on their own axis so two chips that faded in together do
+   not then move together. Each instance offsets the delay. */
+@keyframes portal-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.scene-float {
+  animation: portal-float 7s var(--ease-in-out) infinite;
+  animation-delay: var(--float-delay, 0ms);
+}
+
+/* The corner brackets that frame the field. Static, but they carry the
+   grid's lit weight so the frame reads as part of the same drawing. */
+.scene-bracket {
+  border-color: var(--grid-line-lit);
 }
